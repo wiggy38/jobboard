@@ -1,0 +1,376 @@
+// ============================================================
+// TUMAA — Schéma Prisma
+// Bot WhatsApp d'agrégation d'offres d'emploi
+// Version 1.0 — 2026
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserPlan {
+  FREEMIUM   // Niveau 1 — gratuit, aperçu
+  ESSENTIEL  // Niveau 2 — 500 FCFA/mois
+  PRO        // Niveau 3 — 1 500 FCFA/mois
+  FAMILLE    // Niveau 4 — 3 000 FCFA/mois (5 profils)
+}
+
+enum UserStatus {
+  ACTIVE
+  PAUSED     // utilisateur qui a tapé PAUSE
+  DORMANT    // inactif après 2 relances sans réponse
+  STOPPED    // a tapé STOP — désinscrit
+}
+
+enum ContractType {
+  CDI
+  CDD
+  STAGE
+  ALTERNANCE
+  FREELANCE
+  BENEVOLE
+  AUTRE
+}
+
+enum SourceType {
+  INSTITUTIONNEL   // gouvernement, ANPE, ministères
+  MEDIA_LOCAL      // Lefaso.net, Burkina24…
+  ONG              // PNUD, GIZ, AFD…
+  JOBBOARD         // Indeed, Rekrute, Afrique-emploi…
+  ENTREPRISE       // page carrière directe
+  RESEAU_SOCIAL    // Facebook, LinkedIn…
+  SCOUT            // collecte humaine terrain
+  B2B_DIRECT       // employeur publie lui-même
+  API              // Adzuna, flux RSS/XML
+}
+
+enum PaymentProvider {
+  ORANGE_MONEY
+  MOOV_MONEY
+  CORIS_MONEY
+  CARTE_BANCAIRE
+  REVENDEUR
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum TemplateType {
+  RELANCE         // inactif > 24h — max 2/mois
+  MATCH_PARFAIT   // offre à score très élevé — max 1/mois
+  NUDGE_PREMIUM   // utilisateur engagé sans abonnement — max 1/mois
+}
+
+enum JobOfferStatus {
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+// ============================================================
+// UTILISATEURS & PROFILS
+// ============================================================
+
+model User {
+  id          String   @id @default(uuid())
+  phone       String   @unique            // numéro WhatsApp (E.164)
+  displayName String?
+  plan        UserPlan @default(FREEMIUM)
+  status      UserStatus @default(ACTIVE)
+
+  // abonnement actif
+  planStartAt DateTime?
+  planEndAt   DateTime?
+  trialUsed   Boolean  @default(false)   // essai 48h déjà utilisé
+
+  // parrainage
+  referralCode    String   @unique @default(cuid())
+  referredById    String?
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals       User[]   @relation("Referrals")
+  referralCredits Int      @default(0)   // jours Premium gagnés
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // relations
+  profile             Profile?
+  familyGroup         FamilyGroup?    @relation("FamilyGroupOwner")
+  familyMembership    FamilyGroup?    @relation("FamilyGroupMembers", fields: [familyGroupId], references: [id])
+  familyGroupId       String?
+
+  templateCounters    TemplateCounter[]
+  payments            Payment[]
+  pullEvents          PullEvent[]
+  notifications       Notification[]
+  jobInteractions     JobInteraction[]
+
+  @@index([phone])
+  @@index([plan, status])
+}
+
+model Profile {
+  id       String  @id @default(uuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // critères de matching
+  cities    String[]   // jusqu'à 1 (Freemium), 2 (Essentiel), illimité (Pro/Famille)
+  sectors   String[]   // idem
+  levels    String[]   // ex. BAC+2, Licence, Master…
+  contractTypes ContractType[]
+
+  // alertes mots-clés (Pro+)
+  keywords  String[]
+
+  // préférences
+  notificationTime String @default("08:00")  // heure locale préférée pour le pull
+  language         String @default("fr")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Niveau 4 — groupe famille (jusqu'à 5 profils)
+model FamilyGroup {
+  id      String  @id @default(uuid())
+  ownerId String  @unique
+  owner   User    @relation("FamilyGroupOwner", fields: [ownerId], references: [id])
+  members User[]  @relation("FamilyGroupMembers")
+  maxSize Int     @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// OFFRES D'EMPLOI
+// ============================================================
+
+model Source {
+  id          String     @id @default(uuid())
+  name        String
+  url         String     @unique
+  type        SourceType
+  isActive    Boolean    @default(true)
+  trustScore  Float      @default(0.5)   // 0 à 1 — score de fiabilité
+  lastCrawled DateTime?
+  crawlErrors Int        @default(0)     // compteur d'échecs consécutifs
+
+  jobs        JobOffer[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type, isActive])
+}
+
+model JobOffer {
+  id            String   @id @default(uuid())
+
+  // identité
+  title         String
+  organization  String
+  city          String
+  sector        String               // normalisé via ontologie Tumaa
+  level         String               // BAC+2, Licence, Master…
+  contractType  ContractType
+
+  // contenu
+  description   String?
+  requirements  String?
+  contactEmail  String?              // masqué pour Freemium
+  contactPhone  String?              // masqué pour Freemium
+  contactAddress String?             // masqué pour Freemium
+  applicationUrl String?
+
+  // métadonnées
+  sourceId      String
+  source        Source  @relation(fields: [sourceId], references: [id])
+  sourceUrl     String
+  isSponsored   Boolean @default(false)   // Sponsored Alert B2B
+
+  // déduplication
+  hash          String  @unique           // SHA-256(title + org + date publiée)
+
+  // fraîcheur
+  publishedAt   DateTime?
+  deadline      DateTime?
+  status        JobOfferStatus @default(ACTIVE)
+  ttlDays       Int     @default(30)      // TTL si pas de deadline explicite
+
+  // scoring collecte
+  scoreConfidence Float  @default(0.5)    // confiance sur la qualité des données
+  isFraudSuspect  Boolean @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  interactions  JobInteraction[]
+
+  @@index([city, sector, status])
+  @@index([deadline])
+  @@index([hash])
+  @@index([sourceId])
+}
+
+// Interactions utilisateur sur une offre (VU, DEVERROUILLE, POSTULE...)
+model JobInteraction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       JobOffer @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  action    String   // SEEN | UNLOCKED | BOOKMARKED | REPORTED_FRAUD
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId, action])
+  @@index([userId])
+  @@index([jobId])
+}
+
+// ============================================================
+// ABONNEMENTS & PAIEMENTS
+// ============================================================
+
+model Payment {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Int             // en FCFA
+  provider  PaymentProvider
+  reference String?         // référence transaction côté opérateur
+  status    PaymentStatus   @default(PENDING)
+
+  planPurchased UserPlan
+  durationDays  Int         // 30, 90, 365…
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+// ============================================================
+// MESSAGERIE WHATSAPP — GARDE-FOUS BUDGET
+// ============================================================
+
+// ⚠️ CRITIQUE : plafond de 3 templates payants/utilisateur/mois
+// Ce compteur est vérifié AVANT chaque envoi, jamais après.
+model TemplateCounter {
+  id      String       @id @default(uuid())
+  userId  String
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  month   String       // format "2026-01" — reset mensuel
+  type    TemplateType
+  count   Int          @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, type])
+  @@index([userId, month])
+}
+
+// Historique de chaque notification envoyée
+model Notification {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         String       // TEASER | FULL | RELANCE | MATCH_PARFAIT | NUDGE | SPONSORED
+  isPaid       Boolean      @default(false)   // true = template payant Meta
+  templateType TemplateType?
+  content      String?      // snapshot du contenu envoyé (audit)
+  status       String       @default("SENT")  // SENT | DELIVERED | READ | FAILED
+
+  sentAt       DateTime     @default(now())
+
+  @@index([userId, sentAt])
+  @@index([isPaid])
+}
+
+// Suivi du Taux de Pull Quotidien (TPQ) — KPI central budget WhatsApp
+// Un enregistrement = 1 utilisateur qui a écrit OFFRES dans la journée
+model PullEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date   // date de l'événement (sans heure)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
+}
+
+// ============================================================
+// CANAL B2B — EMPLOYEURS & SCOUTS
+// ============================================================
+
+model Employer {
+  id           String  @id @default(uuid())
+  name         String
+  contactEmail String
+  contactPhone String?
+  isVerified   Boolean @default(false)  // label "Source vérifiée Tumaa"
+
+  // formule B2B
+  plan         String?   // STANDARD | MIS_EN_AVANT | PACK_5 | ABONNEMENT_RECRUTEUR
+  planEndAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submissions  JobSubmission[]
+}
+
+// Offres soumises directement par employeurs (B2B) ou Scouts terrain
+model JobSubmission {
+  id           String   @id @default(uuid())
+  employerId   String?
+  employer     Employer? @relation(fields: [employerId], references: [id])
+  scoutId      String?  // si soumis par un Scout Tumaa
+
+  // données brutes de la soumission
+  rawData      Json     // contenu du formulaire ou du bot
+  isVerified   Boolean  @default(false)
+  jobOfferId   String?  // null jusqu'à validation et création de l'offre
+
+  submittedAt  DateTime @default(now())
+  validatedAt  DateTime?
+
+  @@index([isVerified])
+  @@index([employerId])
+}
+
+// Scouts Tumaa — veilleurs terrain rémunérés à la capture
+model Scout {
+  id          String  @id @default(uuid())
+  phone       String  @unique
+  name        String
+  zone        String  // ville ou quartier couvert
+  isActive    Boolean @default(true)
+  totalCaptures Int   @default(0)
+  totalEarned   Int   @default(0)  // FCFA cumulés
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

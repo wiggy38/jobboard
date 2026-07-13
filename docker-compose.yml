@@ -1,0 +1,54 @@
+version: '3.9'
+
+services:
+  api:
+    build: ./apps/api
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://tumaa:3894@db:5432/tumaa
+      REDIS_URL: redis://redis:6379
+
+  # bot:
+  #   build: ./apps/bot
+  #   depends_on:
+  #     - api
+  #   environment:
+  #     API_URL: http://api:3000
+
+  # scraper:
+  #   build: ./apps/scraper
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   environment:
+  #     DATABASE_URL: postgresql://tumaa:3894@db:5432/tumaa
+  #     REDIS_URL: redis://redis:6379
+  #     NODE_ENV: production
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tumaa
+      POSTGRES_PASSWORD: 3894
+      POSTGRES_DB: tumaa
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+volumes:
+  db_data:
+  redis_data:

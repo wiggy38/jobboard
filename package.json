@@ -1,0 +1,29 @@
+{
+  "name": "tumaa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "db:migrate": "pnpm --filter @tumaa/db migrate",
+    "scraper:run": "pnpm --filter @tumaa/scraper run scraper:run --",
+    "scraper:scheduler": "pnpm --filter @tumaa/scraper run scheduler",
+    "test:matching": "pnpm --filter @tumaa/matching run test",
+    "web:dev": "pnpm --filter web dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "pnpm": {
+    "overrides": {
+      "ioredis": "5.11.1"
+    }
+  }
+}

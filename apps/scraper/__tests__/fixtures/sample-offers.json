@@ -1,0 +1,42 @@
+[
+  {
+    "title": "Développeur Full Stack",
+    "organization": "Tech Burkina SARL",
+    "city": "Ouagadougou",
+    "sector": "Informatique",
+    "level": "BAC+3",
+    "contractType": "CDI",
+    "description": "Développement d'applications web et mobiles pour nos clients.",
+    "requirements": "3 ans d'expérience, maîtrise de React et Node.js",
+    "contactEmail": "rh@techburkina.bf",
+    "sourceUrl": "https://lefaso.net/offre-1",
+    "publishedAt": "2026-06-10T08:00:00.000Z",
+    "deadline": "2026-06-30T23:59:59.000Z"
+  },
+  {
+    "title": "Chargé de Communication",
+    "organization": "ONG Solidarité Sahel",
+    "city": "Bobo-Dioulasso",
+    "sector": "Communication",
+    "level": "BAC+2",
+    "contractType": "CDD",
+    "description": "Gestion des réseaux sociaux et des relations presse.",
+    "requirements": "BTS Communication ou équivalent, 1 an d'expérience",
+    "contactPhone": "+226 70 00 00 01",
+    "sourceUrl": "https://lefaso.net/offre-2",
+    "publishedAt": "2026-06-12T09:00:00.000Z"
+  },
+  {
+    "title": "Stagiaire Comptabilité",
+    "organization": "Cabinet Audit & Conseil",
+    "city": "Ouagadougou",
+    "sector": "Finance",
+    "level": "BAC+2",
+    "contractType": "STAGE",
+    "description": "Appui à la tenue de la comptabilité générale et auxiliaire.",
+    "contactAddress": "Av. Kwame Nkrumah, Ouagadougou",
+    "sourceUrl": "https://anpe.bf/offre-3",
+    "publishedAt": "2026-06-15T10:00:00.000Z",
+    "deadline": "2026-07-15T23:59:59.000Z"
+  }
+]

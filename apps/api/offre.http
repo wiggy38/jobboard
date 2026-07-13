@@ -1,0 +1,27 @@
+### Cas 1 — Sans token (PREVIEW)
+GET http://localhost:3001/api/offre/{{job_id}}
+
+###
+
+### Cas 2 — Token valide utilisateur FREEMIUM (PREVIEW)
+GET http://localhost:3001/api/offre/{{job_id}}?t={{token_freemium}}
+
+###
+
+### Cas 3 — Token valide utilisateur ESSENTIEL (FULL)
+GET http://localhost:3001/api/offre/{{job_id}}?t={{token_essentiel}}
+
+###
+
+### Cas 4 — Token expiré → 401 TOKEN_EXPIRED
+GET http://localhost:3001/api/offre/{{job_id}}?t={{token_expire}}
+
+###
+
+### Cas 5 — Token jobId différent de l'URL → 401 TOKEN_INVALID
+GET http://localhost:3001/api/offre/{{autre_job_id}}?t={{token_job_a}}
+
+###
+
+### Sanity check health
+GET http://localhost:3001/health

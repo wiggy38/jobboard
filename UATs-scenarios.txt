@@ -1,0 +1,182 @@
+Voici les scénarios UAT organisés par flux, avec les critères de succès clairs pour chaque testeur humain.
+
+----------------------------------------------------------------------------
+Scénarios UAT — Tumaa Bot WhatsApp
+----------------------------------------------------------------------------
+
+BLOC 1 — Onboarding & Inscription
+----------------------------------
+
+UAT-01 : Premier message d'un nouvel utilisateur
+
+Envoyer n'importe quel texte depuis un numéro inconnu du système
+Attendu : Le bot répond avec un message de bienvenue et démarre l'onboarding (demande la ville)
+
+UAT-02 : Compléter l'onboarding en 3 étapes
+
+Répondre à la demande de ville (ex : Ouagadougou)
+Sélectionner un secteur parmi les options proposées
+Sélectionner un type de contrat (CDI, CDD, Stage…)
+Attendu : Confirmation de profil créé, invitation à taper OFFRES
+
+UAT-03 : Onboarding interrompu
+
+Commencer l'onboarding, ne pas répondre pendant 10 min, puis reprendre
+Attendu : Le bot reprend là où l'utilisateur s'est arrêté (pas de restart complet)
+
+BLOC 2 — Pull d'offres (flux central)
+--------------------------------------
+
+UAT-04 : Commande OFFRES basique
+
+Taper OFFRES
+Attendu : 1 à 5 offres reçues, chacune dans un message séparé, avec un délai visible entre eux (~800ms)
+
+UAT-05 : Pagination avec SUITE
+
+Taper OFFRES, puis SUITE
+Attendu : Nouvelles offres (pas de doublons avec la première session), message si plus rien à afficher
+
+UAT-06 : SUITE sans OFFRES préalable
+
+Taper SUITE sans avoir tapé OFFRES avant
+Attendu : Message d'erreur compréhensible ("Tapez OFFRES pour commencer")
+
+UAT-07 : OFFRES sans profil configuré
+
+Créer un utilisateur sans finir l'onboarding, taper OFFRES
+Attendu : Redirection vers l'onboarding, pas de crash
+
+BLOC 3 — Freemium vs Premium (différenciation)
+-----------------------------------------------
+
+UAT-08 : Format message Freemium
+
+Avec un compte freemium, taper OFFRES
+Attendu : Messages interactifs avec Reply Button "🔓 S'abonner – 650 FCFA/mois" visible sur chaque offre
+
+UAT-09 : Format message Premium
+
+Avec un compte Premium, taper OFFRES
+Attendu : Messages texte simples avec lien tokenisé direct vers l'offre, pas de bouton d'abonnement
+
+UAT-10 : Tap Reply Button "S'abonner" (Freemium)
+
+Depuis un compte freemium, taper le bouton d'abonnement
+Attendu : Le bot reconnaît le button_reply.id et déclenche le flux PREMIUM (pas le parser texte)
+
+
+BLOC 4 — Essai & Abonnement
+-------------------------------
+
+UAT-11 : Commande ESSAI
+
+Taper ESSAI depuis un compte freemium sans essai précédent
+Attendu : Confirmation d'essai 48h activé, accès premium immédiat
+
+UAT-12 : Double essai refusé
+
+Taper ESSAI depuis un compte ayant déjà utilisé son essai
+Attendu : Refus clair ("Vous avez déjà bénéficié de l'essai gratuit"), proposition d'abonnement
+
+UAT-13 : Flux abonnement PREMIUM
+
+Taper PREMIUM
+Attendu : Offre unique affichée (Premium 650 FCFA/mois), réponse PAYER pour redirection vers paiement
+
+BLOC 5 — Garde-fous templates payants
+-------------------------------
+
+UAT-14 : Plafond 3 templates/mois
+
+⚠️ Nécessite accès back-end pour simuler : forcer template_counter = 3 en DB pour un utilisateur test
+
+Déclencher l'envoi d'un 4ème template payant (ex : MATCH_PARFAIT)
+Attendu : Le template n'est pas envoyé, aucune erreur côté utilisateur (silence ou fallback gratuit)
+
+UAT-15 : Compteur reset mensuel
+
+Nécessite manipulation de date en test
+
+Vérifier que le compteur tombe à 0 au 1er du mois suivant
+Attendu : Templates à nouveau envoyables
+
+
+BLOC 6 — Commandes utilitaires
+-------------------------------
+
+UAT-16 : MODIFIER le profil
+
+Taper MODIFIER, changer la ville
+Attendu : Le profil est mis à jour, la prochaine commande OFFRES renvoie des offres filtrées par la nouvelle ville
+
+UAT-17 : PAUSE
+
+Taper PAUSE
+Attendu : Confirmation de pause, le bot ne contacte plus l'utilisateur en push
+
+UAT-18 : Sortie de PAUSE
+
+Depuis l'état PAUSE, envoyer un message
+Attendu : Le bot réactive le compte et répond normalement
+
+UAT-19 : STOP
+
+Taper STOP
+Attendu : Désinscription confirmée, aucune réponse aux messages suivants (ou message final de confirmation)
+
+UAT-20 : AIDE
+
+Taper AIDE
+Attendu : Menu d'aide avec toutes les commandes listées, lisible sans abonnement
+
+UAT-21 : Commande inconnue
+
+Taper un texte aléatoire (blabla, 12345, emoji seul)
+Attendu : Réponse compréhensible ("Je n'ai pas compris, tapez AIDE"), pas de crash
+
+
+BLOC 7 — Parrainage
+-------------------------------
+
+UAT-22 : Commande PARRAINER
+
+Taper PARRAINER
+Attendu : Lien/code de parrainage unique affiché, instructions claires
+
+UAT-23 : Inscription via code parrain
+
+Nouvel utilisateur s'inscrit en utilisant le code d'un parrain
+Attendu : Le parrain reçoit une notification de crédit, le filleul obtient l'avantage promis
+
+
+BLOC 8 — Résilience & Edge Cases
+---------------------------------
+
+UAT-24 : Fenêtre de service (24h)
+
+Vérifier qu'un utilisateur actif peut interagir gratuitement dans les 24h
+Simuler l'expiration (user:{id}:window Redis TTL), envoyer un message
+Attendu : Nouvelle fenêtre ouverte, pas de facturation template
+
+UAT-25 : Réactivation d'un compte DORMANT
+
+Simuler un compte dormant (2 relances sans réponse)
+Envoyer un message depuis ce compte
+Attendu : Compte repassé en ACTIVE, compteurs dormancy remis à zéro
+
+UAT-26 : Message entrant hors fenêtre (Freemium)
+
+Expirer la fenêtre Redis d'un freemium, envoyer un message
+Attendu : Le bot répond (template payant comptabilisé), le compteur s'incrémente
+
+
+=============================================================
+Grille de suivi suggérée
+ID	Scénario	Testeur	Statut	Observations
+UAT-01	Premier message		⬜	
+UAT-04	OFFRES basique		⬜	
+...	...			
+Les blocs 5, 8 nécessitent un accès technique pour manipuler l'état Redis/DB — ils sont plutôt pour un testeur tech. Les blocs 1–4 et 6–7 sont accessibles à n'importe quel testeur humain avec WhatsApp.
+
+Tu veux que je génère ce tableau en fichier Markdown dans /docs/ ?

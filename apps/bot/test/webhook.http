@@ -1,0 +1,332 @@
+### ── ONBOARDING FLOW ──────────────────────────────────────────────────────────
+### Utiliser un numéro qui n'existe PAS encore en DB (ex: +22699000099)
+
+### O-1. Déclencheur — nouvel utilisateur (message quelconque → étape 0)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22699000099",
+    "type": "text",
+    "id": "wamid.onb01",
+    "text": { "body": "Bonjour" }
+  }]}}]}]
+}
+
+###
+
+### O-2. Étape 1 — saisie de la ville
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22699000099",
+    "type": "text",
+    "id": "wamid.onb02",
+    "text": { "body": "Ouagadougou" }
+  }]}}]}]
+}
+
+###
+
+### O-3. Étape 2 — saisie du secteur (doit retourner des boutons interactifs)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22699000099",
+    "type": "text",
+    "id": "wamid.onb03",
+    "text": { "body": "Finance" }
+  }]}}]}]
+}
+
+###
+
+### O-4. Étape 3 — sélection du contrat via button_reply (crée User + Profile en DB)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22699000099",
+    "type": "interactive",
+    "id": "wamid.onb04",
+    "interactive": {
+      "type": "button_reply",
+      "button_reply": { "id": "contract_cdi", "title": "CDI" }
+    }
+  }]}}]}]
+}
+
+###
+
+### O-5. Interruption AIDE pendant l'onboarding (retourne menu + relance la question)
+### Reset d'abord Redis pour tester : DEL session:+22699000088:state
+### puis simuler jusqu'à l'étape ONBOARDING_SECTOR :
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22699000088",
+    "type": "text",
+    "id": "wamid.onb05",
+    "text": { "body": "AIDE" }
+  }]}}]}]
+}
+
+###
+
+### ── COMMANDES CLASSIQUES ───────────────────────────────────────────────────────
+
+### 1. Vérification webhook Meta (GET)
+GET http://localhost:3000/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=tumaa_verify_2026&hub.challenge=CHALLENGE_CODE_123
+
+###
+
+### 2. OFFRES — Nouvel utilisateur (crée User + PullEvent + fenêtre Redis)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.001",
+    "text": { "body": "OFFRES" }
+  }]}}]}]
+}
+
+###
+
+### 3. VOIR 1 — Utilisateur FREEMIUM (doit retourner message de conversion)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.002",
+    "text": { "body": "VOIR 1" }
+  }]}}]}]
+}
+
+###
+
+### 4. AIDE
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.003",
+    "text": { "body": "aide" }
+  }]}}]}]
+}
+
+###
+
+### 5. STOP
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.004",
+    "text": { "body": "STOP" }
+  }]}}]}]
+}
+
+###
+
+### 6. Commande inconnue — doit retourner message d'aide
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000002",
+    "type": "text",
+    "id": "wamid.005",
+    "text": { "body": "bonjour ça va ?" }
+  }]}}]}]
+}
+
+###
+
+### ── FLOWS INTERACTIFS ──────────────────────────────────────────────────────────
+
+### 7. Tap bouton "S'abonner" (Freemium) → déclenche handlePremium + state PREMIUM_CHOICE
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "interactive",
+    "id": "wamid.006",
+    "interactive": {
+      "type": "button_reply",
+      "button_reply": {
+        "id": "subscribe",
+        "title": "🔓 S'abonner – 650 FCFA/mois"
+      }
+    }
+  }]}}]}]
+}
+
+###
+
+### 8. Répondre PAYER pendant PREMIUM_CHOICE — state doit être PREMIUM_CHOICE en Redis
+### Prérequis : exécuter la requête 7 d'abord
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.007",
+    "text": { "body": "PAYER" }
+  }]}}]}]
+}
+
+###
+
+### 9. Tap bouton "Voir les suivantes" (pagination SUITE) → déclenche handleSuite
+### Prérequis : exécuter la requête 2 (OFFRES) d'abord pour initialiser l'offset Redis
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "interactive",
+    "id": "wamid.008",
+    "interactive": {
+      "type": "button_reply",
+      "button_reply": {
+        "id": "suite",
+        "title": "▶️ Voir les suivantes"
+      }
+    }
+  }]}}]}]
+}
+
+###
+
+### ── GUARD-RAILS REDIS ──────────────────────────────────────────────────────────
+
+### 10. PREMIUM — affiche les offres d'abonnement
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.009",
+    "text": { "body": "PREMIUM" }
+  }]}}]}]
+}
+
+###
+
+### 11. ESSAI — active la période d'essai 48h (Freemium uniquement, usage unique)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.010",
+    "text": { "body": "ESSAI" }
+  }]}}]}]
+}
+
+###
+
+### 12. PARRAINER — affiche le code de parrainage et les crédits accumulés
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.011",
+    "text": { "body": "PARRAINER" }
+  }]}}]}]
+}
+
+###
+
+### 13. STATS — affiche le nombre d'offres actives pour le profil utilisateur
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.012",
+    "text": { "body": "STATS" }
+  }]}}]}]
+}
+
+###
+
+### 14. PAUSE — met l'utilisateur en pause (status=PAUSED)
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.013",
+    "text": { "body": "PAUSE" }
+  }]}}]}]
+}
+
+###
+
+### 15. MODIFIER — démarre le flow de modification du profil
+POST http://localhost:3000/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "entry": [{"changes": [{"value": {"messages": [{
+    "from": "+22670000001",
+    "type": "text",
+    "id": "wamid.014",
+    "text": { "body": "MODIFIER" }
+  }]}}]}]
+}
+
+###
+
+### ── VÉRIFICATION REDIS (à exécuter dans redis-cli) ────────────────────────────
+### Après requête 2 (OFFRES) :
+###   GET user:+22670000001:window       → doit retourner "1"
+###   GET session:+22670000001:offset    → doit retourner "5"
+###
+### Après requête 7 (subscribe button) :
+###   GET session:+22670000001:state     → doit retourner {"step":"PREMIUM_CHOICE","data":{}}
+###
+### Après requête 5 (STOP) :
+###   GET user:+22670000001:window       → doit retourner nil (TTL expiré ou supprimé)
+###
+### ── VÉRIFICATION DB (pgAdmin ou psql) ──────────────────────────────────────────
+### SELECT * FROM "PullEvent" WHERE "userId" = (SELECT id FROM "User" WHERE phone='+22670000001');
+### SELECT plan, status, "trialUsed" FROM "User" WHERE phone='+22670000001';

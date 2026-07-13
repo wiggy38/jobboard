@@ -1,0 +1,407 @@
+// ============================================================
+// TUMAA — Schéma Prisma
+// Bot WhatsApp d'agrégation d'offres d'emploi
+// Version 1.0 — 2026
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserPlan {
+  FREEMIUM   // gratuit — 1 ville, 1 secteur, contacts masqués
+  PREMIUM    // 650 FCFA/mois — 3 villes, 3 secteurs, contacts visibles, alertes mots-clés
+  ELITE      // 1250 FCFA/mois — illimité villes/secteurs, jusqu'à 3 pays, alertes mots-clés
+}
+
+enum UserStatus {
+  ACTIVE
+  PAUSED     // utilisateur qui a tapé PAUSE
+  DORMANT    // inactif après 2 relances sans réponse
+  STOPPED    // a tapé STOP — désinscrit
+}
+
+enum ContractType {
+  CDI
+  CDD
+  STAGE
+  ALTERNANCE
+  FREELANCE
+  BENEVOLE
+  AUTRE
+}
+
+enum SourceType {
+  INSTITUTIONNEL   // gouvernement, ANPE, ministères
+  MEDIA_LOCAL      // Lefaso.net, Burkina24…
+  ONG              // PNUD, GIZ, AFD…
+  JOBBOARD         // Indeed, Rekrute, Afrique-emploi…
+  ENTREPRISE       // page carrière directe
+  RESEAU_SOCIAL    // Facebook, LinkedIn…
+  SCOUT            // collecte humaine terrain
+  B2B_DIRECT       // employeur publie lui-même
+  API              // Adzuna, flux RSS/XML
+}
+
+enum PaymentProvider {
+  ORANGE_MONEY
+  MOOV_MONEY
+  CORIS_MONEY
+  CARTE_BANCAIRE
+  REVENDEUR
+  CINETPAY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum TemplateType {
+  RELANCE         // inactif > 24h — max 2/mois
+  MATCH_PARFAIT   // offre à score très élevé — max 1/mois
+  NUDGE_PREMIUM   // utilisateur engagé sans abonnement — max 1/mois
+}
+
+enum JobOfferStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+// ============================================================
+// UTILISATEURS & PROFILS
+// ============================================================
+
+model User {
+  id          String   @id @default(uuid())
+  phone       String   @unique            // numéro WhatsApp (E.164)
+  displayName String?
+  plan        UserPlan @default(FREEMIUM)
+  status      UserStatus @default(ACTIVE)
+
+  // abonnement actif
+  planStartAt DateTime?
+  planEndAt   DateTime?
+  trialUsed   Boolean  @default(false)   // essai 48h déjà utilisé
+
+  // parrainage
+  referralCode    String   @unique @default(cuid())
+  referredById    String?
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals       User[]   @relation("Referrals")
+  referralCredits Int      @default(0)   // jours Premium gagnés
+
+  // FREEMIUM/PREMIUM = pays unique inféré du préfixe téléphonique, ex: ["BF"]
+  // ELITE = pays choisis par l'utilisateur (max 3), ex: ["BF", "BJ", "CI"]
+  countries   String[] @default(["BF"])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // relations
+  profile             Profile?
+  templateCounters    TemplateCounter[]
+  payments            Payment[]
+  pullEvents          PullEvent[]
+  notifications       Notification[]
+  jobInteractions     JobInteraction[]
+  channelJoins        ChannelJoin[]
+  subscribeClicks     SubscribeClick[]
+
+  @@index([phone])
+  @@index([plan, status])
+}
+
+model Profile {
+  id       String  @id @default(uuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // critères de matching
+  cities        String[]
+  sectors       String[]
+  levels        String[]
+  contractTypes ContractType[]
+
+  // alertes mots-clés (Pro+)
+  keywords String[]
+
+  // préférences
+  country          String @default("BF")
+  notificationTime String @default("08:00")
+  language         String @default("fr")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// OFFRES D'EMPLOI
+// ============================================================
+
+model Source {
+  id          String     @id @default(uuid())
+  name        String
+  url         String     @unique
+  type        SourceType
+  country     String     @default("BF")
+  isActive    Boolean    @default(true)
+  trustScore  Float      @default(0.5)
+  lastCrawled DateTime?
+  crawlErrors Int        @default(0)
+  emptyRuns   Int        @default(0)
+
+  jobs        JobOffer[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model JobOffer {
+  id           String   @id @default(uuid())
+
+  title        String
+  organization String
+  country      String   @default("BF")
+  city         String
+  sector       String
+  level        String
+  contractType ContractType
+
+  description    String?
+  requirements   String?
+  contactEmail   String?
+  contactPhone   String?
+  contactAddress String?
+  applicationUrl String?
+
+  sourceId    String
+  source      Source  @relation(fields: [sourceId], references: [id])
+  sourceUrl   String
+  isSponsored Boolean @default(false)
+
+  // déduplication — SHA-256(title + org + publishedAt)
+  hash        String  @unique
+
+  publishedAt     DateTime?
+  deadline        DateTime?
+  status          JobOfferStatus @default(PENDING)
+  validated       Boolean @default(false)
+  ttlDays         Int     @default(30)
+  scoreConfidence Float   @default(0.5)
+  isFraudSuspect  Boolean @default(false)
+  fraudConfirmedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interactions  JobInteraction[]
+  submission    JobSubmission?
+
+  @@index([city, sector, status])
+  @@index([deadline])
+  @@index([hash])
+  @@index([sourceId])
+  @@index([status])
+}
+
+model JobInteraction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       JobOffer @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  action    String   // SEEN | UNLOCKED | BOOKMARKED | REPORTED_FRAUD
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId, action])
+  @@index([userId])
+  @@index([jobId])
+}
+
+// ============================================================
+// ABONNEMENTS & PAIEMENTS
+// ============================================================
+
+model Payment {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Int
+  provider  PaymentProvider
+  reference String?
+  status    PaymentStatus   @default(PENDING)
+
+  planPurchased UserPlan
+  durationDays  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+model SubscribeClick {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan      UserPlan?          // null = simple vue de page, renseigné = clic sur un CTA de plan
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+// ============================================================
+// MESSAGERIE WHATSAPP — GARDE-FOUS BUDGET
+// ============================================================
+
+// ⚠️ CRITIQUE : plafond de 3 templates payants/utilisateur/mois
+// Vérifié AVANT chaque envoi, jamais après.
+model TemplateCounter {
+  id      String       @id @default(uuid())
+  userId  String
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  month   String       // format "2026-01"
+  type    TemplateType
+  count   Int          @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, type])
+  @@index([userId, month])
+}
+
+model Notification {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         String       // TEASER | FULL | RELANCE | MATCH_PARFAIT | NUDGE | SPONSORED
+  isPaid       Boolean      @default(false)
+  templateType TemplateType?
+  content      String?
+  status       String       @default("SENT")
+
+  sentAt       DateTime     @default(now())
+
+  @@index([userId, sentAt])
+  @@index([isPaid])
+}
+
+// Un enregistrement = 1 utilisateur qui a écrit OFFRES dans la journée
+model PullEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
+}
+
+// Rejoint un canal WhatsApp national (#Emploi-BF, #Emploi-BJ...) —
+// un enregistrement par (utilisateur, pays), utilisé pour l'auto-join
+// Meta API et pour éviter les doublons de join.
+model ChannelJoin {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country  String
+
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, country])
+  @@index([userId])
+  @@index([country])
+}
+
+// ============================================================
+// CANAL B2B — EMPLOYEURS & SCOUTS
+// ============================================================
+
+model Employer {
+  id           String  @id @default(uuid())
+  name         String
+  contactEmail String
+  contactPhone String?
+  isVerified   Boolean @default(false)
+
+  plan      String?
+  planEndAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions JobSubmission[]
+}
+
+model JobSubmission {
+  id         String    @id @default(uuid())
+  employerId String?
+  employer   Employer? @relation(fields: [employerId], references: [id])
+  scoutId    String?
+  scout      Scout?    @relation(fields: [scoutId], references: [id])
+
+  rawData    Json
+  isVerified Boolean  @default(false)
+  jobOfferId String?  @unique
+  jobOffer   JobOffer? @relation(fields: [jobOfferId], references: [id])
+
+  submittedAt     DateTime  @default(now())
+  validatedAt     DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  @@index([isVerified])
+  @@index([employerId])
+  @@index([scoutId])
+}
+
+model Scout {
+  id            String  @id @default(uuid())
+  phone         String  @unique
+  name          String
+  zone          String
+  isActive      Boolean @default(true)
+  totalCaptures Int     @default(0)
+  totalEarned   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions JobSubmission[]
+  payments    ScoutPayment[]
+}
+
+model ScoutPayment {
+  id      String   @id @default(uuid())
+  scoutId String
+  scout   Scout    @relation(fields: [scoutId], references: [id])
+  month   String
+  amount  Int
+  paidAt  DateTime @default(now())
+
+  @@index([scoutId])
+  @@index([month])
+}

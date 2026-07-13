@@ -1,0 +1,34 @@
+{
+	"/": [],
+	"/admin": [
+		"src/routes/admin/+page.ts"
+	],
+	"/admin/offres": [
+		"src/routes/admin/offres/+page.ts"
+	],
+	"/admin/offres/[id]": [
+		"src/routes/admin/offres/[id]/+page.ts"
+	],
+	"/admin/scouts": [
+		"src/routes/admin/scouts/+page.ts"
+	],
+	"/admin/scouts/[id]": [
+		"src/routes/admin/scouts/[id]/+page.ts"
+	],
+	"/admin/scrapers": [
+		"src/routes/admin/scrapers/+page.ts"
+	],
+	"/admin/templates": [
+		"src/routes/admin/templates/+page.ts"
+	],
+	"/auth/login": [
+		"src/routes/auth/login/+server.ts"
+	],
+	"/employer": [],
+	"/employer/offres": [],
+	"/employer/publier": [],
+	"/login": [],
+	"/offre/[token]": [
+		"src/routes/offre/[token]/+page.ts"
+	]
+}

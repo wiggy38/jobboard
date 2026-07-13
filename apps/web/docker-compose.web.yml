@@ -1,0 +1,29 @@
+services:
+  nginx-web:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - sveltekit
+    networks:
+      - tumaa_network
+    restart: unless-stopped
+
+  sveltekit:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      - VITE_API_URL=http://bot:3000
+      - NODE_ENV=production
+      - PORT=3000
+    networks:
+      - tumaa_network
+    restart: unless-stopped
+
+networks:
+  tumaa_network:
+    external: true
+    name: tumaa_network

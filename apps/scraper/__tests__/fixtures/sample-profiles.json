@@ -1,0 +1,28 @@
+[
+  {
+    "id": "profile-001",
+    "phone": "+22670000001",
+    "name": "Aminata Ouédraogo",
+    "city": "Ouagadougou",
+    "sector": "Informatique",
+    "level": "BAC+3",
+    "contractTypes": ["CDI", "CDD"],
+    "skills": ["JavaScript", "React", "Node.js", "SQL"],
+    "experience": 2,
+    "languages": ["Français", "Anglais"],
+    "createdAt": "2026-05-01T00:00:00.000Z"
+  },
+  {
+    "id": "profile-002",
+    "phone": "+22676000002",
+    "name": "Ibrahim Kaboré",
+    "city": "Bobo-Dioulasso",
+    "sector": "Finance",
+    "level": "BAC+5",
+    "contractTypes": ["CDI"],
+    "skills": ["Comptabilité", "Excel", "SAGE", "Audit"],
+    "experience": 5,
+    "languages": ["Français"],
+    "createdAt": "2026-05-15T00:00:00.000Z"
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "name": "@tumaa/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "seed": "ts-node prisma/seed.ts",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "prisma": "^5.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

@@ -22,7 +22,7 @@ server {
 
     # SvelteKit app (admin + B2B + liens tokenisés)
     location /app/ {
-        proxy_pass http://sveltekit:3000/;
+        proxy_pass http://${SVELTEKIT_UPSTREAM}/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -34,7 +34,7 @@ server {
 
     # Liens tokenisés offres (shortcut /offre/ sans passer par /app/)
     location /offre/ {
-        proxy_pass http://sveltekit:3000/offre/;
+        proxy_pass http://${SVELTEKIT_UPSTREAM}/offre/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

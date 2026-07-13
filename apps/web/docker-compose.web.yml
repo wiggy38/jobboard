@@ -5,6 +5,8 @@ services:
       dockerfile: nginx/Dockerfile
     ports:
       - "80:80"
+    environment:
+      - SVELTEKIT_UPSTREAM=sveltekit:3000
     depends_on:
       - sveltekit
     networks:

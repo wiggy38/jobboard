@@ -5,7 +5,7 @@
     "buildCommand": "pnpm install --frozen-lockfile && pnpm turbo run build --filter=@tumaa/api..."
   },
   "deploy": {
-    "startCommand": "pnpm --filter @tumaa/api start",
+    "startCommand": "pnpm --filter @tumaa/db run migrate:deploy && pnpm --filter @tumaa/api start",
     "restartPolicyType": "ON_FAILURE"
   }
 }

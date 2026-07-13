@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import fjwt from '@fastify/jwt'
+import fformbody from '@fastify/formbody'
 import { offreRoutes } from './offre.routes'
 import { subscribeRoutes } from './subscribe.routes'
 import { adminRoutes } from './admin.routes'
@@ -14,6 +15,7 @@ const app = Fastify({ logger: true })
 app.register(fjwt, {
   secret: process.env.TOKEN_SECRET ?? 'changeme',
 })
+app.register(fformbody)
 
 app.get('/health', async () => ({ status: 'ok' }))
 

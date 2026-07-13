@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm turbo run build --filter=@tumaa/bot..."
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @tumaa/bot start",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

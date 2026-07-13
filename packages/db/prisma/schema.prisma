@@ -59,6 +59,7 @@ enum PaymentProvider {
   CARTE_BANCAIRE
   REVENDEUR
   CINETPAY
+  PAYDUNYA
 }
 
 enum PaymentStatus {

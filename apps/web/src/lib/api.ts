@@ -43,6 +43,22 @@ export async function simulateSubscribePayment(
   return data
 }
 
+export interface InitiatePaymentResponse {
+  ok: true
+  paymentUrl: string
+}
+
+export async function initiateSubscribePayment(
+  token: string,
+  plan: 'PREMIUM' | 'ELITE'
+): Promise<InitiatePaymentResponse> {
+  const { data } = await axios.post<InitiatePaymentResponse>('/api/subscribe/pay', {
+    t: token,
+    plan,
+  })
+  return data
+}
+
 export interface SubscribeChannel {
   country: string
   name: string

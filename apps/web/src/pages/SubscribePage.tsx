@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
-import { simulateSubscribePayment, trackSubscribeClick } from '../lib/api'
+import { initiateSubscribePayment, simulateSubscribePayment, trackSubscribeClick } from '../lib/api'
 
 const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
 
@@ -21,7 +21,7 @@ const FAQ_ITEMS = [
   {
     question: 'Comment se passe le paiement ?',
     answer:
-      'Le paiement se fait directement sur WhatsApp via CinetPay, Orange Money ou Moov Money. Aucune carte bancaire ni saisie sur le site : tu confirmes le montant dans la conversation avec le bot.',
+      'En cliquant sur "S\'abonner", tu es redirigé vers PayDunya pour payer par Orange Money, Moov Money, Coris Money ou carte bancaire. Une fois le paiement confirmé, ton abonnement est activé automatiquement.',
   },
   {
     question: "Qu'est-ce que l'essai gratuit de 48h ?",
@@ -75,6 +75,8 @@ export default function SubscribePage() {
   const token = searchParams.get('t')
   const [simulating, setSimulating] = useState<'PREMIUM' | 'ELITE' | null>(null)
   const [simulateError, setSimulateError] = useState<string | null>(null)
+  const [paying, setPaying] = useState<'PREMIUM' | 'ELITE' | null>(null)
+  const [payError, setPayError] = useState<string | null>(null)
 
   useEffect(() => {
     if (token) trackSubscribeClick(token)
@@ -82,6 +84,20 @@ export default function SubscribePage() {
 
   const handlePlanClick = (plan: 'PREMIUM' | 'ELITE') => {
     if (token) trackSubscribeClick(token, plan)
+  }
+
+  const handlePay = async (plan: 'PREMIUM' | 'ELITE') => {
+    if (!token) return
+    handlePlanClick(plan)
+    setPaying(plan)
+    setPayError(null)
+    try {
+      const { paymentUrl } = await initiateSubscribePayment(token, plan)
+      window.location.href = paymentUrl
+    } catch {
+      setPayError("Échec de l'initialisation du paiement. Réessaie ou vérifie que le lien n'a pas expiré.")
+      setPaying(null)
+    }
   }
 
   const handleSimulatePayment = async (plan: 'PREMIUM' | 'ELITE') => {
@@ -132,13 +148,24 @@ export default function SubscribePage() {
               </li>
             ))}
           </ul>
-          <a
-            href={`https://wa.me/${botPhone}?text=${encodeURIComponent('PREMIUM')}`}
-            onClick={() => handlePlanClick('PREMIUM')}
-            className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
-          >
-            S&apos;abonner · 650 FCFA/mois
-          </a>
+          {token ? (
+            <button
+              type="button"
+              onClick={() => handlePay('PREMIUM')}
+              disabled={paying !== null}
+              className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200 disabled:opacity-50"
+            >
+              {paying === 'PREMIUM' ? 'Redirection vers le paiement…' : "S'abonner · 650 FCFA/mois"}
+            </button>
+          ) : (
+            <a
+              href={`https://wa.me/${botPhone}?text=${encodeURIComponent('PREMIUM')}`}
+              onClick={() => handlePlanClick('PREMIUM')}
+              className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
+            >
+              S&apos;abonner · 650 FCFA/mois
+            </a>
+          )}
           <a
             href={`https://wa.me/${botPhone}?text=${encodeURIComponent('ESSAI')}`}
             className="block text-xs text-green-700 underline text-center mt-3"
@@ -176,13 +203,24 @@ export default function SubscribePage() {
               </li>
             ))}
           </ul>
-          <a
-            href={`https://wa.me/${botPhone}?text=${encodeURIComponent('ELITE')}`}
-            onClick={() => handlePlanClick('ELITE')}
-            className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
-          >
-            S&apos;abonner · 1 250 FCFA/mois
-          </a>
+          {token ? (
+            <button
+              type="button"
+              onClick={() => handlePay('ELITE')}
+              disabled={paying !== null}
+              className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200 disabled:opacity-50"
+            >
+              {paying === 'ELITE' ? 'Redirection vers le paiement…' : "S'abonner · 1 250 FCFA/mois"}
+            </button>
+          ) : (
+            <a
+              href={`https://wa.me/${botPhone}?text=${encodeURIComponent('ELITE')}`}
+              onClick={() => handlePlanClick('ELITE')}
+              className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
+            >
+              S&apos;abonner · 1 250 FCFA/mois
+            </a>
+          )}
           {SIMULATION_ENABLED && token && (
             <button
               type="button"
@@ -196,12 +234,15 @@ export default function SubscribePage() {
         </div>
       </div>
 
+      {payError && (
+        <p className="text-xs text-red-600 text-center mt-4">{payError}</p>
+      )}
       {simulateError && (
         <p className="text-xs text-red-600 text-center mt-4">{simulateError}</p>
       )}
 
       <p className="text-xs text-slate-400 text-center mt-6">
-        Paiement via CinetPay, Orange Money ou Moov Money, directement sur WhatsApp.
+        Paiement sécurisé via PayDunya (Orange Money, Moov Money, Coris Money, carte bancaire).
       </p>
 
       <div className="mt-10">

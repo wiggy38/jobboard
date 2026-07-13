@@ -33,9 +33,63 @@ pnpm dev              # démarre tout en hot reload
 pnpm test             # tests Jest
 pnpm db:migrate       # migrations Prisma
 pnpm scraper:run [source]  # teste un scraper isolé
+pnpm scraper:scheduler     # démarre le scheduler des jobs planifiés (scraping périodique, rapport quotidien 22h30)
 docker compose up     # PostgreSQL + Redis en local
 ngrok http 3000       # expose le webhook pour tests WhatsApp
 ```
+
+## Lancer le projet en local
+
+1. **Prérequis** : Node.js ≥ 20, pnpm ≥ 9, Docker (pour PostgreSQL + Redis).
+
+2. **Installer les dépendances**
+   ```bash
+   pnpm install
+   ```
+
+3. **Démarrer PostgreSQL et Redis**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Configurer les variables d'environnement**
+   Copier chaque `.env.example` en `.env` et renseigner les valeurs (jamais commiter les `.env`) :
+   ```bash
+   cp apps/api/.env.example apps/api/.env
+   cp apps/bot/.env.example apps/bot/.env
+   cp apps/scraper/.env.example apps/scraper/.env
+   cp apps/web/.env.local.example apps/web/.env.local   # si présent
+   cp packages/db/.env.example packages/db/.env         # si présent
+   ```
+   Champs clés à remplir : `DATABASE_URL`, `REDIS_URL`, `ANTHROPIC_API_KEY`,
+   `META_PHONE_NUMBER_ID` / `META_ACCESS_TOKEN` / `META_VERIFY_TOKEN` (WhatsApp Business),
+   `CINETPAY_*` / `PAYDUNYA_*` (paiement), `SMTP_*` (rapport quotidien du scheduler).
+
+5. **Appliquer le schéma Prisma**
+   ```bash
+   pnpm db:migrate
+   ```
+
+6. **Démarrer les apps en hot reload** (bot, api, web, scraper)
+   ```bash
+   pnpm dev
+   ```
+
+7. **Exposer le webhook WhatsApp** (si test de messages entrants Meta Cloud API)
+   ```bash
+   ngrok http 3000
+   ```
+   Renseigner l'URL ngrok + `META_VERIFY_TOKEN` dans la configuration du webhook Meta.
+
+8. **Lancer le scheduler des scrapers** (en parallèle, dans un terminal séparé)
+   ```bash
+   pnpm scraper:scheduler
+   ```
+
+9. **Tester un scraper isolément** (optionnel, sans passer par le scheduler)
+   ```bash
+   pnpm scraper:run lefaso
+   ```
 
 ## Documentation
 

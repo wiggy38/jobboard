@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "build": "prisma generate && tsc",
+    "build": "prisma generate",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "seed": "ts-node prisma/seed.ts",

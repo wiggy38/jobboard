@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { planLimitsForCreate } from '@tumaa/shared';
 
 export async function upsertUser(phone: string): Promise<{
   id: string;
@@ -24,6 +25,7 @@ export async function upsertUser(phone: string): Promise<{
           keywords: [],
           notificationTime: '08:00',
           language: 'fr',
+          ...planLimitsForCreate('FREEMIUM'),
         },
       },
     },

@@ -15,7 +15,7 @@ function findCountryByRowId(id: string): string | undefined {
   return Object.keys(COUNTRY_NAMES).find((code) => countryRowId(code).toUpperCase() === id);
 }
 
-async function sendCountryList(userId: string, selected: string[]): Promise<void> {
+async function sendCountryList(userId: string, selected: string[], maxCountries: number): Promise<void> {
   const header =
     selected.length > 0
       ? `Pays sélectionnés : *${selected.map((c) => COUNTRY_NAMES[c]).join(', ')}*\n\n`
@@ -31,13 +31,13 @@ async function sendCountryList(userId: string, selected: string[]): Promise<void
     title: '✅ Terminé',
     description:
       selected.length > 0
-        ? `${selected.length}/${ELITE_MAX_COUNTRIES} pays choisi(s)`
+        ? `${selected.length}/${maxCountries} pays choisi(s)`
         : 'Choisissez au moins 1 pays',
   });
 
   await sendInteractiveList(
     userId,
-    `${header}Choisissez jusqu'à ${ELITE_MAX_COUNTRIES} pays de recherche, puis validez avec *Terminé*.`,
+    `${header}Choisissez jusqu'à ${maxCountries} pays de recherche, puis validez avec *Terminé*.`,
     'Choisir un pays',
     [{ title: 'Pays', rows }],
   );
@@ -46,7 +46,7 @@ async function sendCountryList(userId: string, selected: string[]): Promise<void
 // ── Entrée — commande PAYS, réservée aux membres ELITE ─────────────────────────
 
 export async function handlePays(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
-  const user = await db.user.findUnique({ where: { phone: cmd.userId } });
+  const user = await db.user.findUnique({ where: { phone: cmd.userId }, include: { profile: true } });
   if (!user) return;
 
   if (user.plan !== 'ELITE') {
@@ -58,9 +58,10 @@ export async function handlePays(cmd: ParsedCommand, db: PrismaClient): Promise<
     return;
   }
 
+  const maxCountries = user.profile?.maxCountries ?? ELITE_MAX_COUNTRIES;
   const preselected = user.countries.filter((c) => c in COUNTRY_NAMES);
-  await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: preselected } });
-  await sendCountryList(cmd.userId, preselected);
+  await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: preselected, maxCountries } });
+  await sendCountryList(cmd.userId, preselected, maxCountries);
 }
 
 // ── Suite — dispatché quand l'état de session est ELITE_COUNTRY_SELECT ─────────
@@ -70,12 +71,13 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
   if (!state) return;
 
   const selected = (state.data.selected as string[]) ?? [];
+  const maxCountries = (state.data.maxCountries as number) ?? ELITE_MAX_COUNTRIES;
   const id = cmd.command.trim().toUpperCase();
 
   if (id === COUNTRY_DONE) {
     if (selected.length === 0) {
       await sendText(cmd.userId, '⚠️ Sélectionnez au moins un pays avant de continuer.');
-      await sendCountryList(cmd.userId, selected);
+      await sendCountryList(cmd.userId, selected, maxCountries);
       return;
     }
 
@@ -107,13 +109,13 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
   const code = findCountryByRowId(id);
   if (!code) {
     await sendText(cmd.userId, 'Merci de choisir un pays dans la liste ci-dessous.');
-    await sendCountryList(cmd.userId, selected);
+    await sendCountryList(cmd.userId, selected, maxCountries);
     return;
   }
 
-  if (!selected.includes(code) && selected.length >= ELITE_MAX_COUNTRIES) {
-    await sendText(cmd.userId, `⚠️ Maximum ${ELITE_MAX_COUNTRIES} pays. Décochez-en un avant d'en ajouter un autre.`);
-    await sendCountryList(cmd.userId, selected);
+  if (!selected.includes(code) && selected.length >= maxCountries) {
+    await sendText(cmd.userId, `⚠️ Maximum ${maxCountries} pays. Décochez-en un avant d'en ajouter un autre.`);
+    await sendCountryList(cmd.userId, selected, maxCountries);
     return;
   }
 
@@ -121,6 +123,6 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
     ? selected.filter((c) => c !== code)
     : [...selected, code];
 
-  await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: updated } });
-  await sendCountryList(cmd.userId, updated);
+  await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: updated, maxCountries } });
+  await sendCountryList(cmd.userId, updated, maxCountries);
 }

@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { UserPlan } from '@prisma/client'
 import { prisma } from './lib/prisma'
-import { COUNTRY_NAMES, ELITE_MAX_COUNTRIES, NATIONAL_CHANNELS, getChannelInviteLink } from './lib/country'
+import { COUNTRY_NAMES, NATIONAL_CHANNELS, getChannelInviteLink } from './lib/country'
 import { createInvoice, confirmInvoice } from './lib/paydunya'
+import { applyPlanLimits } from '@tumaa/shared'
 
 const PLAN_PRICING: Record<'PREMIUM' | 'ELITE', number> = {
   PREMIUM: 650,
@@ -37,6 +38,7 @@ async function activateSubscription(userId: string, plan: 'PREMIUM' | 'ELITE'): 
     where: { id: userId },
     data: { plan: plan as UserPlan, planStartAt: now, planEndAt },
   })
+  await applyPlanLimits(prisma, userId, plan as UserPlan)
 }
 
 export async function subscribeRoutes(fastify: FastifyInstance) {
@@ -276,7 +278,10 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } })
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    })
     if (!user) {
       return reply.status(404).send({ error: 'USER_NOT_FOUND' })
     }
@@ -284,8 +289,9 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'NOT_ELITE' })
     }
 
+    const maxCountries = user.profile?.maxCountries ?? 1
     const selected = [...new Set(countries ?? [])]
-    if (selected.length === 0 || selected.length > ELITE_MAX_COUNTRIES) {
+    if (selected.length === 0 || selected.length > maxCountries) {
       return reply.status(400).send({ error: 'COUNTRIES_INVALID' })
     }
     if (selected.some((code) => !(code in COUNTRY_NAMES))) {

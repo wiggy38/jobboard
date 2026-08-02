@@ -49,8 +49,12 @@ export async function offreRoutes(fastify: FastifyInstance) {
       })
     }
 
-    // ÉTAPE 4 — Déterminer l'accessLevel
-    let accessLevel: 'FULL' | 'PREVIEW' = 'PREVIEW'
+    // ÉTAPE 4 — Les contacts sont visibles pour tous les plans (y compris
+    // FREEMIUM). La source scrappée (sourceUrl/sourceName) reste réservée aux
+    // plans payants — cf. .claude/CLAUDE.md, règle indépendante de la grille
+    // tarifaire (protection de l'attribution de la source, pas un levier de
+    // conversion).
+    let showSource = false
 
     if (userId) {
       const user = await prisma.user.findUnique({
@@ -58,61 +62,36 @@ export async function offreRoutes(fastify: FastifyInstance) {
         select: { plan: true, status: true, planEndAt: true },
       })
 
-      if (
+      showSource = !!(
         user &&
         user.status === 'ACTIVE' &&
         user.plan !== 'FREEMIUM' &&
         !(user.planEndAt && user.planEndAt < new Date())
-      ) {
-        accessLevel = 'FULL'
-      }
+      )
     }
 
     // ÉTAPE 5 — Construire la réponse
-    const base = {
-      id: job.id,
-      title: job.title,
-      city: job.city,
-      sector: job.sector,
-      contractType: job.contractType,
-      deadline: job.deadline?.toISOString() ?? null,
-      status: job.status,
-    }
-
-    if (accessLevel === 'FULL') {
-      return reply.send({
-        job: {
-          ...base,
-          organization: job.organization,
-          level: job.level,
-          description: job.description,
-          requirements: job.requirements,
-          contactEmail: job.contactEmail,
-          contactPhone: job.contactPhone,
-          contactAddress: job.contactAddress,
-          applicationUrl: job.applicationUrl,
-          sourceUrl: job.sourceUrl,
-          sourceName: job.source.name,
-        },
-        accessLevel: 'FULL',
-      })
-    }
-
     return reply.send({
       job: {
-        ...base,
-        organization: null,
-        level: null,
-        description: null,
-        requirements: null,
-        contactEmail: null,
-        contactPhone: null,
-        contactAddress: null,
-        applicationUrl: null,
-        sourceUrl: null,
-        sourceName: null,
+        id: job.id,
+        title: job.title,
+        city: job.city,
+        sector: job.sector,
+        contractType: job.contractType,
+        deadline: job.deadline?.toISOString() ?? null,
+        status: job.status,
+        organization: job.organization,
+        level: job.level,
+        description: job.description,
+        requirements: job.requirements,
+        contactEmail: job.contactEmail,
+        contactPhone: job.contactPhone,
+        contactAddress: job.contactAddress,
+        applicationUrl: job.applicationUrl,
+        sourceUrl: showSource ? job.sourceUrl : null,
+        sourceName: showSource ? job.source.name : null,
       },
-      accessLevel: 'PREVIEW',
+      accessLevel: 'FULL',
     })
   })
 }

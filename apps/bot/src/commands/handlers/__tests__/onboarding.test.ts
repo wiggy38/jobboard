@@ -143,13 +143,11 @@ describe('handleOnboarding — étape ONBOARDING_CITY (choix multiple)', () => {
     });
   });
 
-  it('permet de sélectionner plusieurs villes', async () => {
+  it('FREEMIUM est limité à 1 ville : une 2e sélection est rejetée', async () => {
     getState.mockResolvedValue({ step: 'ONBOARDING_CITY', data: { cities: ['Ouagadougou'] } });
     await handleOnboarding(cmd('CITY_BOBO_DIOULASSO'), db());
-    expect(setState).toHaveBeenCalledWith(USER, {
-      step: 'ONBOARDING_CITY',
-      data: { cities: ['Ouagadougou', 'Bobo-Dioulasso'] },
-    });
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('limité'));
+    expect(setState).not.toHaveBeenCalled();
   });
 
   it('CITY_DONE sans aucune ville sélectionnée → re-demande, ne change pas d\'étape', async () => {
@@ -257,10 +255,10 @@ describe('handleOnboarding — étape ONBOARDING_CONTRACT', () => {
     data: { cities: ['Ouagadougou'], sectors: ['Informatique'] },
   };
 
-  it('CONTRACT_CDI crée le profil avec ["CDI"] et les villes/secteurs multiples', async () => {
+  it('CONTRACT_CDI crée le profil avec ["CDI"] et les villes/secteurs choisis', async () => {
     getState.mockResolvedValue({
       step: 'ONBOARDING_CONTRACT',
-      data: { cities: ['Ouagadougou', 'Bobo-Dioulasso'], sectors: ['Informatique', 'Finance'] },
+      data: { cities: ['Ouagadougou'], sectors: ['Informatique'] },
     });
     const mockDb = db();
     await handleOnboarding(cmd('CONTRACT_CDI'), mockDb);
@@ -269,9 +267,30 @@ describe('handleOnboarding — étape ONBOARDING_CONTRACT', () => {
         create: expect.objectContaining({
           profile: expect.objectContaining({
             create: expect.objectContaining({
-              cities: ['Ouagadougou', 'Bobo-Dioulasso'],
-              sectors: ['Informatique', 'Finance'],
+              cities: ['Ouagadougou'],
+              sectors: ['Informatique'],
               contractTypes: ['CDI'],
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('crée le profil avec les limites du plan FREEMIUM (maxCities/maxSectors/maxContractGroups = 1)', async () => {
+    getState.mockResolvedValue(contractState);
+    const mockDb = db();
+    await handleOnboarding(cmd('CONTRACT_CDI'), mockDb);
+    expect(mockDb.user.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          profile: expect.objectContaining({
+            create: expect.objectContaining({
+              maxCities: 1,
+              maxSectors: 1,
+              maxContractGroups: 1,
+              maxCountries: 1,
+              keywordAlertsEnabled: false,
             }),
           }),
         }),

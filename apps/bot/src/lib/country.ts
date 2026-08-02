@@ -2,6 +2,8 @@
 // canal WhatsApp national correspondant (1 canal par pays — voir
 // docs/subscription_flow_elite.md et .claude/CLAUDE.md).
 
+export { ELITE_MAX_COUNTRIES } from '@tumaa/shared';
+
 const COUNTRY_BY_PREFIX: Record<string, string> = {
   '+226': 'BF',
   '+229': 'BJ',
@@ -24,8 +26,6 @@ export const COUNTRY_NAMES: Record<string, string> = {
   TG: 'Togo',
   CI: "Côte d'Ivoire",
 };
-
-export const ELITE_MAX_COUNTRIES = 3;
 
 export function getCountryFromPhone(phone: string): string {
   const prefix = Object.keys(COUNTRY_BY_PREFIX).find((p) => phone.startsWith(p));

@@ -5,7 +5,7 @@ import MetaTags from '../components/MetaTags'
 const FEATURES = [
   '3 villes suivies',
   '3 secteurs suivis',
-  'Contacts visibles sur chaque offre',
+  '3 types de contrat suivis',
   'Alertes par mots-clés',
   'Historique des offres sur 30 jours',
 ]
@@ -21,7 +21,7 @@ export default function PremiumPage() {
     <div className="max-w-md mx-auto px-4 py-8 bg-white min-h-screen">
       <MetaTags
         title="Abonnement Premium — Tumaa"
-        description="650 FCFA/mois : 3 villes, 3 secteurs, contacts visibles, alertes et historique 30 jours."
+        description="650 FCFA/mois : 3 villes, 3 secteurs, 3 types de contrat, alertes mots-clés et historique 30 jours."
         url={window.location.href}
       />
       <div className="flex justify-center mb-8">
@@ -31,7 +31,7 @@ export default function PremiumPage() {
       <div className="mb-6 text-center">
         <h1 className="text-xl font-bold text-slate-900">Passez à Premium</h1>
         <p className="text-sm text-slate-500 mt-2">
-          Débloquez l&apos;accès complet aux offres Tumaa
+          Élargis ta recherche à plus de villes et de secteurs
         </p>
       </div>
 

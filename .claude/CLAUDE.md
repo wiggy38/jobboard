@@ -93,15 +93,26 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 ## Modèle Freemium / Premium / Elite / Sponsored Alerts B2B (validé — voir `docs/freemium_v1.1.md` et `docs/subscription_flow_elite.md`)
 
 ### Tiers
-| Tier | Prix | Villes | Secteurs | Pays | Contacts | Alertes keywords | Historique | Offres complètes gratuites/semaine |
+| Tier | Prix | Villes | Secteurs | Types de contrat | Pays | Contacts | Alertes keywords | Historique |
 |---|---|---|---|---|---|---|---|---|
-| FREEMIUM | 0 FCFA | 1 | 1 | 1 (inféré) | Masqués | Non | 7j | 0 |
-| PREMIUM | 650 FCFA/mois | 3 | 3 | 1 (inféré) | Visibles | Oui | 30j | N/A |
-| ELITE | 1 250 FCFA/mois | Illimité | Illimité | Jusqu'à 3 (choix user) | Visibles | Oui | 30j | N/A |
+| FREEMIUM | 0 FCFA | 1 | 1 | 1 | 1 (inféré) | Visibles | Non | 30j |
+| PREMIUM | 650 FCFA/mois | 3 | 3 | 3 | 1 (inféré) | Visibles | Oui | 30j |
+| ELITE | 1 250 FCFA/mois | Illimité | Illimité | Illimité | Jusqu'à 3 (choix user) | Visibles | Oui | 30j |
+
+Limites villes/secteurs/contrats/pays et alertes stockées en cache par utilisateur sur
+`Profile.maxCities/maxSectors/maxContractGroups/maxCountries/keywordAlertsEnabled` — source de
+vérité : `packages/shared/src/planLimits.ts` (`PLAN_LIMITS`). Toute mutation de `User.plan` doit
+appeler `applyPlanLimits()` (changement de plan) ou `planLimitsForCreate()` (création d'un
+nouveau `User`+`Profile`) pour resynchroniser ces colonnes — ne jamais recalculer la limite
+ad hoc à partir de `user.plan`.
 
 ### Règles Freemium/Premium/Elite — ne jamais contourner
-1. **0 offre complète gratuite/semaine pour Freemium** — friction maximale = levier de conversion, ne jamais assouplir sans décision produit explicite.
-2. **Contacts toujours masqués pour Freemium**, sauf offre Sponsored Alert (payée par l'employeur).
+1. **Contacts toujours visibles, quel que soit le plan** (y compris Freemium) — la
+   différenciation Freemium se fait uniquement sur le nombre de villes/secteurs/contrats/pays
+   suivis et sur les alertes mots-clés, jamais sur la visibilité des contacts.
+2. **La source scrappée (sourceUrl/sourceName) reste réservée aux plans payants**
+   (PREMIUM/ELITE) — règle indépendante de la visibilité des contacts, protège l'attribution de
+   la source plutôt que de servir de levier de conversion.
 3. **DÉBLOQUER → lien direct Premium 650 FCFA**, jamais d'essai gratuit.
 4. **Paiement hors plateforme** (CinetPay/Orange Money/Moov Money) — pas d'UI admin sur le paiement, suivi via dashboard CinetPay.
 5. **Retry paiement** : PENDING > 24h → relance manuelle ; commande `VÉRIFIER` resynchronise avec CinetPay ; relance à J-7 avant expiration d'abonnement.
@@ -109,7 +120,12 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 7. **ELITE multi-pays** : `User.countries` vide tant que l'utilisateur n'a pas choisi ses pays (1 à 3) ; auto-join Meta API + `ChannelJoin` créés uniquement après validation du choix, jamais avant paiement confirmé.
 
 ### Sponsored Alerts & Mise en avant (B2B)
-- Un employeur paie Tumaa pour que son offre soit vue en entier par les Freemium (contacts visibles), normalement masqués.
+- ⚠️ **Non résolu** : ce mécanisme reposait sur "Freemium voit les contacts en entier
+  uniquement si l'offre est Sponsored" — désormais obsolète puisque les contacts sont visibles
+  pour tous les plans (voir règle 1 ci-dessus). La proposition de valeur de Sponsored Alerts est
+  à revoir avant implémentation (champs Prisma `isFeatured`/`isSponsored` pas encore créés — rien
+  à migrer côté code, mais ne pas implémenter B2B sans clarifier ce point avec le produit).
+- Un employeur paie Tumaa pour que son offre soit mise en avant (`isFeatured`) et/ou éligible aux relances (`isSponsored`).
 - Ingestion B2B = **point unique manuel** : Admin crée `JobSubmission` après paiement hors plateforme, valide format/complétude (jamais de deepdive anti-fraude), puis crée le `JobOffer`.
 - Options par offre : `isFeatured` (priorité dans les résultats matching) et `isSponsored` (éligible aux relances Sponsored Alert).
 - Chaque relance Sponsored Alert incrémente `JobOffer.sponsoredSentCount` et met à jour `sponsoredLastSentAt` — l'employeur peut relancer plusieurs fois (J1, J3, J5...).
@@ -131,8 +147,9 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
   cohabiter avec un bouton CTA URL sur WhatsApp, donc l'abonnement se fait via la commande texte
   PREMIUM mentionnée dans le corps du message
 - La source de l'offre (sourceUrl/sourceName) n'est jamais exposée aux Freemium, ni dans le
-  message WhatsApp ni dans la réponse API de la page offre (accessLevel PREVIEW) — uniquement
-  en accessLevel FULL
+  message WhatsApp ni dans la réponse API de la page offre — uniquement pour PREMIUM/ELITE.
+  Les contacts (email/téléphone/adresse), eux, sont toujours visibles quel que soit le plan —
+  `accessLevel` vaut désormais toujours `'FULL'`, seul le champ source reste conditionné au plan.
 - Le parser de commandes gère DEUX types d'entrée :
   1. message.text.body (texte libre)
   2. message.interactive.button_reply.id (Reply Button tapé)

@@ -3,8 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
 import { fetchSubscribeCountries, saveSubscribeCountries, type SubscribeChannel } from '../lib/api'
-
-const ELITE_MAX_COUNTRIES = 3
+import { ELITE_MAX_COUNTRIES } from '@tumaa/shared'
 
 const COUNTRY_OPTIONS = [
   { code: 'BF', name: 'Burkina Faso', flag: '🇧🇫' },

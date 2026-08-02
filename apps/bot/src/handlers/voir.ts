@@ -64,50 +64,40 @@ export async function handleVoir(ctx: BotContext): Promise<void> {
     return;
   }
 
-  if (ctx.userPlan === 'FREEMIUM') {
-    await prisma.jobInteraction.upsert({
-      where: { userId_jobId_action: { userId: ctx.userId, jobId: offer.id, action: 'SEEN' } },
-      create: { userId: ctx.userId, jobId: offer.id, action: 'SEEN' },
-      update: {},
-    });
+  // Les contacts sont toujours visibles, quel que soit le plan. Seule la
+  // source scrappée reste réservée aux plans payants (protection de
+  // l'attribution, indépendant de la grille tarifaire).
+  await prisma.jobInteraction.upsert({
+    where: { userId_jobId_action: { userId: ctx.userId, jobId: offer.id, action: 'UNLOCKED' } },
+    create: { userId: ctx.userId, jobId: offer.id, action: 'UNLOCKED' },
+    update: {},
+  });
 
-    await sendText(
-      ctx.message.from,
-      `🔒 Offre #${n} — ${offer.title}\n\n` +
-        `${offer.organization} — ${offer.city} — ${offer.contractType}\n` +
-        `Les contacts de cette offre sont réservés aux membres Premium.\n\n` +
-        `✨ Pour 650 FCFA/mois tu débloques :\n\n` +
-        `✓ Tous les contacts et sources d'offres\n` +
-        `✓ Historique 30 jours\n` +
-        `✓ 3 villes + 3 secteurs de recherche\n\n` +
-        `Réponds PREMIUM pour t'abonner\n\n` +
-        `Ou ESSAI pour 48h gratuits (une seule fois)`,
-    );
-  } else {
-    await prisma.jobInteraction.upsert({
-      where: { userId_jobId_action: { userId: ctx.userId, jobId: offer.id, action: 'UNLOCKED' } },
-      create: { userId: ctx.userId, jobId: offer.id, action: 'UNLOCKED' },
-      update: {},
-    });
+  await extendWindow(ctx.userId);
 
-    await extendWindow(ctx.userId);
+  const deadlineStr = offer.deadline ? formatDeadline(offer.deadline) : 'Non précisée';
+  const descriptionStr = offer.description ?? 'Voir l\'annonce complète';
 
-    const deadlineStr = offer.deadline ? formatDeadline(offer.deadline) : 'Non précisée';
-    const descriptionStr = offer.description ?? 'Voir l\'annonce complète';
+  let body =
+    `✅ Offre #${n} — ${offer.title}\n\n` +
+    `${offer.organization} — ${offer.city} — ${offer.contractType}\n` +
+    `📋 Description : ${descriptionStr}\n`;
 
-    let body =
-      `✅ Offre #${n} — ${offer.title}\n\n` +
-      `${offer.organization} — ${offer.city} — ${offer.contractType}\n` +
-      `📋 Description : ${descriptionStr}\n`;
+  if (offer.contactEmail) body += `\n📧 ${offer.contactEmail}`;
+  if (offer.contactPhone) body += `\n📞 ${offer.contactPhone}`;
+  if (offer.contactAddress) body += `\n📍 ${offer.contactAddress}`;
+  if (offer.applicationUrl) body += `\n🔗 ${offer.applicationUrl}`;
 
-    if (offer.contactEmail) body += `\n📧 ${offer.contactEmail}`;
-    if (offer.contactPhone) body += `\n📞 ${offer.contactPhone}`;
-    if (offer.contactAddress) body += `\n📍 ${offer.contactAddress}`;
-    if (offer.applicationUrl) body += `\n🔗 ${offer.applicationUrl}`;
-
-    body += `\n\n⏰ Date limite : ${deadlineStr}`;
+  body += `\n\n⏰ Date limite : ${deadlineStr}`;
+  if (ctx.userPlan !== 'FREEMIUM') {
     body += `\n✨ Source : ${offer.source.name}`;
-
-    await sendText(ctx.message.from, body);
   }
+
+  if (ctx.userPlan === 'FREEMIUM') {
+    body +=
+      `\n\n💎 Passe à PREMIUM (650 FCFA/mois) pour suivre 3 villes, 3 secteurs, ` +
+      `recevoir les alertes mots-clés et voir la source de chaque offre.`;
+  }
+
+  await sendText(ctx.message.from, body);
 }

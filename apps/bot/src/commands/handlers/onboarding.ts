@@ -8,6 +8,7 @@ import { handleAide } from './aide';
 import { handleStop } from './stop';
 import { handlePremium } from './premium';
 import { getCountryFromPhone, NATIONAL_CHANNELS } from '../../lib/country';
+import { PLAN_LIMITS, planLimitsForCreate } from '@tumaa/shared';
 
 // Prisma ContractType enum values
 type ContractType = 'CDI' | 'CDD' | 'STAGE' | 'ALTERNANCE' | 'FREELANCE' | 'BENEVOLE' | 'AUTRE';
@@ -207,7 +208,17 @@ async function handleCityStep(cmd: ParsedCommand, prevData: Record<string, unkno
     return;
   }
 
-  const updated = cities.includes(option.label)
+  const alreadySelected = cities.includes(option.label);
+  if (!alreadySelected && cities.length >= PLAN_LIMITS.FREEMIUM.maxCities) {
+    await sendText(
+      cmd.userId,
+      `⚠️ Le plan gratuit est limité à ${PLAN_LIMITS.FREEMIUM.maxCities} ville(s). Passez PREMIUM ou ELITE pour en choisir plus.`,
+    );
+    await sendCityList(cmd.userId, cities);
+    return;
+  }
+
+  const updated = alreadySelected
     ? cities.filter((c) => c !== option.label)
     : [...cities, option.label];
 
@@ -258,7 +269,17 @@ async function handleSectorStep(cmd: ParsedCommand, prevData: Record<string, unk
     return;
   }
 
-  const updated = sectors.includes(option.label)
+  const alreadySelected = sectors.includes(option.label);
+  if (!alreadySelected && sectors.length >= PLAN_LIMITS.FREEMIUM.maxSectors) {
+    await sendText(
+      cmd.userId,
+      `⚠️ Le plan gratuit est limité à ${PLAN_LIMITS.FREEMIUM.maxSectors} secteur(s). Passez PREMIUM ou ELITE pour en choisir plus.`,
+    );
+    await sendSectorList(cmd.userId, sectors, page);
+    return;
+  }
+
+  const updated = alreadySelected
     ? sectors.filter((s) => s !== option.label)
     : [...sectors, option.label];
 
@@ -315,6 +336,7 @@ async function handleContractStep(
           levels: [],
           contractTypes,
           keywords: [],
+          ...planLimitsForCreate('FREEMIUM'),
         },
       },
     },

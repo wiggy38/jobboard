@@ -65,35 +65,25 @@ export async function handleOffres(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const isPremium = ctx.userPlan !== 'FREEMIUM';
+  const blocks = offers
+    .map((o, i) => {
+      let block = `${i + 1}. ${o.title} — ${o.city} — ${o.contractType}`;
+      if (o.contactEmail) block += `\n📧 ${o.contactEmail}`;
+      if (o.contactPhone) block += `\n📞 ${o.contactPhone}`;
+      if (o.deadline) block += `\n⏰ Date limite : ${formatDeadline(o.deadline)}`;
+      return block;
+    })
+    .join('\n\n');
 
-  if (!isPremium) {
-    const lines = offers
-      .map((o, i) => `${i + 1}. ${o.title} — ${o.city} — ${o.contractType}`)
-      .join('\n');
-    await sendText(
-      ctx.message.from,
-      `🔍 TUMAA — ${offers.length} offres disponibles pour toi\n` +
-        `${lines}\n` +
-        `🔒 Contacts masqués\n\n` +
-        `Réponds VOIR 1 pour débloquer les détails\n\n` +
-        `Ou PREMIUM pour tout recevoir sans limite`,
-    );
-  } else {
-    const blocks = offers
-      .map((o, i) => {
-        let block = `${i + 1}. ${o.title} — ${o.city} — ${o.contractType}`;
-        if (o.contactEmail) block += `\n📧 ${o.contactEmail}`;
-        if (o.contactPhone) block += `\n📞 ${o.contactPhone}`;
-        if (o.deadline) block += `\n⏰ Date limite : ${formatDeadline(o.deadline)}`;
-        return block;
-      })
-      .join('\n\n');
-    await sendText(
-      ctx.message.from,
-      `✅ TUMAA — ${offers.length} offres du jour\n\n` +
-        `${blocks}\n\n` +
-        `Réponds REVOIR pour rappeler une offre manquée`,
-    );
-  }
+  const upsell =
+    ctx.userPlan === 'FREEMIUM'
+      ? `\n\n💎 Passe à PREMIUM pour suivre 3 villes, 3 secteurs et recevoir les alertes mots-clés`
+      : '';
+
+  await sendText(
+    ctx.message.from,
+    `✅ TUMAA — ${offers.length} offres du jour\n\n` +
+      `${blocks}\n\n` +
+      `Réponds REVOIR pour rappeler une offre manquée${upsell}`,
+  );
 }

@@ -11,16 +11,15 @@ export async function handlePremium(cmd: ParsedCommand, db: PrismaClient): Promi
 
   await sendInteractiveCtaUrl(
     cmd.userId,
-    '💎 *Débloquez les contacts !*\n\n' +
+    '💎 *Élargis ta recherche !*\n\n' +
       '📱 *PREMIUM — 650 FCFA/mois*\n' +
-      '✓ Contacts visibles sur toutes les offres\n' +
-      '✓ 3 villes + 3 secteurs de recherche\n' +
+      '✓ 3 villes + 3 secteurs + 3 types de contrat\n' +
+      '✓ Alertes mots-clés\n' +
       '✓ Historique 30 jours\n\n' +
       '👑 *ELITE — 1 250 FCFA/mois*\n' +
       '✓ Tout du Premium +\n' +
-      '✓ Villes/secteurs illimités\n' +
-      '✓ Jusqu\'à 3 pays\n' +
-      '✓ Alertes mots-clés',
+      '✓ Villes/secteurs/contrats illimités\n' +
+      '✓ Jusqu\'à 3 pays de recherche',
     '👉 Choisir ma formule',
     buildSubscribeUrl(token),
   );

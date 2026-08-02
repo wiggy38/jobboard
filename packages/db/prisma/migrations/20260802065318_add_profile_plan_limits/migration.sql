@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Profile" ADD COLUMN     "keywordAlertsEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "maxCities" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "maxContractGroups" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "maxCountries" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "maxSectors" INTEGER NOT NULL DEFAULT 1;

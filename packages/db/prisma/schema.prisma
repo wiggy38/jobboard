@@ -18,9 +18,9 @@ datasource db {
 // ============================================================
 
 enum UserPlan {
-  FREEMIUM   // gratuit — 1 ville, 1 secteur, contacts masqués
-  PREMIUM    // 650 FCFA/mois — 3 villes, 3 secteurs, contacts visibles, alertes mots-clés
-  ELITE      // 1250 FCFA/mois — illimité villes/secteurs, jusqu'à 3 pays, alertes mots-clés
+  FREEMIUM   // gratuit — 1 ville, 1 secteur, 1 contrat, contacts visibles
+  PREMIUM    // 650 FCFA/mois — 3 villes, 3 secteurs, 3 contrats, contacts visibles, alertes mots-clés
+  ELITE      // 1250 FCFA/mois — illimité villes/secteurs/contrats, jusqu'à 3 pays, alertes mots-clés
 }
 
 enum UserStatus {
@@ -139,6 +139,15 @@ model Profile {
 
   // alertes mots-clés (Pro+)
   keywords String[]
+
+  // limites dérivées du plan — mises en cache pour éviter un recalcul à chaque
+  // lecture (packages/shared/src/planLimits.ts = source de vérité, synchronisées
+  // via applyPlanLimits()/planLimitsForCreate() à chaque changement de User.plan)
+  maxCities            Int     @default(1)
+  maxSectors           Int     @default(1)
+  maxContractGroups    Int     @default(1)
+  maxCountries         Int     @default(1)
+  keywordAlertsEnabled Boolean @default(false)
 
   // préférences
   country          String @default("BF")

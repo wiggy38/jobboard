@@ -16,7 +16,8 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0"
+    "@prisma/client": "^5.14.0",
+    "@tumaa/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

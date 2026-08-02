@@ -32,8 +32,11 @@ export async function offerRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'JOB_NOT_FOUND', message: 'Offre introuvable ou expirée' })
     }
 
-    const isUnlocked = !!user && user.plan !== 'FREEMIUM'
-    const accessLevel = isUnlocked ? 'FULL' : 'PREVIEW'
+    // Les contacts sont visibles pour tous les plans. La source scrappée reste
+    // réservée aux plans payants (protection de l'attribution, indépendant de
+    // la grille tarifaire — voir .claude/CLAUDE.md).
+    const showSource = !!user && user.plan !== 'FREEMIUM'
+    const accessLevel = 'FULL'
 
     const job = {
       id: offer.id,
@@ -43,12 +46,12 @@ export async function offerRoutes(app: FastifyInstance) {
       sector: offer.sector,
       contractType: offer.contractType,
       deadline: offer.deadline,
-      contactEmail: isUnlocked ? offer.contactEmail : null,
-      contactPhone: isUnlocked ? offer.contactPhone : null,
-      contactAddress: isUnlocked ? offer.contactAddress : null,
+      contactEmail: offer.contactEmail,
+      contactPhone: offer.contactPhone,
+      contactAddress: offer.contactAddress,
       applicationUrl: offer.applicationUrl,
-      sourceUrl: isUnlocked ? offer.source.url : null,
-      sourceName: isUnlocked ? offer.source.name : null,
+      sourceUrl: showSource ? offer.source.url : null,
+      sourceName: showSource ? offer.source.name : null,
       status: offer.status,
     }
 

@@ -7,9 +7,10 @@ import { initiateSubscribePayment, simulateSubscribePayment, trackSubscribeClick
 const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
 
 const PREMIUM_FEATURES = [
-  'Accéder au détail de toutes les offres',
   'Rechercher dans 3 villes',
   'Rechercher dans 3 secteurs d\'activités',
+  'Rechercher jusqu\'à 3 types de contrat',
+  'Alertes par mots-clés',
 ]
 
 const ELITE_FEATURES = [

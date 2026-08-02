@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
 import { sendText } from '../../services/whatsapp';
+import { applyPlanLimits } from '@tumaa/shared';
 
 export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
   const user = await db.user.findUnique({
@@ -39,6 +40,7 @@ export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise
       planEndAt: trialEnd,
     },
   });
+  await applyPlanLimits(db, user.id, 'PREMIUM');
 
   await sendText(
     cmd.userId,

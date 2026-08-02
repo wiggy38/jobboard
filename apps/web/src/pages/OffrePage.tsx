@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { fetchOffre } from '../lib/api'
 import type { OffreApiResponse } from '../lib/types'
@@ -99,7 +99,7 @@ export default function OffrePage() {
 
   if (!data) return null
 
-  const { job, accessLevel } = data
+  const { job } = data
 
   const deadlineBlock = job.deadline ? (() => {
     const days = getDaysUntil(job.deadline)
@@ -126,46 +126,8 @@ export default function OffrePage() {
     </div>
   )
 
-  if (accessLevel === 'PREVIEW') {
-    return (
-      <div className="max-w-md mx-auto px-4 py-8 bg-white min-h-screen">
-        <MetaTags
-          title={`${job.title} — Tumaa`}
-          description={`${job.city} · ${job.sector} · ${job.contractType}`}
-          url={window.location.href}
-        />
-        <div className="flex justify-center mb-8">
-          <Logo />
-        </div>
-
-        <div className="mb-8">
-          <h1 className="text-xl font-bold text-slate-900 text-center">{job.title}</h1>
-          {badges}
-          {deadlineBlock}
-        </div>
-
-        <div className="mt-8 p-6 rounded-2xl bg-green-50 border border-green-200 text-center">
-          <div className="text-3xl mb-3">🔒</div>
-          <h2 className="text-base font-semibold text-slate-800 mb-2">
-            Abonnez-vous pour accéder à l'offre complète
-          </h2>
-          <p className="text-sm text-slate-500 mb-5 leading-relaxed">
-            Abonnez-vous à Tumaa pour <b>650 FCFA/mois</b>
-            <br />
-            et recevez les détails complets de l'offre.
-          </p>
-          <Link
-            to={`/premium?offerId=${job.id}`}
-            className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
-          >
-            Cliquer pour s&apos;abonner
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  // FULL access
+  // Les contacts sont toujours visibles, quel que soit le plan — accessLevel
+  // reste 'FULL' pour tous les utilisateurs (voir apps/api/src/offre.routes.ts).
   const metaTitle = `${job.title} — ${job.organization ?? 'Tumaa'}`
   const metaDescription = `${job.city} · ${job.sector} · ${job.contractType}`
 

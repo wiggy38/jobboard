@@ -41,14 +41,30 @@ export async function upsertUser(phone: string): Promise<{
   };
 }
 
-export async function recordPullEvent(userId: string): Promise<void> {
+export async function recordPullEvent(userId: string, offersCount = 0): Promise<void> {
   const date = new Date(new Date().toISOString().split('T')[0]);
 
   await prisma.$executeRaw`
-    INSERT INTO "PullEvent" ("id", "userId", "date", "createdAt")
-    VALUES (gen_random_uuid(), ${userId}, ${date}::date, NOW())
-    ON CONFLICT ("userId", "date") DO NOTHING
+    INSERT INTO "PullEvent" ("id", "userId", "date", "offersCount", "createdAt")
+    VALUES (gen_random_uuid(), ${userId}, ${date}::date, ${offersCount}, NOW())
+    ON CONFLICT ("userId", "date")
+    DO UPDATE SET "offersCount" = "PullEvent"."offersCount" + ${offersCount}
   `;
+}
+
+export async function recordPullDelivery(
+  userId: string,
+  command: 'OFFRES' | 'SUITE',
+  offerIds: string[],
+): Promise<void> {
+  await prisma.pullDelivery.create({
+    data: {
+      userId,
+      command,
+      offersCount: offerIds.length,
+      offers: { connect: offerIds.map((id) => ({ id })) },
+    },
+  });
 }
 
 export async function getUserWithProfile(phone: string): Promise<{

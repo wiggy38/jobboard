@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { ParsedCommand } from '../whatsapp/types';
 import { getState } from '../session/state';
-import { handleOnboarding, startOnboarding } from './handlers/onboarding';
+import { startOnboarding } from './handlers/onboarding';
 import { handleOffres } from './handlers/offres';
 import { handleSuite } from './handlers/suite';
 import { handleVoir } from './handlers/voir';
@@ -41,11 +41,6 @@ const ROUTES: Record<string, Handler> = {
 export async function routeCommand(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
   // Resume active session flows before any other routing
   const state = await getState(cmd.userId);
-  if (state?.step.startsWith('ONBOARDING_')) {
-    await handleOnboarding(cmd, db);
-    return;
-  }
-
   if (state?.step === 'PREMIUM_CHOICE') {
     await handlePremium(cmd, db);
     return;
@@ -62,7 +57,7 @@ export async function routeCommand(cmd: ParsedCommand, db: PrismaClient): Promis
     select: { id: true },
   });
   if (!existing) {
-    await startOnboarding(cmd);
+    await startOnboarding(cmd, db);
     return;
   }
 

@@ -3,7 +3,6 @@ import { routeCommand } from '../router';
 jest.mock('../../session/state', () => ({ getState: jest.fn().mockResolvedValue(null) }));
 
 jest.mock('../handlers/onboarding', () => ({
-  handleOnboarding: jest.fn().mockResolvedValue(undefined),
   startOnboarding: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../handlers/offres',   () => ({ handleOffres:   jest.fn().mockResolvedValue(undefined) }));
@@ -20,7 +19,7 @@ jest.mock('../handlers/stats',    () => ({ handleStats:    jest.fn().mockResolve
 jest.mock('../handlers/unknown',  () => ({ handleUnknown:  jest.fn().mockResolvedValue(undefined) }));
 
 const { getState } = require('../../session/state');
-const { handleOnboarding, startOnboarding } = require('../handlers/onboarding');
+const { startOnboarding } = require('../handlers/onboarding');
 const { handleOffres }   = require('../handlers/offres');
 const { handleVoir }     = require('../handlers/voir');
 const { handlePremium }  = require('../handlers/premium');
@@ -40,31 +39,10 @@ const db   = (exists = true) => ({
 beforeEach(() => { jest.clearAllMocks(); getState.mockResolvedValue(null); });
 
 describe('routeCommand — flux session actif', () => {
-  it('état ONBOARDING_CITY → handleOnboarding (sans passer par findUnique)', async () => {
-    getState.mockResolvedValue({ step: 'ONBOARDING_CITY', data: {} });
-    const mockDb = db();
-    await routeCommand(cmd('OFFRES'), mockDb);
-    expect(handleOnboarding).toHaveBeenCalled();
-    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
-  });
-
-  it('état ONBOARDING_SECTOR → handleOnboarding', async () => {
-    getState.mockResolvedValue({ step: 'ONBOARDING_SECTOR', data: { city: 'Ouaga' } });
-    await routeCommand(cmd('FINANCE'), db());
-    expect(handleOnboarding).toHaveBeenCalled();
-  });
-
-  it('état ONBOARDING_CONTRACT → handleOnboarding', async () => {
-    getState.mockResolvedValue({ step: 'ONBOARDING_CONTRACT', data: { city: 'Ouaga', sector: 'IT' } });
-    await routeCommand(cmd('CONTRACT_CDI'), db());
-    expect(handleOnboarding).toHaveBeenCalled();
-  });
-
   it('état PREMIUM_CHOICE → handlePremium', async () => {
     getState.mockResolvedValue({ step: 'PREMIUM_CHOICE', data: {} });
     await routeCommand(cmd('OFFRES'), db());
     expect(handlePremium).toHaveBeenCalled();
-    expect(handleOnboarding).not.toHaveBeenCalled();
   });
 });
 

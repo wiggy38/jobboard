@@ -7,20 +7,6 @@ services:
       - "80:80"
     environment:
       - SVELTEKIT_UPSTREAM=sveltekit:3000
-    depends_on:
-      - sveltekit
-    networks:
-      - tumaa_network
-    restart: unless-stopped
-
-  sveltekit:
-    build:
-      context: ./app
-      dockerfile: Dockerfile
-    environment:
-      - VITE_API_URL=http://bot:3000
-      - NODE_ENV=production
-      - PORT=3000
     networks:
       - tumaa_network
     restart: unless-stopped

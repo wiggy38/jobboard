@@ -1,9 +1,18 @@
 import type { FastifyInstance } from 'fastify'
 import { UserPlan } from '@prisma/client'
 import { prisma } from './lib/prisma'
-import { COUNTRY_NAMES, NATIONAL_CHANNELS, getChannelInviteLink } from './lib/country'
+import { COUNTRY_NAMES, NATIONAL_CHANNELS, getChannelInviteLink, getCountryFromPhone } from './lib/country'
 import { createInvoice, confirmInvoice } from './lib/paydunya'
-import { applyPlanLimits } from '@tumaa/shared'
+import { sendText } from './lib/whatsapp'
+import {
+  applyPlanLimits,
+  isUnlimited,
+  CITY_OPTIONS,
+  SECTOR_OPTIONS,
+  LEVEL_OPTIONS,
+  CONTRACT_GROUPS,
+  ContractGroupId,
+} from '@tumaa/shared'
 
 const PLAN_PRICING: Record<'PREMIUM' | 'ELITE', number> = {
   PREMIUM: 650,
@@ -26,9 +35,7 @@ function verifySubscribeToken(fastify: FastifyInstance, token: string): { userId
 }
 
 function getPlanRedirectUrl(plan: 'PREMIUM' | 'ELITE', t: string): string {
-  return plan === 'ELITE'
-    ? `${WEB_BASE_URL}/subscribe/countries?t=${t}`
-    : `${WEB_BASE_URL}/subscribe/success?plan=${plan}`
+  return `${WEB_BASE_URL}/subscribe/profile?t=${t}&plan=${plan}`
 }
 
 async function activateSubscription(userId: string, plan: 'PREMIUM' | 'ELITE'): Promise<void> {
@@ -39,6 +46,32 @@ async function activateSubscription(userId: string, plan: 'PREMIUM' | 'ELITE'): 
     data: { plan: plan as UserPlan, planStartAt: now, planEndAt },
   })
   await applyPlanLimits(prisma, userId, plan as UserPlan)
+}
+
+// Récap envoyé sur WhatsApp une fois le wizard /subscribe/profile terminé
+// (dernière étape pour tous les plans : /api/subscribe/join-channel) —
+// confirme les choix de l'abonné avant qu'il ne tape OFFRES.
+function buildOnboardingRecap(
+  plan: UserPlan,
+  profile: { cities: string[]; sectors: string[]; levels: string[]; contractTypes: string[] },
+  countries: string[],
+): string {
+  const lines = [
+    '✅ *Ton profil Tumaa est prêt !*',
+    '',
+    `📍 Villes : *${profile.cities.join(', ')}*`,
+    `💼 Secteurs : *${profile.sectors.join(', ')}*`,
+    `🎓 Niveau : *${profile.levels.join(', ')}*`,
+    `📋 Contrat : *${profile.contractTypes.join(', ')}*`,
+  ]
+
+  if (plan === 'ELITE' && countries.length > 0) {
+    lines.push(`🌍 Pays de recherche : *${countries.map((c) => COUNTRY_NAMES[c] ?? c).join(', ')}*`)
+  }
+
+  lines.push('', '👉 Tape *OFFRES* pour recevoir tes premières offres !')
+
+  return lines.join('\n')
 }
 
 export async function subscribeRoutes(fastify: FastifyInstance) {
@@ -74,6 +107,159 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
     })
 
     return reply.send({ ok: true, id: click.id })
+  })
+
+  // Enregistre le profil de recherche (villes/secteurs/type de contrat/niveau
+  // d'étude) depuis le wizard /subscribe/profile — équivalent web de l'ancien
+  // onboarding ville/secteur/contrat sur WhatsApp (retiré, voir onboarding.ts).
+  // Les plafonds (maxCities/maxSectors/maxLevels/maxContractGroups) sont lus
+  // depuis Profile — jamais recalculés depuis user.plan (voir applyPlanLimits).
+  fastify.post<{
+    Body: {
+      t?: string
+      cities?: string[]
+      sectors?: string[]
+      contractGroups?: ContractGroupId[]
+      levels?: string[]
+    }
+  }>('/api/subscribe/profile', async (request, reply) => {
+    const { t, cities, sectors, contractGroups, levels } = request.body ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifySubscribeToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } })
+    if (!user || !user.profile) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { maxCities, maxSectors, maxLevels, maxContractGroups } = user.profile
+
+    const withinBounds = (selected: unknown[] | undefined, max: number): selected is unknown[] =>
+      Array.isArray(selected) && selected.length >= 1 && (isUnlimited(max) || selected.length <= max)
+
+    const citiesValid =
+      withinBounds(cities, maxCities) && cities!.every((c) => CITY_OPTIONS.some((o) => o.value === c))
+    const sectorsValid =
+      withinBounds(sectors, maxSectors) && sectors!.every((s) => SECTOR_OPTIONS.some((o) => o.value === s))
+    const levelsValid =
+      withinBounds(levels, maxLevels) && levels!.every((l) => LEVEL_OPTIONS.some((o) => o.value === l))
+    const contractGroupsValid =
+      withinBounds(contractGroups, maxContractGroups) &&
+      contractGroups!.every((g) => g in CONTRACT_GROUPS)
+
+    if (!citiesValid || !sectorsValid || !levelsValid || !contractGroupsValid) {
+      return reply.status(400).send({ error: 'PROFILE_INVALID' })
+    }
+
+    const contractTypes = [
+      ...new Set(contractGroups!.flatMap((g) => CONTRACT_GROUPS[g].types)),
+    ]
+
+    await prisma.profile.update({
+      where: { userId: user.id },
+      data: {
+        cities: cities as string[],
+        sectors: sectors as string[],
+        levels: levels as string[],
+        contractTypes,
+      },
+    })
+
+    return reply.send({ ok: true })
+  })
+
+  // Rejoint le canal WhatsApp national de l'abonné — déterminé uniquement
+  // depuis l'indicatif de son numéro, jamais depuis les pays de recherche
+  // ELITE (qui n'ont aucun lien avec les canaux). Idempotent : un seul
+  // ChannelJoin par utilisateur, nettoie tout ancien ChannelJoin d'un autre
+  // pays (ex. abonné qui aurait changé de numéro).
+  fastify.post<{
+    Body: { t?: string }
+  }>('/api/subscribe/join-channel', async (request, reply) => {
+    const { t } = request.body ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifySubscribeToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } })
+    if (!user) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    const country = getCountryFromPhone(user.phone)
+
+    await prisma.channelJoin.deleteMany({ where: { userId: user.id, country: { not: country } } })
+    await prisma.channelJoin.upsert({
+      where: { userId_country: { userId: user.id, country } },
+      update: {},
+      create: { userId: user.id, country },
+    })
+
+    if (user.profile) {
+      await sendText(user.phone, buildOnboardingRecap(user.plan, user.profile, user.countries))
+    }
+
+    return reply.send({
+      ok: true,
+      channel: {
+        country,
+        name: COUNTRY_NAMES[country],
+        channel: NATIONAL_CHANNELS[country],
+        inviteLink: getChannelInviteLink(country) ?? null,
+      },
+    })
+  })
+
+  // Confirme qu'un abonné a effectivement cliqué sur le lien d'invitation de
+  // son canal — appelé par le front au clic sur "Rejoindre" (JoinChannelScreen).
+  // Seul signal disponible : Meta ne notifie jamais le join effectif côté
+  // serveur. Alimente ChannelJoin.joined pour permettre au backoffice de
+  // relancer les abonnés qui n'ont pas rejoint leur canal.
+  fastify.post<{
+    Body: { t?: string }
+  }>('/api/subscribe/channel-joined', async (request, reply) => {
+    const { t } = request.body ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifySubscribeToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    const country = getCountryFromPhone(user.phone)
+    const now = new Date()
+
+    await prisma.channelJoin.upsert({
+      where: { userId_country: { userId: user.id, country } },
+      update: { joined: true, joinedAt: now },
+      create: { userId: user.id, country, joined: true, joinedAt: now },
+    })
+
+    return reply.send({ ok: true })
   })
 
   // Simule un paiement réussi (dev/démo uniquement — aucun provider réel n'est
@@ -121,7 +307,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
 
     await activateSubscription(user.id, plan)
 
-    const redirectUrl = plan === 'ELITE' ? `/subscribe/countries?t=${t}` : `/subscribe/success?plan=${plan}`
+    const redirectUrl = `/subscribe/profile?t=${t}&plan=${plan}`
 
     return reply.send({ ok: true, plan, redirectUrl })
   })
@@ -238,9 +424,9 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({ ok: true })
   })
 
-  // Retourne les pays déjà rejoints (ChannelJoin) pour pré-sélectionner le
-  // formulaire quand l'utilisateur revient sur la page (ex. après un ELITE
-  // renouvelé ou un rechargement de page).
+  // Retourne les pays de recherche déjà choisis (User.countries) pour
+  // pré-sélectionner le formulaire quand l'utilisateur revient sur la page
+  // (ex. après un ELITE renouvelé ou un rechargement de page).
   fastify.get<{
     Querystring: { t?: string }
   }>('/api/subscribe/countries', async (request, reply) => {
@@ -256,13 +442,19 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
     }
 
-    const joins = await prisma.channelJoin.findMany({ where: { userId }, select: { country: true } })
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { countries: true } })
+    if (!user) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
 
-    return reply.send({ ok: true, countries: joins.map((j) => j.country) })
+    return reply.send({ ok: true, countries: user.countries.filter((c) => c in COUNTRY_NAMES) })
   })
 
-  // Enregistre le choix des pays ELITE (jusqu'à 3) après paiement — équivalent
-  // web de la commande WhatsApp PAYS (apps/bot/src/commands/handlers/pays.ts).
+  // Enregistre le choix des pays de recherche ELITE (jusqu'à 3) après paiement
+  // — équivalent web de la commande WhatsApp PAYS
+  // (apps/bot/src/commands/handlers/pays.ts). Ces pays servent uniquement au
+  // matching d'offres (User.countries) — ils n'ont plus d'effet sur les
+  // canaux WhatsApp, voir /api/subscribe/join-channel.
   fastify.post<{
     Body: { t?: string; countries?: string[] }
   }>('/api/subscribe/countries', async (request, reply) => {
@@ -300,29 +492,6 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
 
     await prisma.user.update({ where: { id: user.id }, data: { countries: selected } })
 
-    // Retire les canaux des pays désélectionnés — sinon un ChannelJoin périmé
-    // reste en base après un changement de sélection (ex. ancien pays retiré
-    // au profit d'un nouveau).
-    await prisma.channelJoin.deleteMany({
-      where: { userId: user.id, country: { notIn: selected } },
-    })
-
-    const channels = await Promise.all(
-      selected.map(async (country) => {
-        await prisma.channelJoin.upsert({
-          where: { userId_country: { userId: user.id, country } },
-          update: {},
-          create: { userId: user.id, country },
-        })
-        return {
-          country,
-          name: COUNTRY_NAMES[country],
-          channel: NATIONAL_CHANNELS[country],
-          inviteLink: getChannelInviteLink(country) ?? null,
-        }
-      }),
-    )
-
-    return reply.send({ ok: true, countries: selected, channels })
+    return reply.send({ ok: true, countries: selected })
   })
 }

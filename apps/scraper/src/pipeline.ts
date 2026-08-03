@@ -13,7 +13,7 @@ const SOURCE = 'pipeline'
 // de crawlErrors (monitor.ts, qui détecte un run manqué) : ici le scraper a
 // bien tourné mais n'a rien trouvé, symptôme typique d'un site qui a changé
 // de structure ou déployé une protection anti-bot.
-const CIRCUIT_BREAKER_THRESHOLD = 2
+const CIRCUIT_BREAKER_THRESHOLD = 3
 const ALERT_EMAIL_TO = process.env.REPORT_EMAIL_TO ?? 'm.miguellao@gmail.com'
 
 export interface PipelineResult {
@@ -179,6 +179,8 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
     for (const { offer, hash } of newOffers) {
       try {
+        const isAlreadyExpired = offer.deadline != null && offer.deadline < new Date()
+
         await prisma.jobOffer.create({
           data: {
             title: offer.title,
@@ -202,7 +204,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
             publishedAt: offer.publishedAt,
             deadline: offer.deadline,
             scoreConfidence: offer.scoreConfidence,
-            status: JobOfferStatus.PENDING,
+            status: isAlreadyExpired ? JobOfferStatus.EXPIRED : JobOfferStatus.PENDING,
           },
         })
         totalInserted++

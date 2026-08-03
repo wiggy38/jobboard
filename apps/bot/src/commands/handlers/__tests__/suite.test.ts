@@ -3,6 +3,7 @@ import { handleSuite } from '../suite';
 jest.mock('../../../services/pull', () => ({
   getUserWithProfile: jest.fn(),
   recordPullEvent: jest.fn().mockResolvedValue(undefined),
+  recordPullDelivery: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../../session/pagination', () => ({
@@ -30,7 +31,7 @@ jest.mock('@tumaa/matching', () => ({
   ContractType: {},
 }));
 
-const { getUserWithProfile, recordPullEvent } = require('../../../services/pull');
+const { getUserWithProfile, recordPullEvent, recordPullDelivery } = require('../../../services/pull');
 const { getOffset, setOffset } = require('../../../session/pagination');
 const { openWindow } = require('../../../session/window');
 const { deliverJobsBatch } = require('../../../messages/delivery');
@@ -161,11 +162,12 @@ describe('handleSuite — fin de liste', () => {
     expect(setOffset).not.toHaveBeenCalled();
   });
 
-  it('fin de liste → ni openWindow ni recordPullEvent (retour anticipé)', async () => {
+  it('fin de liste → ni openWindow ni recordPullEvent ni recordPullDelivery (retour anticipé)', async () => {
     getOffset.mockResolvedValue(10);
     await handleSuite(cmd(), makeDb([]));
     expect(openWindow).not.toHaveBeenCalled();
     expect(recordPullEvent).not.toHaveBeenCalled();
+    expect(recordPullDelivery).not.toHaveBeenCalled();
   });
 });
 
@@ -214,9 +216,21 @@ describe('handleSuite — fenêtre de service', () => {
 // ── Événement pull ────────────────────────────────────────────────────────────
 
 describe('handleSuite — recordPullEvent', () => {
-  it('appelé avec l\'id interne du user après livraison', async () => {
+  it('appelé avec l\'id interne du user et le nombre d\'offres livrées après livraison', async () => {
     const offers = Array.from({ length: 6 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
-    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id);
+    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id, 5);
+  });
+});
+
+describe('handleSuite — recordPullDelivery (historique détaillé)', () => {
+  it('enregistre la commande SUITE avec les ids des offres livrées', async () => {
+    const offers = Array.from({ length: 6 }, (_, i) => makeOffer(`o${i}`));
+    await handleSuite(cmd(), makeDb(offers));
+    expect(recordPullDelivery).toHaveBeenCalledWith(
+      FREEMIUM_USER.id,
+      'SUITE',
+      ['o0', 'o1', 'o2', 'o3', 'o4'],
+    );
   });
 });

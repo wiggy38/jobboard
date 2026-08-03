@@ -1,0 +1,230 @@
+import type { FastifyInstance } from 'fastify'
+import { prisma } from '../../lib/prisma'
+import { adminAuth } from '../../middleware/adminAuth'
+
+export async function userRoutes(fastify: FastifyInstance) {
+  // GET /admin/users
+  fastify.get('/admin/users', { preHandler: adminAuth }, async (request, reply) => {
+    const q = request.query as {
+      plan?: string
+      status?: string
+      country?: string
+      phone?: string
+      channelJoined?: string
+      page?: string
+      limit?: string
+    }
+
+    const page = Math.max(1, Number(q.page ?? '1'))
+    const limit = Math.min(100, Math.max(1, Number(q.limit ?? '20')))
+    const skip = (page - 1) * limit
+
+    const where: Record<string, any> = {}
+    if (q.plan) where.plan = q.plan
+    if (q.status) where.status = q.status
+    if (q.country) where.countries = { has: q.country }
+    if (q.phone) where.phone = { contains: q.phone, mode: 'insensitive' }
+    // channelJoined=false → à relancer (jamais cliqué sur l'invitation canal)
+    if (q.channelJoined === 'true') where.channelJoins = { some: { joined: true } }
+    if (q.channelJoined === 'false') where.channelJoins = { none: { joined: true } }
+
+    const [data, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { channelJoins: true },
+      }),
+      prisma.user.count({ where }),
+    ])
+
+    return reply.send({ data, total })
+  })
+
+  // GET /admin/users/:id
+  fastify.get('/admin/users/:id', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        profile: true,
+        payments: { orderBy: { createdAt: 'desc' }, take: 20 },
+        channelJoins: true,
+      },
+    })
+    if (!user) return reply.status(404).send({ error: 'Not found' })
+
+    return reply.send(user)
+  })
+
+  // GET /admin/users/pull-activity
+  // Liste des abonnés avec leur activité de pull (commande OFFRES/SUITE) sur une
+  // période donnée : nombre de jours pullés, nombre d'offres reçues, dernière date
+  // de pull. Permet de distinguer les abonnés actifs sur la boucle pull de ceux
+  // qui n'ont jamais pullé.
+  fastify.get('/admin/users/pull-activity', { preHandler: adminAuth }, async (request, reply) => {
+    const q = request.query as {
+      from?: string
+      to?: string
+      pulled?: string // 'true' | 'false' | undefined (tous)
+      plan?: string
+      status?: string
+      phone?: string
+      page?: string
+      limit?: string
+    }
+
+    const page = Math.max(1, Number(q.page ?? '1'))
+    const limit = Math.min(100, Math.max(1, Number(q.limit ?? '20')))
+    const skip = (page - 1) * limit
+
+    const now = new Date()
+    const defaultFrom = new Date(now)
+    defaultFrom.setDate(defaultFrom.getDate() - 30)
+
+    const from = q.from ? new Date(q.from) : defaultFrom
+    const to = q.to ? new Date(q.to) : now
+    const fromDate = new Date(from.toISOString().split('T')[0])
+    const toDate = new Date(to.toISOString().split('T')[0])
+
+    // Utilisateurs ayant au moins un pull dans la période
+    const pulledEvents = await prisma.pullEvent.findMany({
+      where: { date: { gte: fromDate, lte: toDate } },
+      select: { userId: true },
+      distinct: ['userId'],
+    })
+    const pulledIds = pulledEvents.map((e) => e.userId)
+
+    const where: Record<string, any> = {}
+    if (q.plan) where.plan = q.plan
+    if (q.status) where.status = q.status
+    if (q.phone) where.phone = { contains: q.phone, mode: 'insensitive' }
+    if (q.pulled === 'true') where.id = { in: pulledIds }
+    if (q.pulled === 'false') where.id = { notIn: pulledIds }
+
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          phone: true,
+          displayName: true,
+          plan: true,
+          status: true,
+          countries: true,
+          createdAt: true,
+        },
+      }),
+    ])
+
+    const userIds = users.map((u) => u.id)
+    const stats = userIds.length
+      ? await prisma.pullEvent.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds }, date: { gte: fromDate, lte: toDate } },
+          _sum: { offersCount: true },
+          _count: { _all: true },
+          _max: { date: true },
+        })
+      : []
+    const statsMap = new Map(stats.map((s) => [s.userId, s]))
+
+    return reply.send({
+      data: users.map((u) => {
+        const s = statsMap.get(u.id)
+        return {
+          ...u,
+          createdAt: u.createdAt.toISOString(),
+          pullDaysCount: s?._count._all ?? 0,
+          offersReceived: s?._sum.offersCount ?? 0,
+          lastPullDate: s?._max.date?.toISOString() ?? null,
+        }
+      }),
+      total,
+      page,
+      perPage: limit,
+      totalPages: Math.ceil(total / limit),
+      period: { from: fromDate.toISOString(), to: toDate.toISOString() },
+    })
+  })
+
+  // GET /admin/users/:id/pull-history
+  // Historique détaillé des pulls (chaque exécution de OFFRES/SUITE) d'un abonné,
+  // avec pour chacun la liste précise des offres envoyées.
+  fastify.get('/admin/users/:id/pull-history', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const q = request.query as { page?: string; limit?: string }
+
+    const page = Math.max(1, Number(q.page ?? '1'))
+    const limit = Math.min(50, Math.max(1, Number(q.limit ?? '20')))
+    const skip = (page - 1) * limit
+
+    const [total, deliveries] = await Promise.all([
+      prisma.pullDelivery.count({ where: { userId: id } }),
+      prisma.pullDelivery.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          offers: {
+            select: {
+              id: true,
+              title: true,
+              organization: true,
+              city: true,
+              sector: true,
+              contractType: true,
+              status: true,
+            },
+          },
+        },
+      }),
+    ])
+
+    return reply.send({
+      data: deliveries.map((d) => ({
+        id: d.id,
+        command: d.command,
+        offersCount: d.offersCount,
+        createdAt: d.createdAt.toISOString(),
+        offers: d.offers,
+      })),
+      total,
+      page,
+      perPage: limit,
+      totalPages: Math.ceil(total / limit),
+    })
+  })
+
+  // PATCH /admin/users/:id/extend
+  fastify.patch('/admin/users/:id/extend', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { days?: number }
+
+    if (!body.days || body.days <= 0) {
+      return reply.status(400).send({ error: 'days must be a positive number' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user) return reply.status(404).send({ error: 'Not found' })
+
+    if (user.plan === 'FREEMIUM') {
+      return reply.status(400).send({ error: 'Cannot extend a FREEMIUM user' })
+    }
+
+    const now = new Date()
+    const base = user.planEndAt && user.planEndAt > now ? user.planEndAt : now
+    const planEndAt = new Date(base.getTime() + body.days * 24 * 60 * 60 * 1000)
+
+    await prisma.user.update({ where: { id }, data: { planEndAt } })
+
+    return reply.send({ ok: true, planEndAt })
+  })
+}

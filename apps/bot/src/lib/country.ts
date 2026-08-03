@@ -5,10 +5,10 @@
 export { ELITE_MAX_COUNTRIES } from '@tumaa/shared';
 
 const COUNTRY_BY_PREFIX: Record<string, string> = {
-  '+226': 'BF',
-  '+229': 'BJ',
-  '+228': 'TG',
-  '+225': 'CI',
+  '226': 'BF',
+  '229': 'BJ',
+  '228': 'TG',
+  '225': 'CI',
 };
 
 export const NATIONAL_CHANNELS: Record<string, string> = {
@@ -28,7 +28,10 @@ export const COUNTRY_NAMES: Record<string, string> = {
 };
 
 export function getCountryFromPhone(phone: string): string {
-  const prefix = Object.keys(COUNTRY_BY_PREFIX).find((p) => phone.startsWith(p));
+  // Le webhook Meta Cloud API envoie `from` en E.164 SANS "+" (ex. "22966884820"),
+  // mais un numéro saisi manuellement peut en avoir un — on l'ignore dans les deux cas.
+  const digits = phone.replace(/^\+/, '');
+  const prefix = Object.keys(COUNTRY_BY_PREFIX).find((p) => digits.startsWith(p));
   return prefix ? COUNTRY_BY_PREFIX[prefix] : 'BF';
 }
 

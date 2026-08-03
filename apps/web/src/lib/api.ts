@@ -69,7 +69,6 @@ export interface SubscribeChannel {
 export interface SaveCountriesResponse {
   ok: true
   countries: string[]
-  channels: SubscribeChannel[]
 }
 
 export async function fetchSubscribeCountries(token: string): Promise<string[]> {
@@ -88,4 +87,44 @@ export async function saveSubscribeCountries(
     countries,
   })
   return data
+}
+
+export async function joinHomeChannel(token: string): Promise<{ ok: true; channel: SubscribeChannel }> {
+  const { data } = await axios.post<{ ok: true; channel: SubscribeChannel }>('/api/subscribe/join-channel', {
+    t: token,
+  })
+  return data
+}
+
+// Fire-and-forget, comme trackSubscribeClick — ne doit jamais bloquer ni
+// casser la navigation vers le lien wa.me/channel externe.
+export function markChannelJoined(token: string): void {
+  try {
+    void fetch('/api/subscribe/channel-joined', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: token }),
+      keepalive: true,
+    })
+  } catch {
+    // non-bloquant
+  }
+}
+
+export interface SubscribeProfileData {
+  cities: string[]
+  sectors: string[]
+  contractGroups: ('CONTRACT_CDI' | 'CONTRACT_CDD' | 'CONTRACT_ALL')[]
+  levels: string[]
+}
+
+export async function saveSubscribeProfile(
+  token: string,
+  data: SubscribeProfileData
+): Promise<{ ok: true }> {
+  const { data: res } = await axios.post<{ ok: true }>('/api/subscribe/profile', {
+    t: token,
+    ...data,
+  })
+  return res
 }

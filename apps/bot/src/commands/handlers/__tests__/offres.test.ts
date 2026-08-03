@@ -4,6 +4,7 @@ jest.mock('../../../services/pull', () => ({
   getUserWithProfile: jest.fn(),
   upsertUser: jest.fn().mockResolvedValue(undefined),
   recordPullEvent: jest.fn().mockResolvedValue(undefined),
+  recordPullDelivery: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../../session/pagination', () => ({
@@ -36,7 +37,7 @@ jest.mock('@tumaa/matching', () => ({
   ContractType: {},
 }));
 
-const { getUserWithProfile, recordPullEvent } = require('../../../services/pull');
+const { getUserWithProfile, recordPullEvent, recordPullDelivery } = require('../../../services/pull');
 const { resetOffset, setOffset } = require('../../../session/pagination');
 const { openWindow } = require('../../../session/window');
 const { deliverJobsBatch } = require('../../../messages/delivery');
@@ -209,13 +210,25 @@ describe('handleOffres — fenêtre de service (TTL 24h)', () => {
 // ── Événement pull ────────────────────────────────────────────────────────────
 
 describe('handleOffres — recordPullEvent (boucle pull gratuite)', () => {
-  it('appelé avec l\'id interne du user (pas le numéro de téléphone)', async () => {
+  it('appelé avec l\'id interne du user (pas le numéro de téléphone) et le nombre d\'offres livrées', async () => {
     await handleOffres(cmd(), makeDb([makeOffer('o1')]));
-    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id);
+    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id, 1);
   });
 
-  it('appelé même quand aucune offre ne correspond au profil', async () => {
+  it('appelé même quand aucune offre ne correspond au profil, avec un compte à 0', async () => {
     await handleOffres(cmd(), makeDb([]));
-    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id);
+    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id, 0);
+  });
+});
+
+describe('handleOffres — recordPullDelivery (historique détaillé)', () => {
+  it('enregistre la commande OFFRES avec les ids des offres livrées', async () => {
+    await handleOffres(cmd(), makeDb([makeOffer('o1')]));
+    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', ['o1']);
+  });
+
+  it('enregistre une liste vide quand aucune offre ne correspond au profil', async () => {
+    await handleOffres(cmd(), makeDb([]));
+    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', []);
   });
 });

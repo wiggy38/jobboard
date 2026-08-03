@@ -13,7 +13,7 @@ référence (SvelteKit routes, handlers pseudo-code) qui ne correspond pas trait
 code déjà existant dans ce repo. Avant de coder depuis ce doc, tenir compte des écarts suivants :
 
 - **Pas SvelteKit — React/Vite** : le flow `/subscribe` est implémenté dans le second projet web
-  du monorepo, `apps/web` (React 19 + Vite + react-router-dom), et non dans `apps/web/app` (qui
+  du monorepo, `apps/web` (React 19 + Vite + react-router-dom), et non dans `apps/backoffice` (qui
   est bien du SvelteKit, mais réservé à l'admin/employer/`offre/[token]`). Pages réelles :
   `apps/web/src/pages/SubscribePage.tsx` (choix PREMIUM/ELITE), `SubscribeCountriesPage.tsx`
   (sélection pays ELITE), `SubscribeSuccessPage.tsx` (confirmation), routées dans
@@ -167,7 +167,7 @@ pour recevoir les offres filtrées, avec contacts visibles (PREMIUM/ELITE) ou ma
 ```
 Utilisateur
   ├─ Bot (Fastify)        → onboarding, CTA (10s), filtrage           apps/bot/
-  ├─ Web (SvelteKit)       → /subscribe, /select-countries, /payment   apps/web/app/
+  ├─ Web (SvelteKit)       → /subscribe, /select-countries, /payment   apps/backoffice/
   └─ Meta API              → gestion des canaux
 
 PostgreSQL (Prisma)

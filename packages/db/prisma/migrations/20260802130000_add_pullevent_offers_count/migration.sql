@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "PullEvent" ADD COLUMN "offersCount" INTEGER NOT NULL DEFAULT 0;

@@ -1,6 +1,6 @@
 import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
-import { getUserWithProfile, recordPullEvent } from '../../services/pull';
+import { getUserWithProfile, recordPullEvent, recordPullDelivery } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
 import { getOffset, setOffset } from '../../session/pagination';
 import { openWindow } from '../../session/window';
@@ -27,6 +27,9 @@ export async function handleSuite(cmd: ParsedCommand, db: PrismaClient): Promise
   await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage);
   await setOffset(cmd.userId, offset + 5);
 
-  recordPullEvent(user.id).catch((err) => console.warn('[suite] recordPullEvent:', err));
+  recordPullEvent(user.id, batch.length).catch((err) => console.warn('[suite] recordPullEvent:', err));
+  recordPullDelivery(user.id, 'SUITE', batch.map((o) => o.id)).catch((err) =>
+    console.warn('[suite] recordPullDelivery:', err),
+  );
   await openWindow(cmd.userId);
 }

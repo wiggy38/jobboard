@@ -8,6 +8,7 @@ import { adminRoutes } from './admin.routes'
 import { submissionRoutes } from './routes/admin/submissions'
 import { scoutRoutes } from './routes/admin/scouts'
 import { fraudRoutes } from './routes/admin/fraud'
+import { userRoutes } from './routes/admin/users'
 import path from 'path'
 
 const app = Fastify({ logger: true })
@@ -25,6 +26,7 @@ app.register(adminRoutes)
 app.register(submissionRoutes)
 app.register(scoutRoutes)
 app.register(fraudRoutes)
+app.register(userRoutes)
 
 const start = async () => {
   if (process.env.NODE_ENV === 'production') {

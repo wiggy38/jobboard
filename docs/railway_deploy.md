@@ -23,7 +23,7 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-bot` | `/` (racine repo) | `railway.bot.json` | Webhook WhatsApp, doit être joignable publiquement (générer un domaine Railway) |
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
 | `tumaa-web-nginx` | `apps/web` | `railway.web-nginx.json` (`dockerfilePath: nginx/Dockerfile`) | Landing statique + reverse proxy vers `tumaa-web-app`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
-| `tumaa-web-app` | `apps/web/app` | `railway.web-app.json` (`dockerfilePath: Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
+| `tumaa-web-app` | `apps/backoffice` | `railway.web-app.json` (`dockerfilePath: Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la

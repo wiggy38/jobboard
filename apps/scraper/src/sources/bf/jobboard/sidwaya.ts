@@ -8,13 +8,17 @@ import { isLikelyNotJobOffer } from '../../../lib/content-filter'
 import { prioritizeUnseen } from '../../../lib/pagination'
 
 const BASE_URL = 'https://www.sidwaya.info'
-const CATEGORY_PATH = '/bfcategories/focus/communique'
+// "focus/communique" mélange annonces d'offres d'emploi et actualité générale
+// (politique, faits-divers, sport...) — Haiku rejette silencieusement tout ce
+// qui n'est pas une fiche d'offre, d'où un budget de détail plus large que sur
+// "emploi", catégorie dédiée et plus propre. Le budget est alloué par
+// catégorie (pas un pool global) : sinon les nombreux articles de
+// "communique" épuisent la limite avant même d'atteindre "emploi".
+const CATEGORIES = [
+  { path: '/bfcategories/focus/communique', detailLimit: 12 },
+  { path: '/bfcategories/emploi', detailLimit: 10 },
+]
 const LISTING_PAGES = 3
-// Catégorie "COMMUNIQUE" mélange annonces d'offres d'emploi et actualité
-// générale (politique, faits-divers, sport...) — Haiku rejette silencieusement
-// tout ce qui n'est pas une fiche d'offre, d'où un budget de détail plus large
-// que sur les sources dédiées à l'emploi.
-const DETAIL_LIMIT = 15
 const POLITE_DELAY_MS = 1500
 const HTTP_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
 
@@ -35,57 +39,64 @@ interface ListingItem {
 
 export class SidwayaScraper extends BaseScraper {
   readonly name = 'sidwaya'
-  readonly url = `${BASE_URL}${CATEGORY_PATH}/`
+  readonly url = `${BASE_URL}${CATEGORIES[0].path}/`
 
   async scrape(seenSourceUrls: Set<string> = new Set()): Promise<ScraperResult> {
     const errors: string[] = []
     const offers: RawJobOffer[] = []
 
-    const listings: ListingItem[] = []
     const seenLinks = new Set<string>()
+    const targets: ListingItem[] = []
 
-    for (let page = 1; page <= LISTING_PAGES; page++) {
-      const pageUrl = page === 1 ? this.url : `${BASE_URL}${CATEGORY_PATH}/page/${page}/`
-      info(this.name, `Fetching listing page ${page}: ${pageUrl}`)
+    for (const category of CATEGORIES) {
+      const listings: ListingItem[] = []
 
-      let html: string
-      try {
-        const response = await axios.get(pageUrl, { timeout: 15_000, headers: HTTP_HEADERS })
-        html = response.data as string
-      } catch (err) {
-        const msg = `Listing fetch failed (page=${page}): ${this.handleError(err)}`
-        errors.push(msg)
-        warn(this.name, msg)
-        break
+      for (let page = 1; page <= LISTING_PAGES; page++) {
+        const pageUrl = page === 1 ? `${BASE_URL}${category.path}/` : `${BASE_URL}${category.path}/page/${page}/`
+        info(this.name, `Fetching listing page ${page}: ${pageUrl}`)
+
+        let html: string
+        try {
+          const response = await axios.get(pageUrl, { timeout: 15_000, headers: HTTP_HEADERS })
+          html = response.data as string
+        } catch (err) {
+          // Une page de pagination au-delà de la dernière renvoie 404 — fin normale
+          // de catégorie, pas une erreur à remonter.
+          if (axios.isAxiosError(err) && err.response?.status === 404) break
+          const msg = `Listing fetch failed (category=${category.path}, page=${page}): ${this.handleError(err)}`
+          errors.push(msg)
+          warn(this.name, msg)
+          break
+        }
+
+        const $ = cheerio.load(html)
+        let foundOnPage = 0
+
+        $('h3.entry-title a, h2.entry-title a').each((_i, el) => {
+          const a = $(el)
+          const title = extractText(a)
+          const link = a.attr('href') ?? ''
+          if (!title || !link || seenLinks.has(link)) return
+          seenLinks.add(link)
+          foundOnPage++
+          listings.push({ title, link })
+        })
+
+        if (foundOnPage === 0) break
+        if (page < LISTING_PAGES) await sleep(POLITE_DELAY_MS)
       }
 
-      const $ = cheerio.load(html)
-      let foundOnPage = 0
+      info(this.name, `Found ${listings.length} articles on ${category.path}`)
 
-      $('h3.entry-title a, h2.entry-title a').each((_i, el) => {
-        const a = $(el)
-        const title = extractText(a)
-        const link = a.attr('href') ?? ''
-        if (!title || !link || seenLinks.has(link)) return
-        seenLinks.add(link)
-        foundOnPage++
-        listings.push({ title, link })
-      })
-
-      if (foundOnPage === 0) break
-      if (page < LISTING_PAGES) await sleep(POLITE_DELAY_MS)
+      const filteredListings = listings.filter(item => !isLikelyNotJobOffer(item.title, item.link))
+      const ordered = prioritizeUnseen(filteredListings, item => item.link, seenSourceUrls)
+      targets.push(...ordered.slice(0, category.detailLimit))
     }
 
-    if (listings.length === 0) {
-      errors.push('Could not find any article links on the listing page — HTML structure may have changed')
+    if (targets.length === 0) {
+      errors.push('Could not find any article links on the listing pages — HTML structure may have changed')
       return { source: this.name, offers: [], errors, scrapedAt: new Date() }
     }
-
-    info(this.name, `Found ${listings.length} articles on listing pages`)
-
-    const filteredListings = listings.filter(item => !isLikelyNotJobOffer(item.title, item.link))
-    const ordered = prioritizeUnseen(filteredListings, item => item.link, seenSourceUrls)
-    const targets = ordered.slice(0, DETAIL_LIMIT)
 
     for (const item of targets) {
       await sleep(POLITE_DELAY_MS)

@@ -1,6 +1,6 @@
 import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
-import { getUserWithProfile, upsertUser, recordPullEvent } from '../../services/pull';
+import { getUserWithProfile, upsertUser, recordPullEvent, recordPullDelivery } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
 import { getOffset, setOffset, resetOffset } from '../../session/pagination';
 import { openWindow } from '../../session/window';
@@ -46,6 +46,9 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
     await setOffset(cmd.userId, offset + 5);
   }
 
-  recordPullEvent(user.id).catch((err) => console.warn('[offres] recordPullEvent:', err));
+  recordPullEvent(user.id, batch.length).catch((err) => console.warn('[offres] recordPullEvent:', err));
+  recordPullDelivery(user.id, 'OFFRES', batch.map((o) => o.id)).catch((err) =>
+    console.warn('[offres] recordPullDelivery:', err),
+  );
   await openWindow(cmd.userId);
 }

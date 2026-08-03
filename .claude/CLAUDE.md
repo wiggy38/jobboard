@@ -86,7 +86,7 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 - `docs/subscription_flow_elite.md` → flow ELITE (3e tier, multi-pays), onboarding → paiement →
   auto-join canaux — checklist d'implémentation avec écarts documentés vs le code réel. Pages
   `/subscribe`, `/subscribe/countries`, `/subscribe/success` **codées en React/Vite dans
-  `apps/web/src`** (pas SvelteKit — `apps/web/app` en SvelteKit est un projet distinct pour
+  `apps/web/src`** (pas SvelteKit — `apps/backoffice` en SvelteKit est un projet distinct pour
   admin/employer/offre). Backend dans `apps/api/src/subscribe.routes.ts`. CinetPay réel et
   webhook Meta API restent à faire ; un endpoint `simulate-payment` dev-only fait le pont
 

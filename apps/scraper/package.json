@@ -12,7 +12,8 @@
     "test:source": "ts-node src/index.ts",
     "scraper:diagnose": "ts-node src/diagnose.ts",
     "scheduler": "ts-node src/scheduler.ts",
-    "backfill:hash": "ts-node src/scripts/backfill-hash.ts"
+    "backfill:hash": "ts-node src/scripts/backfill-hash.ts",
+    "seed:sources": "ts-node src/scripts/seed-sources.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

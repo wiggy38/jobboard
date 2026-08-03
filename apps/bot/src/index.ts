@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import { PrismaClient } from '@prisma/client';
-import { parseIncoming } from './whatsapp/parser';
+import { parseIncoming, parseStatuses } from './whatsapp/parser';
 import { routeCommand } from './commands/router';
 import { handleUnknown } from './commands/handlers/unknown';
 import { openWindow } from './session/window';
@@ -34,6 +34,19 @@ fastify.post('/webhook/whatsapp', async (req, reply) => {
   reply.status(200).send('OK');
 
   const body = req.body as unknown;
+
+  const statuses = parseStatuses(body);
+  if (statuses) {
+    for (const s of statuses) {
+      if (s.status === 'failed') {
+        console.error(`[WhatsApp] Échec livraison → ${s.recipientId} (${s.messageId}):`, JSON.stringify(s.errors));
+      } else {
+        console.log(`[WhatsApp] Statut ${s.status} → ${s.recipientId} (${s.messageId})`);
+      }
+    }
+    return;
+  }
+
   const parsed = parseIncoming(body);
   if (!parsed) return;
 

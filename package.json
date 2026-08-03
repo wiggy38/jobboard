@@ -10,7 +10,8 @@
     "scraper:run": "pnpm --filter @tumaa/scraper run scraper:run --",
     "scraper:scheduler": "pnpm --filter @tumaa/scraper run scheduler",
     "test:matching": "pnpm --filter @tumaa/matching run test",
-    "web:dev": "pnpm --filter web dev"
+    "web:dev": "pnpm --filter web dev",
+    "backoffice:dev": "pnpm --filter @tumaa/backoffice dev"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

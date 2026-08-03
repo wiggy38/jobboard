@@ -6,6 +6,7 @@ export const UNLIMITED = 999
 export interface PlanLimits {
   maxCities: number
   maxSectors: number
+  maxLevels: number
   maxContractGroups: number
   maxCountries: number
   keywordAlertsEnabled: boolean
@@ -18,6 +19,7 @@ export const PLAN_LIMITS: Record<UserPlan, PlanLimits> = {
   FREEMIUM: {
     maxCities: 1,
     maxSectors: 1,
+    maxLevels: 1,
     maxContractGroups: 1,
     maxCountries: 1,
     keywordAlertsEnabled: false,
@@ -25,6 +27,7 @@ export const PLAN_LIMITS: Record<UserPlan, PlanLimits> = {
   PREMIUM: {
     maxCities: 3,
     maxSectors: 3,
+    maxLevels: 3,
     maxContractGroups: 3,
     maxCountries: 1,
     keywordAlertsEnabled: true,
@@ -32,6 +35,7 @@ export const PLAN_LIMITS: Record<UserPlan, PlanLimits> = {
   ELITE: {
     maxCities: UNLIMITED,
     maxSectors: UNLIMITED,
+    maxLevels: UNLIMITED,
     maxContractGroups: UNLIMITED,
     maxCountries: 3,
     keywordAlertsEnabled: true,
@@ -47,6 +51,7 @@ export function isUnlimited(n: number): boolean {
 export interface ProfilePlanLimitsFields {
   maxCities: number
   maxSectors: number
+  maxLevels: number
   maxContractGroups: number
   maxCountries: number
   keywordAlertsEnabled: boolean
@@ -57,6 +62,7 @@ export function planLimitsForCreate(plan: UserPlan): ProfilePlanLimitsFields {
   return {
     maxCities: limits.maxCities,
     maxSectors: limits.maxSectors,
+    maxLevels: limits.maxLevels,
     maxContractGroups: limits.maxContractGroups,
     maxCountries: limits.maxCountries,
     keywordAlertsEnabled: limits.keywordAlertsEnabled,

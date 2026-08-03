@@ -51,6 +51,42 @@ const FAQ_ITEMS = [
   },
 ]
 
+function FreemiumCard({ token, botPhone }: { token: string | null; botPhone: string }) {
+  const navigate = useNavigate()
+
+  if (!token) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+        <h2 className="text-base font-bold text-slate-900 mb-2">🆓 Continuer gratuitement</h2>
+        <p className="text-sm text-slate-600 mb-4">
+          Tape *OFFRES* sur WhatsApp pour recevoir tes premières offres.
+        </p>
+        <a
+          href={`https://wa.me/${botPhone}?text=${encodeURIComponent('OFFRES')}`}
+          className="block w-full py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-center hover:bg-slate-100 transition-colors duration-200"
+        >
+          Recevoir mes offres sur WhatsApp
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+      <span className="text-2xl">🆓</span>
+      <h2 className="text-base font-bold text-slate-900 mt-1 mb-2">Continuer gratuitement</h2>
+      <p className="text-sm text-slate-600 mb-4">1 ville, 1 secteur, 1 niveau d'étude, 1 type de contrat</p>
+      <button
+        type="button"
+        onClick={() => navigate(`/subscribe/profile?t=${token}&plan=FREEMIUM`)}
+        className="block w-full py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-center hover:bg-slate-100 transition-colors duration-200"
+      >
+        Définir mon profil
+      </button>
+    </div>
+  )
+}
+
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false)
   return (
@@ -167,12 +203,6 @@ export default function SubscribePage() {
               S&apos;abonner · 650 FCFA/mois
             </a>
           )}
-          <a
-            href={`https://wa.me/${botPhone}?text=${encodeURIComponent('ESSAI')}`}
-            className="block text-xs text-green-700 underline text-center mt-3"
-          >
-            Essai 48h gratuit → tape ESSAI sur WhatsApp
-          </a>
           {SIMULATION_ENABLED && token && (
             <button
               type="button"
@@ -233,6 +263,8 @@ export default function SubscribePage() {
             </button>
           )}
         </div>
+
+        <FreemiumCard token={token} botPhone={botPhone} />
       </div>
 
       {payError && (

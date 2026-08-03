@@ -117,6 +117,7 @@ model User {
   templateCounters    TemplateCounter[]
   payments            Payment[]
   pullEvents          PullEvent[]
+  pullDeliveries      PullDelivery[]
   notifications       Notification[]
   jobInteractions     JobInteraction[]
   channelJoins        ChannelJoin[]
@@ -145,6 +146,7 @@ model Profile {
   // via applyPlanLimits()/planLimitsForCreate() à chaque changement de User.plan)
   maxCities            Int     @default(1)
   maxSectors           Int     @default(1)
+  maxLevels            Int     @default(1)
   maxContractGroups    Int     @default(1)
   maxCountries         Int     @default(1)
   keywordAlertsEnabled Boolean @default(false)
@@ -220,6 +222,7 @@ model JobOffer {
 
   interactions  JobInteraction[]
   submission    JobSubmission?
+  pullDeliveries PullDelivery[] @relation("PullDeliveryOffers")
 
   @@index([city, sector, status])
   @@index([deadline])
@@ -318,10 +321,11 @@ model Notification {
 
 // Un enregistrement = 1 utilisateur qui a écrit OFFRES dans la journée
 model PullEvent {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      DateTime @db.Date
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  offersCount Int      @default(0) // nombre d'offres livrées ce jour-là (OFFRES + SUITE cumulés)
 
   createdAt DateTime @default(now())
 
@@ -330,16 +334,39 @@ model PullEvent {
   @@index([userId])
 }
 
+// Un enregistrement = 1 exécution de OFFRES ou SUITE (contrairement à PullEvent,
+// qui agrège par jour pour le calcul du TPQ). Permet à l'admin de voir l'historique
+// détaillé des pulls d'un abonné et, pour chacun, les offres précises envoyées.
+model PullDelivery {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  command     String   // OFFRES | SUITE
+  offersCount Int      @default(0)
+  offers      JobOffer[] @relation("PullDeliveryOffers")
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 // Rejoint un canal WhatsApp national (#Emploi-BF, #Emploi-BJ...) —
 // un enregistrement par (utilisateur, pays), utilisé pour l'auto-join
 // Meta API et pour éviter les doublons de join.
 model ChannelJoin {
-  id       String   @id @default(uuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  country  String
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country String
 
-  joinedAt DateTime @default(now())
+  // invitedAt = quand l'invitation a été affichée à l'abonné. joined/joinedAt
+  // = confirmation qu'il a effectivement cliqué sur le lien d'invitation
+  // (seul moyen de savoir : Meta ne fournit aucune API d'auto-join côté
+  // serveur — voir apps/api/src/lib/country.ts). Permet au backoffice de
+  // filtrer et relancer les abonnés qui n'ont pas rejoint leur canal.
+  invitedAt DateTime  @default(now())
+  joined    Boolean   @default(false)
+  joinedAt  DateTime?
 
   @@unique([userId, country])
   @@index([userId])

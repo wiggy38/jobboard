@@ -7,6 +7,7 @@ import { checkSourceHealth } from './lib/monitor'
 import { buildDailyReport, formatReportText, formatReportHtml } from './lib/report'
 import { sendMail } from './lib/mailer'
 import { info, error as logError, success, warn } from './lib/logger'
+import { syncSources } from './lib/sync-sources'
 
 
 const NAME = 'scheduler'
@@ -21,12 +22,20 @@ const queue = new Queue('scraper', { connection })
 
 // Deux vagues : 12h (midi) et 22h (soir) — offres du jour disponibles dès midi, mises à jour le soir
 const SCRAPER_JOBS = [
-  { name: 'lefaso-daily',        scraperKey: 'lefaso',        pattern: '0 12 * * *' },
-  { name: 'reliefweb-daily',     scraperKey: 'reliefweb',     pattern: '5 12 * * *' },
-  { name: 'anpe-daily',          scraperKey: 'anpe-bf',       pattern: '10 12 * * *' },
-  { name: 'emploiburkina-daily', scraperKey: 'emploiburkina', pattern: '0 22 * * *' },
-  { name: 'criburkina-daily',    scraperKey: 'criburkina',    pattern: '5 22 * * *' },
-  { name: 'emploi-lefaso-daily', scraperKey: 'emploi-lefaso', pattern: '10 22 * * *' },
+  { name: 'lefaso-daily',             scraperKey: 'lefaso',             pattern: '0 12 * * *' },
+  { name: 'reliefweb-daily',          scraperKey: 'reliefweb',          pattern: '5 12 * * *' },
+  { name: 'anpe-daily',               scraperKey: 'anpe-bf',            pattern: '10 12 * * *' },
+  { name: 'bfemploi-daily',           scraperKey: 'bfemploi',           pattern: '15 12 * * *' },
+  { name: 'icipe-daily',              scraperKey: 'icipe',              pattern: '20 12 * * *' },
+  { name: 'professionnallink-daily',  scraperKey: 'professionnallink',  pattern: '25 12 * * *' },
+  { name: 'afriqueemplois-daily',     scraperKey: 'afriqueemplois',     pattern: '30 12 * * *' },
+  { name: 'emploiburkina-daily',      scraperKey: 'emploiburkina',      pattern: '0 22 * * *' },
+  { name: 'criburkina-daily',         scraperKey: 'criburkina',         pattern: '5 22 * * *' },
+  { name: 'emploi-lefaso-daily',      scraperKey: 'emploi-lefaso',      pattern: '10 22 * * *' },
+  { name: 'goafricaonline-daily',     scraperKey: 'goafricaonline',     pattern: '15 22 * * *' },
+  { name: 'linkedin-daily',           scraperKey: 'linkedin',           pattern: '20 22 * * *' },
+  { name: 'sidwaya-daily',            scraperKey: 'sidwaya',            pattern: '25 22 * * *' },
+  { name: 'faso7-daily',              scraperKey: 'faso7',              pattern: '30 22 * * *' },
 ]
 
 const HEALTH_JOB = { name: 'health-check', pattern: '0 */6 * * *' }
@@ -104,7 +113,9 @@ worker.on('failed', (job, err) => {
   logError(NAME, `Job ${job?.name ?? '?'} échoué : ${err.message}`)
 })
 
-registerJobs()
+syncSources()
+  .then(() => info(NAME, 'Sources synchronisées avec le registre des scrapers'))
+  .then(registerJobs)
   .then(() => info(NAME, 'Scheduler démarré — en attente des jobs...'))
   .catch((err) => {
     logError(NAME, `Échec démarrage scheduler : ${err}`)

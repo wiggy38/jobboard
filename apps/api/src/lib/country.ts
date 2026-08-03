@@ -20,3 +20,23 @@ export const NATIONAL_CHANNELS: Record<string, string> = {
 export function getChannelInviteLink(country: string): string | undefined {
   return process.env[`CHANNEL_INVITE_LINK_${country}`]
 }
+
+// Détection du pays depuis le préfixe téléphonique E.164 — dupliqué depuis
+// apps/bot/src/lib/country.ts (même logique, pas de dépendance croisée entre
+// apps). Utilisé pour déterminer le canal WhatsApp national de l'abonné
+// (1 canal = celui de son propre pays, indépendamment des pays de recherche
+// ELITE — voir /api/subscribe/join-channel).
+const COUNTRY_BY_PREFIX: Record<string, string> = {
+  '226': 'BF',
+  '229': 'BJ',
+  '228': 'TG',
+  '225': 'CI',
+}
+
+export function getCountryFromPhone(phone: string): string {
+  // Le webhook Meta Cloud API envoie `from` en E.164 SANS "+" (ex. "22966884820"),
+  // mais un numéro saisi manuellement peut en avoir un — on l'ignore dans les deux cas.
+  const digits = phone.replace(/^\+/, '')
+  const prefix = Object.keys(COUNTRY_BY_PREFIX).find((p) => digits.startsWith(p))
+  return prefix ? COUNTRY_BY_PREFIX[prefix] : 'BF'
+}

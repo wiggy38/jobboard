@@ -11,13 +11,13 @@ import SubscribeSuccessPage from './pages/SubscribeSuccessPage'
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/subscribe">
       <Routes>
         <Route path="/offre/:jobId" element={<OffrePage />} />
         <Route path="/premium" element={<PremiumPage />} />
-        <Route path="/subscribe" element={<SubscribePage />} />
-        <Route path="/subscribe/profile" element={<SubscribeProfilePage />} />
-        <Route path="/subscribe/success" element={<SubscribeSuccessPage />} />
+        <Route path="/" element={<SubscribePage />} />
+        <Route path="/profile" element={<SubscribeProfilePage />} />
+        <Route path="/success" element={<SubscribeSuccessPage />} />
         <Route path="/expired" element={<ExpiredPage />} />
         <Route path="*" element={<ExpiredPage />} />
       </Routes>

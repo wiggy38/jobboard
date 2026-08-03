@@ -1,12 +1,13 @@
 services:
   nginx-web:
     build:
-      context: .
-      dockerfile: nginx/Dockerfile
+      context: ../..
+      dockerfile: apps/web/nginx/Dockerfile
     ports:
       - "80:80"
     environment:
       - SVELTEKIT_UPSTREAM=sveltekit:3000
+      - API_UPSTREAM=api:3000
     networks:
       - tumaa_network
     restart: unless-stopped

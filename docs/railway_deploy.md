@@ -22,30 +22,42 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-api` | `/` (racine repo) | `railway.api.json` | REST interne + dashboard admin. Applique les migrations Prisma au démarrage (`migrate:deploy`) — un seul service doit le faire, ne pas dupliquer sur bot/scraper |
 | `tumaa-bot` | `/` (racine repo) | `railway.bot.json` | Webhook WhatsApp, doit être joignable publiquement (générer un domaine Railway) |
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
-| `tumaa-web-nginx` | `apps/web` | `railway.web-nginx.json` (`dockerfilePath: nginx/Dockerfile`) | Landing statique + reverse proxy vers `tumaa-web-app`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
+| `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | Landing statique + app React `/subscribe` (buildée dans le même Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
 | `tumaa-web-app` | `apps/backoffice` | `railway.web-app.json` (`dockerfilePath: Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la
 racine du repo car `pnpm turbo run build --filter=...` a besoin du workspace complet.
-`tumaa-web-nginx` et `tumaa-web-app` utilisent le builder DOCKERFILE : leur Root
-Directory doit être positionné sur le sous-dossier correspondant pour que
-`dockerfilePath` (relatif à ce Root Directory) résolve correctement.
+`tumaa-web-app` utilise le builder DOCKERFILE avec Root Directory sur `apps/backoffice`
+(pas de dépendance `workspace:*`, contexte de build isolé suffisant). `tumaa-web-nginx`
+utilise aussi le builder DOCKERFILE mais avec Root Directory à la racine du repo : son
+Dockerfile (`apps/web/nginx/Dockerfile`) build l'app React `@tumaa/web` dans un premier
+stage via `pnpm turbo run build --filter=@tumaa/web...` (elle dépend de `@tumaa/shared`
+en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`, la
+landing statique et le template Nginx dans un second stage `nginx:alpine`.
 
-## Réseau interne — nginx → SvelteKit
+## Réseau interne — nginx → SvelteKit / API
 
-`tumaa-web-nginx` proxy vers `tumaa-web-app` via la variable d'env
-`SVELTEKIT_UPSTREAM` (résolue par `envsubst` dans
-[default.conf.template](../apps/web/nginx/templates/default.conf.template)).
-En local (`docker-compose.web.yml`) elle vaut `sveltekit:3000`. Sur Railway,
-positionner sur `tumaa-web-nginx` :
+`tumaa-web-nginx` proxy vers `tumaa-web-app` (routes `/app/`, `/offre/`) via
+`SVELTEKIT_UPSTREAM`, et vers `tumaa-api` (route `/api/`, appelée en relatif par
+l'app React `/subscribe`) via `API_UPSTREAM` — les deux résolues par `envsubst`
+dans [default.conf.template](../apps/web/nginx/templates/default.conf.template).
+En local (`docker-compose.web.yml`) elles valent `sveltekit:3000` et `api:3000`.
+Sur Railway, positionner sur `tumaa-web-nginx` :
 
 ```
 SVELTEKIT_UPSTREAM=${{tumaa-web-app.RAILWAY_PRIVATE_DOMAIN}}:3000
+API_UPSTREAM=${{tumaa-api.RAILWAY_PRIVATE_DOMAIN}}:3000
 ```
 
-(remplacer `tumaa-web-app` par le nom exact donné au service SvelteKit dans le
-dashboard). Le réseau privé Railway route ce domaine sans sortir sur Internet.
+(remplacer `tumaa-web-app`/`tumaa-api` par les noms exacts donnés aux services
+dans le dashboard). Le réseau privé Railway route ces domaines sans sortir sur
+Internet.
+
+L'app React `/subscribe` est buildée avec `base: '/subscribe/'` (Vite) et
+`BrowserRouter basename="/subscribe"` (React Router) pour cohabiter avec la
+landing statique et le proxy SvelteKit sur le même domaine — voir
+[vite.config.ts](../apps/web/vite.config.ts) et [main.tsx](../apps/web/src/main.tsx).
 
 ## Variables d'environnement par service
 
@@ -60,7 +72,7 @@ dur ici, ils évoluent. Points d'attention au moment du déploiement :
   pointer vers le domaine privé de `tumaa-api`, `CHANNEL_INVITE_LINK_*`
 - `tumaa-scraper` : `DATABASE_URL`, `REDIS_URL`, `SMTP_*` (rapport quotidien —
   utiliser un mot de passe d'application dédié, jamais commité)
-- `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM` (voir ci-dessus)
+- `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM`, `API_UPSTREAM` (voir ci-dessus)
 - `tumaa-web-app` : `PORT=3000`, `VITE_API_URL` → domaine public/privé de `tumaa-api`
 
 Tous les secrets réels vivent uniquement dans les variables d'env Railway —
@@ -74,5 +86,6 @@ jamais dans `.env.example`, qui ne doit contenir que des placeholders.
 3. Déployer `tumaa-bot` et `tumaa-scraper`
 4. Déployer `tumaa-web-app` (SvelteKit), noter son domaine privé Railway
 5. Déployer `tumaa-web-nginx` avec `SVELTEKIT_UPSTREAM` pointant vers ce domaine
+   et `API_UPSTREAM` pointant vers le domaine privé de `tumaa-api`
 6. Générer un domaine public pour `tumaa-web-nginx` (et `tumaa-bot` pour le
    webhook Meta) ; brancher le domaine custom `tumaa.bf` si applicable

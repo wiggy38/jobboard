@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+**/build
+**/.svelte-kit
+.git
+.turbo
+**/.turbo
+*.log
+.env
+.env.*
+!.env.example

@@ -297,7 +297,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       data: {
         userId: user.id,
         amount: PLAN_PRICING[plan],
-        provider: 'CINETPAY',
+        provider: 'PAYDUNYA',
         reference: `SIMULATED-${Date.now()}`,
         status: 'SUCCESS',
         planPurchased: plan as UserPlan,

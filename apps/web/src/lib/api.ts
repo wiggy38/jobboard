@@ -1,17 +1,4 @@
 import axios from 'axios'
-import type { OffreApiResponse } from './types'
-
-export async function fetchOffre(
-  jobId: string,
-  token: string | null
-): Promise<OffreApiResponse> {
-  const params = token ? { t: token } : {}
-  const { data } = await axios.get<OffreApiResponse>(
-    `/api/offre/${jobId}`,
-    { params }
-  )
-  return data
-}
 
 export async function trackSubscribeClick(token: string, plan?: 'PREMIUM' | 'ELITE'): Promise<void> {
   try {

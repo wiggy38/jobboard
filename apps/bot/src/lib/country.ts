@@ -41,3 +41,11 @@ export function getCountryFromPhone(phone: string): string {
 export function getChannelInviteLink(country: string): string | undefined {
   return process.env[`CHANNEL_INVITE_LINK_${country}`];
 }
+
+// Identifiant WhatsApp du Channel (distinct du lien d'invitation) utilisé
+// comme destinataire `to` lors d'une publication via Cloud API — Meta expose
+// le Channel comme n'importe quel destinataire une fois qu'on en est
+// administrateur. Configuré via env var CHANNEL_ID_<PAYS>.
+export function getChannelId(country: string): string | undefined {
+  return process.env[`CHANNEL_ID_${country}`];
+}

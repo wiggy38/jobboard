@@ -13,9 +13,16 @@ function normalizeDateForHash(date?: Date): string {
 }
 
 export function createHash(offer: RawJobOffer): string {
+  // Le country est inclus dans le hash pour scoper la déduplication par pays :
+  // la colonne hash est unique sur TOUTE la table JobOffer (cf. pipeline.ts),
+  // donc deux offres identiques (titre+org+date) publiées dans des pays
+  // différents doivent produire des hash distincts, sinon la seconde serait
+  // rejetée comme doublon de la première alors qu'il s'agit d'offres réelles
+  // distinctes.
   const input =
     normalizeForHash(offer.title) +
     normalizeForHash(offer.organization) +
-    normalizeDateForHash(offer.publishedAt)
+    normalizeDateForHash(offer.publishedAt) +
+    normalizeForHash(offer.country ?? '')
   return cryptoCreateHash('sha256').update(input).digest('hex')
 }

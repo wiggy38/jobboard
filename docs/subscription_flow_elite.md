@@ -32,13 +32,17 @@ code déjà existant dans ce repo. Avant de coder depuis ce doc, tenir compte de
   - `UserPlan.ELITE` (nouvelle valeur d'enum)
   - `User.countries String[] @default(["BF"])` (remplace l'ancien `User.country String`)
   - `model ChannelJoin` (userId, country, joinedAt)
-- **Paiement CinetPay** : aucune intégration CinetPay réelle n'existe encore dans le code
-  (recherche effectuée sur tout le repo — seules des mentions dans `.env.example` et la doc). Les
-  extraits de webhook/route ci-dessous sont donc un plan d'implémentation, pas du code à brancher
-  tel quel. Un endpoint de **simulation dev-only** existe en attendant :
-  `POST /api/subscribe/simulate-payment` (`apps/api/src/subscribe.routes.ts`) crée un `Payment`
-  `SUCCESS` fictif (`provider: 'CINETPAY'`, `reference: 'SIMULATED-...'`), active le plan, et
-  renvoie l'URL de redirection — désactivé si `NODE_ENV === 'production'` (403
+- **Paiement PayDunya (pas CinetPay)** : décision produit actée — CinetPay est abandonné,
+  l'intégration réelle se fait via PayDunya (Checkout Invoice API). Implémenté dans
+  `apps/api/src/lib/paydunya.ts` (`createInvoice`/`confirmInvoice`) et branché dans
+  `apps/api/src/subscribe.routes.ts` : `POST /api/subscribe/pay` crée un `Payment` `PENDING` +
+  la facture PayDunya et renvoie l'URL de paiement ; `POST /api/subscribe/paydunya/webhook` (IPN)
+  reconfirme systématiquement le statut via l'API PayDunya (jamais confiance dans le corps du
+  webhook) puis active le plan. Les extraits de webhook/route ci-dessous (section "Webhook
+  CinetPay") sont donc obsolètes comme plan d'implémentation. Un endpoint de **simulation
+  dev-only** reste disponible en complément : `POST /api/subscribe/simulate-payment` crée un
+  `Payment` `SUCCESS` fictif (`provider: 'PAYDUNYA'`, `reference: 'SIMULATED-...'`), active le
+  plan, et renvoie l'URL de redirection — désactivé si `NODE_ENV === 'production'` (403
   `SIMULATION_DISABLED`). Le bouton "🧪 Simuler le paiement" n'apparaît dans `SubscribePage.tsx`
   qu'en dev (`VITE_ENABLE_PAYMENT_SIMULATION` ou `import.meta.env.DEV`).
 - **Canaux WhatsApp — décision actée : 1 canal par pays** (`#Emploi-BF/BJ/TG/CI`). Cette
@@ -55,10 +59,13 @@ code déjà existant dans ce repo. Avant de coder depuis ce doc, tenir compte de
   l'état de session `ELITE_COUNTRY_SELECT` (`apps/bot/src/commands/router.ts`), sur le même
   principe de liste interactive multi-choix que les villes/secteurs de l'onboarding. Réservée aux
   utilisateurs `plan === 'ELITE'` ; écrit jusqu'à 3 codes dans `User.countries` puis appelle
-  `joinNationalChannel` pour chacun. Le déclenchement automatique après paiement ELITE confirmé
-  (`User.countries = []` → redirection) reste à faire tant que l'intégration CinetPay n'existe
-  pas — en attendant, l'utilisateur ELITE tape `PAYS` lui-même à tout moment pour choisir/changer
-  ses pays.
+  `joinNationalChannel` pour chacun. Le retour de paiement PayDunya redirige déjà vers
+  `/subscribe/profile?t=&plan=` (`getPlanRedirectUrl` dans `subscribe.routes.ts`), mais rien n'y
+  déclenche automatiquement le choix des pays ELITE pour l'instant — en attendant, l'utilisateur
+  ELITE tape `PAYS` lui-même à tout moment pour choisir/changer ses pays.
+- **PayDunya, pas CinetPay** : toute mention de CinetPay dans le reste de ce document (schéma de
+  flow, webhook indicatif, checklist) est une trace de la spec d'origine, non de l'implémentation
+  réelle — remplacer mentalement CinetPay par PayDunya en lisant la suite.
 
 Le reste de ce document est conservé tel que fourni, comme référence de flow produit et de
 check-list d'implémentation.
@@ -73,7 +80,7 @@ check-list d'implémentation.
 4. Architecture technique
 5. Routes SvelteKit (indicatif)
 6. Logique bot WhatsApp (indicatif)
-7. Webhook CinetPay (indicatif)
+7. Webhook paiement (indicatif — décrit CinetPay, voir écart PayDunya ci-dessus)
 8. Meta API — auto-join canaux (indicatif)
 9. Checklist implémentation
 
@@ -214,7 +221,7 @@ que dans un nouveau fichier séparé, pour ne pas dupliquer la logique d'état d
 
 ---
 
-## Webhook CinetPay (indicatif)
+## Webhook paiement (indicatif — écrit pour CinetPay, remplacé par PayDunya en réalité, voir écarts en tête de doc)
 
 Recevoir la notification CinetPay → vérifier la signature → mettre à jour `Payment.status` →
 si `SUCCESS` :
@@ -275,21 +282,21 @@ relance "Votre abonnement expire demain".
 
 ### Phase 2 — Pages web (React, `apps/web/src`, pas SvelteKit)
 - [x] `/subscribe` (choix PREMIUM vs ELITE) — `SubscribePage.tsx`
-- [ ] `/subscribe/payment` — pas de page dédiée ; en attendant CinetPay, `/subscribe` déclenche
-      directement `simulate-payment` en dev
+- [ ] `/subscribe/payment` — pas de page dédiée ; `/subscribe` redirige directement vers l'URL de
+      facture PayDunya (`/api/subscribe/pay`), avec `simulate-payment` disponible en dev
 - [x] `/subscribe/countries` (ELITE only) — `SubscribeCountriesPage.tsx`, en plus de la commande
       bot `PAYS` (voir Phase 4) : les deux chemins coexistent (web après paiement, bot à tout
       moment)
 - [x] `/subscribe/success` — `SubscribeSuccessPage.tsx` (remplace `/subscribe/callback`)
 
 ### Phase 3 — Backend routes
-- [ ] POST initiation paiement CinetPay
+- [x] `POST /api/subscribe/pay` — initiation paiement PayDunya (Checkout Invoice API)
 - [x] `POST /api/subscribe/simulate-payment` — stub dev-only (403 en production), crée un
-      `Payment` SUCCESS fictif et active le plan, en attendant l'intégration CinetPay réelle
+      `Payment` SUCCESS fictif, en complément du paiement réel PayDunya pour les démos/tests
 - [x] `POST /api/subscribe/track` — tracking clic PREMIUM/ELITE
 - [x] Sélection des pays (ELITE) — `GET`/`POST /api/subscribe/countries` (web) **et** commande
       WhatsApp `PAYS` (bot) ; les deux écrivent `User.countries` + `ChannelJoin`
-- [ ] Webhook CinetPay
+- [x] Webhook PayDunya IPN — `POST /api/subscribe/paydunya/webhook`, reconfirme via `confirmInvoice`
 
 ### Phase 4 — Bot
 - [x] Détection pays depuis préfixe téléphonique
@@ -305,10 +312,11 @@ relance "Votre abonnement expire demain".
       d'invitation réel (`joinNationalChannel`, `CHANNEL_INVITE_LINK_<PAYS>`)
 - [ ] `postToChannel(channelId, message)` — reste à faire pour l'auto-post 08:00 (Phase 7)
 
-### Phase 6 — CinetPay
-- [ ] Compte + credentials CinetPay
-- [ ] `initiateCinetPayPayment()`
-- [ ] Vérification signature webhook
+### Phase 6 — PayDunya
+- [x] Compte + credentials PayDunya (`PAYDUNYA_*` env vars)
+- [x] `createInvoice()` / `confirmInvoice()` (`apps/api/src/lib/paydunya.ts`)
+- [x] Webhook reconfirme systématiquement via l'API PayDunya plutôt que de faire confiance au
+      corps de l'IPN (pas de signature à vérifier côté PayDunya, contrairement à CinetPay)
 
 ### Phase 7 — Tests E2E
 - [ ] Onboarding → teaser → CTA Premium/Elite
@@ -317,8 +325,8 @@ relance "Votre abonnement expire demain".
 - [ ] Teasers reçus le matin dans les bons canaux
 
 ### Phase 8 — Production
-- [ ] Env vars (META_TOKEN, CINETPAY_API, CHANNEL_IDS par pays...)
-- [ ] Rate limiting sur le webhook CinetPay
+- [ ] Env vars (META_TOKEN, PAYDUNYA_*, CHANNEL_IDS par pays...)
+- [ ] Rate limiting sur le webhook PayDunya
 - [ ] Logging erreurs / monitoring
 
 ---
@@ -326,6 +334,6 @@ relance "Votre abonnement expire demain".
 ## Liens utiles
 
 - [Meta WhatsApp API Docs](https://developers.facebook.com/docs/whatsapp/cloud-api)
-- [CinetPay API Docs](https://cinetpay.com/en/developers)
+- [PayDunya API Docs](https://paydunya.com/developers)
 - [Prisma ORM](https://www.prisma.io/docs/)
 - [SvelteKit Docs](https://kit.svelte.dev/)

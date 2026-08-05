@@ -19,6 +19,7 @@
 import { RawJobOffer, NormalizedJobOffer } from '@tumaa/shared'
 import { createHash } from './deduplicator'
 import { aiNormalizeOffer, needsAIEnrichment } from './ai-normalizer'
+import { endOfDay } from './ai-extractor'
 
 // ─── Tables de correspondance statiques ──────────────────────────────────────
 
@@ -144,6 +145,10 @@ export function normalize(offer: RawJobOffer, scoreConfidence = 1): NormalizedJo
     sector: offer.sector ?? 'Non précisé',
     level: normalizeLevel(offer.level),
     contractType: normalizeContractType(offer.contractType),
+    // Deadline sans heure connue (cas normal, scrapers ne remontent qu'une
+    // date) → 23:59 plutôt que minuit, sinon la candidature déposée le jour
+    // même de la clôture serait exclue.
+    deadline: endOfDay(offer.deadline),
     // Hash SHA-256 pour la déduplication (titre + org + date)
     hash: createHash(offer),
     scoreConfidence,

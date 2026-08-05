@@ -30,7 +30,9 @@
 			contactAddress: o.contactAddress ?? '',
 			applicationUrl: o.applicationUrl ?? '',
 			deadline: o.deadline ? o.deadline.substring(0, 10) : '',
+			deadlineTime: o.deadline ? o.deadline.substring(11, 16) : '23:59',
 			isSponsored: o.isSponsored,
+			isFeatured: o.isFeatured,
 			isFraudSuspect: o.isFraudSuspect,
 			validated: o.validated,
 			ttlDays: o.ttlDays,
@@ -77,8 +79,9 @@
 				contactPhone: editForm.contactPhone || null,
 				contactAddress: editForm.contactAddress || null,
 				applicationUrl: editForm.applicationUrl || null,
-				deadline: editForm.deadline || null,
+				deadline: editForm.deadline ? `${editForm.deadline}T${editForm.deadlineTime || '23:59'}` : null,
 				isSponsored: editForm.isSponsored,
+				isFeatured: editForm.isFeatured,
 				isFraudSuspect: editForm.isFraudSuspect,
 				validated: editForm.validated,
 				ttlDays: Number(editForm.ttlDays),
@@ -97,8 +100,9 @@
 				contactPhone: editForm.contactPhone || null,
 				contactAddress: editForm.contactAddress || null,
 				applicationUrl: editForm.applicationUrl || null,
-				deadline: editForm.deadline ? editForm.deadline + 'T00:00:00.000Z' : null,
+				deadline: editForm.deadline ? `${editForm.deadline}T${editForm.deadlineTime || '23:59'}:00.000Z` : null,
 				isSponsored: editForm.isSponsored,
+				isFeatured: editForm.isFeatured,
 				isFraudSuspect: editForm.isFraudSuspect,
 				validated: editForm.validated,
 				ttlDays: Number(editForm.ttlDays),
@@ -195,6 +199,10 @@
 					<input type="date" bind:value={editForm.deadline} />
 				</label>
 				<label class="field">
+					<span>Heure limite</span>
+					<input type="time" bind:value={editForm.deadlineTime} />
+				</label>
+				<label class="field">
 					<span>TTL (jours)</span>
 					<input type="number" min="1" max="365" bind:value={editForm.ttlDays} />
 				</label>
@@ -228,6 +236,10 @@
 				<label class="flag-check">
 					<input type="checkbox" bind:checked={editForm.isSponsored} />
 					<span>Sponsorisée</span>
+				</label>
+				<label class="flag-check">
+					<input type="checkbox" bind:checked={editForm.isFeatured} />
+					<span>Mise en avant</span>
 				</label>
 				<label class="flag-check">
 					<input type="checkbox" bind:checked={editForm.validated} />
@@ -264,6 +276,9 @@
 			</span>
 			{#if o.isSponsored}
 				<span class="badge-sponsored">Sponsorisée</span>
+			{/if}
+			{#if o.isFeatured}
+				<span class="badge-featured">Mise en avant</span>
 			{/if}
 			{#if o.isFraudSuspect}
 				<span class="badge-fraud">⚠ Fraude suspectée</span>
@@ -497,6 +512,17 @@
 		border-radius: var(--radius-sm);
 		background: #dbeafe;
 		color: #1e40af;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.badge-featured {
+		font-size: 0.72rem;
+		font-weight: 700;
+		padding: 3px 10px;
+		border-radius: var(--radius-sm);
+		background: #fef3c7;
+		color: #92400e;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}

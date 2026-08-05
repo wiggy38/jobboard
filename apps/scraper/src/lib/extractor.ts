@@ -42,7 +42,12 @@ export function extractDeadline(text: string): Date | undefined {
     let match = rx.exec(text)
     while (match) {
       const parsed = parseFrenchDate(match[match.length - 1])
-      if (parsed) return parsed
+      // Seule la date est connue (jamais d'heure sur ces sites) — la
+      // deadline reste ouverte jusqu'à la fin de la journée, pas minuit.
+      if (parsed) {
+        parsed.setHours(23, 59, 0, 0)
+        return parsed
+      }
       match = rx.exec(text)
     }
   }

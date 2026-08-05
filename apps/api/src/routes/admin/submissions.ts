@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import crypto from 'crypto'
+import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from '../../lib/prisma'
 import { adminAuth } from '../../middleware/adminAuth'
 
@@ -108,11 +109,10 @@ export async function submissionRoutes(fastify: FastifyInstance) {
       const contactAddress: string | undefined = body.contactAddress ?? raw.contactAddress
       const sourceUrl: string = body.sourceUrl ?? raw.sourceUrl ?? ''
       const isSponsored: boolean = body.isSponsored ?? raw.isSponsored ?? false
+      const isFeatured: boolean = body.isFeatured ?? raw.isFeatured ?? false
       const country: string = body.country ?? raw.country ?? 'BF'
 
-      const deadline = body.deadline ?? raw.deadline
-        ? new Date(body.deadline ?? raw.deadline)
-        : undefined
+      const deadline = parseDeadlineInput(body.deadline ?? raw.deadline) ?? undefined
       const publishedAt = body.publishedAt ?? raw.publishedAt
         ? new Date(body.publishedAt ?? raw.publishedAt)
         : new Date()
@@ -146,6 +146,7 @@ export async function submissionRoutes(fastify: FastifyInstance) {
             sourceId: source.id,
             sourceUrl,
             isSponsored,
+            isFeatured,
             hash,
             publishedAt,
             deadline,

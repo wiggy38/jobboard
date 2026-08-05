@@ -56,7 +56,7 @@ export default function PremiumPage() {
         S&apos;abonner – 650 FCFA/mois
       </a>
       <p className="text-xs text-slate-400 text-center mt-4">
-        Paiement via CinetPay, Orange Money ou Moov Money, directement sur WhatsApp.
+        Paiement via PayDunya (Orange Money, Moov Money, carte bancaire), directement sur WhatsApp.
       </p>
     </div>
   )

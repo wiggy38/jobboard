@@ -40,14 +40,18 @@ export const SECTOR_OPTIONS: ProfileOption[] = [
 
 // Sous-ensemble volontairement simplifié de EDUCATION_HIERARCHY
 // (packages/matching/src/types.ts) — chaque label ci-dessous existe comme clé
-// de EDUCATION_HIERARCHY pour que le scoring (scoreLevel) fonctionne sans
-// changement. packages/matching reste pur (aucune dépendance), donc cette
-// liste est dupliquée intentionnellement et doit être maintenue en cohérence
-// manuellement avec EDUCATION_HIERARCHY.
+// de EDUCATION_HIERARCHY et de LEVEL_MATCH_WINDOWS pour que le scoring
+// (scoreLevel) fonctionne sans changement. packages/matching reste pur (aucune
+// dépendance), donc cette liste est dupliquée intentionnellement et doit être
+// maintenue en cohérence manuellement avec EDUCATION_HIERARCHY. CEP (ajouté
+// après "Sans diplôme" : c'est un certificat réel, donc supérieur) et BAC+1
+// (entre BAC et BAC+2) ont été ajoutés pour affiner les fenêtres de matching.
 export const LEVEL_OPTIONS: ProfileOption[] = [
   { value: 'Sans diplôme', label: 'Sans diplôme' },
+  { value: 'CEP', label: 'CEP' },
   { value: 'BEPC', label: 'BEPC' },
   { value: 'BAC', label: 'BAC' },
+  { value: 'BAC+1', label: 'BAC+1' },
   { value: 'BAC+2', label: 'BAC+2' },
   { value: 'Licence', label: 'Licence' },
   { value: 'Master', label: 'Master' },

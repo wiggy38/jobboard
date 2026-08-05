@@ -18,7 +18,7 @@ Monorepo pnpm avec trois briques principales :
 ## Stack
 
 Node.js + TypeScript, Fastify, Prisma, PostgreSQL, Redis/Upstash, BullMQ, Playwright,
-Cheerio, Meta Cloud API, Claude Haiku, CinetPay/PayDunya, Hetzner VPS, Docker, GitHub Actions.
+Cheerio, Meta Cloud API, Claude Haiku, PayDunya, Hetzner VPS, Docker, GitHub Actions.
 
 ## Modèle produit
 
@@ -63,7 +63,7 @@ ngrok http 3000       # expose le webhook pour tests WhatsApp
    ```
    Champs clés à remplir : `DATABASE_URL`, `REDIS_URL`, `ANTHROPIC_API_KEY`,
    `META_PHONE_NUMBER_ID` / `META_ACCESS_TOKEN` / `META_VERIFY_TOKEN` (WhatsApp Business),
-   `CINETPAY_*` / `PAYDUNYA_*` (paiement), `SMTP_*` (rapport quotidien du scheduler).
+   `PAYDUNYA_*` (paiement), `SMTP_*` (rapport quotidien du scheduler).
 
 5. **Appliquer le schéma Prisma**
    ```bash

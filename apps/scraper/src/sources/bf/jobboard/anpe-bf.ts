@@ -59,6 +59,7 @@ export class AnpeBfScraper extends BaseScraper {
   async scrape(seenSourceUrls: Set<string> = new Set()): Promise<ScraperResult> {
     const errors: string[] = []
     const offers: RawJobOffer[] = []
+    const rejectedNotJobOffer: string[] = []
 
     info(this.name, `Fetching listing: ${LISTING_URL}`)
 
@@ -103,7 +104,8 @@ export class AnpeBfScraper extends BaseScraper {
         const extractedOffers = await extractOffersWithHaiku(item.pageText, item.title, this.name)
 
         if (extractedOffers.length === 0) {
-          info(this.name, `Rejeté (pas une offre) : "${item.title.slice(0, 60)}"`)
+          info(this.name, `Rejeté (pas une offre) : "${item.title.slice(0, 60)}" — ${item.sourceUrl}`)
+          rejectedNotJobOffer.push(item.sourceUrl)
           continue
         }
 
@@ -150,7 +152,7 @@ export class AnpeBfScraper extends BaseScraper {
     }
 
     info(this.name, `Done. ${offers.length} offers, ${errors.length} errors.`)
-    return { source: this.name, offers, errors, scrapedAt: new Date() }
+    return { source: this.name, offers, errors, scrapedAt: new Date(), rejectedNotJobOffer }
   }
 }
 

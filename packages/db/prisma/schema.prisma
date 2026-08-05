@@ -58,7 +58,6 @@ enum PaymentProvider {
   CORIS_MONEY
   CARTE_BANCAIRE
   REVENDEUR
-  CINETPAY
   PAYDUNYA
 }
 
@@ -204,6 +203,7 @@ model JobOffer {
   source      Source  @relation(fields: [sourceId], references: [id])
   sourceUrl   String
   isSponsored Boolean @default(false)
+  isFeatured  Boolean @default(false)
 
   // déduplication — SHA-256(title + org + publishedAt)
   hash        String  @unique

@@ -62,9 +62,9 @@ Avec 1 seule ville/secteur gratuit et contacts masqués, l'utilisateur a juste a
 
 ```
 1. Utilisateur → PREMIUM
-2. Bot affiche lien CinetPay + montant (650 FCFA)
+2. Bot affiche lien PayDunya + montant (650 FCFA)
 3. Utilisateur paie (Orange Money / Moov Money / Coris Money)
-4. CinetPay webhook → DB Payment.status = SUCCESS
+4. Webhook PayDunya → DB Payment.status = SUCCESS
 5. Bot → « Abonnement activé jusqu'au JJ/MM/YYYY »
 6. User accès Premium activé
 ```
@@ -74,16 +74,16 @@ Avec 1 seule ville/secteur gratuit et contacts masqués, l'utilisateur a juste a
 | **Scénario** | **Action** | **Détail** |
 |---|---|---|
 | **Paiement échoue (réseau)** | PENDING state | Webhook pas reçu → DB Payment.status = PENDING |
-| **PENDING > 24h** | Bot relance manuelle | Envoie : « Paiement en attente ? Réessayer : [lien CinetPay] » |
-| **User peut vérifier** | Commande VÉRIFIER | Bot sync avec CinetPay, confirme status |
+| **PENDING > 24h** | Bot relance manuelle | Envoie : « Paiement en attente ? Réessayer : [lien PayDunya] » |
+| **User peut vérifier** | Commande VÉRIFIER | Bot sync avec PayDunya, confirme status |
 | **User commence, abandonne** | Relance 24h après | Si toujours PENDING après 24h, relancer |
 | **Abonnement expire (30j)** | Relance J-7 avant expiration | Message : « Votre abonnement expire dans 7 jours » |
 
 ### Principes
 
 - **Pas d'automatisme agressif** — user doit agir (VÉRIFIER, ESSAYER)
-- **Hors plateforme** — paiement via CinetPay/Orange/Moov, pas d'UI admin sur paiement
-- **Suivi hors plateforme** — admin voit paiement via CinetPay dashboard, pas dans Tumaa
+- **Hors plateforme** — paiement via PayDunya (Orange/Moov/carte bancaire), pas d'UI admin sur paiement
+- **Suivi hors plateforme** — admin voit paiement via le dashboard PayDunya, pas dans Tumaa
 
 ---
 
@@ -193,7 +193,7 @@ Win-win-win :
    (hors plateforme — pas de UI employeur)
 
 3. EMPLOYEUR paie
-   Via CinetPay / Virement / Orange Money / Moov Money
+   Via PayDunya (Orange Money / Moov Money / carte bancaire) / Virement
    (hors plateforme)
 
 4. ADMIN TUMAA (dashboard)
@@ -489,7 +489,7 @@ Description : min 50 caractères
 | **Freemium** | 1 ville, 1 secteur, contacts masqués, **0 offre gratuite/semaine**, historique 7j | Critique |
 | **Premium** | 3 villes, 3 secteurs, contacts visibles, alertes keywords, historique 30j | Critique |
 | **Teaser** | Toujours masqué pour Freemium sauf Sponsored (payée employeur) | Critique |
-| **Paiement** | CinetPay/Orange/Moov hors plateforme, retry manuel (VÉRIFIER), relance 7j avant expiration | Critique |
+| **Paiement** | PayDunya (Orange/Moov/carte bancaire) hors plateforme, retry manuel (VÉRIFIER), relance 7j avant expiration | Critique |
 | **Canaux** | 10 canaux auto-post 08:00, 0 modération manuelle, wa.me link dans chaque message | Important |
 | **Sponsored** | Employeur paie Admin, Admin choisit options, peut relancer alerte (J1, J3, J5...) | Important |
 | **Admin B2B** | Point d'ingestion unique (JobSubmission manuelle), validation format/complétude | Important |

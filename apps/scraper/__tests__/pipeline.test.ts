@@ -119,7 +119,7 @@ describe('runPipeline', () => {
   })
 
   describe('expiration TTL', () => {
-    it('une offre avec deadline passée est marquée EXPIRED', async () => {
+    it('une offre avec deadline déjà passée n\'est jamais importée', async () => {
       mockScraper.scrape.mockResolvedValue({
         source: 'lefaso',
         offers: [{ ...SAMPLE_OFFER, deadline: PAST_DATE }],
@@ -131,19 +131,13 @@ describe('runPipeline', () => {
         .mockResolvedValueOnce([]) // no existing hashes
         .mockResolvedValueOnce([]) // no TTL candidates
       mockPrisma.jobOffer.create.mockResolvedValue({ id: 'job-002' })
-      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 1 })
+      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 0 })
 
-      await runPipeline('lefaso')
+      const result = await runPipeline('lefaso')
 
-      expect(mockPrisma.jobOffer.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: 'ACTIVE',
-            deadline: expect.objectContaining({ lt: expect.any(Date) }),
-          }),
-          data: { status: 'EXPIRED' },
-        })
-      )
+      expect(mockPrisma.jobOffer.create).not.toHaveBeenCalled()
+      expect(result.totalInserted).toBe(0)
+      expect(result.totalExpired).toBe(1)
     })
 
     it('une offre expirée par TTL (sans deadline, > 30j) est marquée EXPIRED', async () => {

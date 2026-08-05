@@ -3,11 +3,11 @@ import { adminApi } from '$lib/api.js';
 import type { JobOffer, ScraperStatus } from '$lib/types.js';
 
 const MOCK_OFFERS: JobOffer[] = [
-	{ id: '1', title: 'Développeur Full-Stack', organization: 'Société Burkina Tech', city: 'Ouagadougou', sector: 'Informatique', level: 'Confirmé', contractType: 'CDI', deadline: null, isSponsored: false, scoreConfidence: 0.92, status: 'ACTIVE' },
-	{ id: '2', title: 'Chargé de Communication', organization: 'ONG Espoir Sahel', city: 'Bobo-Dioulasso', sector: 'Communication', level: 'Junior', contractType: 'CDD', deadline: '2026-07-15', isSponsored: true, scoreConfidence: 0.78, status: 'ACTIVE' },
-	{ id: '3', title: 'Comptable Senior', organization: 'Cabinet Audit BF', city: 'Ouagadougou', sector: 'Finance', level: 'Senior', contractType: 'CDI', deadline: null, isSponsored: false, scoreConfidence: 0.85, status: 'ACTIVE' },
-	{ id: '4', title: 'Ingénieur Génie Civil', organization: 'BTP Sahara', city: 'Koudougou', sector: 'BTP', level: 'Confirmé', contractType: 'CDI', deadline: '2026-06-30', isSponsored: false, scoreConfidence: 0.70, status: 'EXPIRED' },
-	{ id: '5', title: 'Assistant Administratif', organization: 'Ministère de la Santé', city: 'Ouagadougou', sector: 'Administration', level: 'Junior', contractType: 'STAGE', deadline: null, isSponsored: false, scoreConfidence: 0.88, status: 'ACTIVE' },
+	{ id: '1', title: 'Développeur Full-Stack', organization: 'Société Burkina Tech', city: 'Ouagadougou', sector: 'Informatique', level: 'Confirmé', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.92, status: 'ACTIVE' },
+	{ id: '2', title: 'Chargé de Communication', organization: 'ONG Espoir Sahel', city: 'Bobo-Dioulasso', sector: 'Communication', level: 'Junior', contractType: 'CDD', deadline: '2026-07-15', isSponsored: true, isFeatured: false, scoreConfidence: 0.78, status: 'ACTIVE' },
+	{ id: '3', title: 'Comptable Senior', organization: 'Cabinet Audit BF', city: 'Ouagadougou', sector: 'Finance', level: 'Senior', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.85, status: 'ACTIVE' },
+	{ id: '4', title: 'Ingénieur Génie Civil', organization: 'BTP Sahara', city: 'Koudougou', sector: 'BTP', level: 'Confirmé', contractType: 'CDI', deadline: '2026-06-30', isSponsored: false, isFeatured: false, scoreConfidence: 0.70, status: 'EXPIRED' },
+	{ id: '5', title: 'Assistant Administratif', organization: 'Ministère de la Santé', city: 'Ouagadougou', sector: 'Administration', level: 'Junior', contractType: 'STAGE', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.88, status: 'ACTIVE' },
 ];
 
 const MOCK_SCRAPERS: ScraperStatus[] = [

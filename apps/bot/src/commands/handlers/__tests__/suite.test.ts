@@ -9,6 +9,7 @@ jest.mock('../../../services/pull', () => ({
 jest.mock('../../../session/pagination', () => ({
   getOffset: jest.fn().mockResolvedValue(0),
   setOffset: jest.fn().mockResolvedValue(undefined),
+  PULL_BATCH_SIZE: 10,
 }));
 
 jest.mock('../../../session/window', () => ({
@@ -112,29 +113,29 @@ describe('handleSuite — utilisateur inconnu', () => {
 // ── Continuation de la pagination ─────────────────────────────────────────────
 
 describe('handleSuite — reprise depuis l\'offset stocké', () => {
-  it('offset 5 → le batch commence à l\'offre 6 (slice de 5 à 10)', async () => {
-    getOffset.mockResolvedValue(5);
-    const offers = Array.from({ length: 10 }, (_, i) => makeOffer(`o${i}`));
+  it('offset 10 → le batch commence à l\'offre 11 (slice de 10 à 20)', async () => {
+    getOffset.mockResolvedValue(10);
+    const offers = Array.from({ length: 20 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
     const [, , batch] = deliverJobsBatch.mock.calls[0];
-    expect(batch).toHaveLength(5);
-    expect(batch[0].id).toBe('o5');
+    expect(batch).toHaveLength(10);
+    expect(batch[0].id).toBe('o10');
   });
 
   it('ne remet jamais l\'offset à 0 (contrairement à OFFRES)', async () => {
-    getOffset.mockResolvedValue(5);
-    const offers = Array.from({ length: 10 }, (_, i) => makeOffer(`o${i}`));
+    getOffset.mockResolvedValue(10);
+    const offers = Array.from({ length: 20 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
-    // setOffset doit être appelé avec 10, pas réinitialisé à 0
-    expect(setOffset).toHaveBeenCalledWith(USER, 10);
+    // setOffset doit être appelé avec 20, pas réinitialisé à 0
+    expect(setOffset).toHaveBeenCalledWith(USER, 20);
     expect(setOffset).not.toHaveBeenCalledWith(USER, 0);
   });
 
-  it('avance l\'offset de 5 après chaque SUITE', async () => {
-    getOffset.mockResolvedValue(5);
-    const offers = Array.from({ length: 12 }, (_, i) => makeOffer(`o${i}`));
+  it('avance l\'offset de 10 après chaque SUITE', async () => {
+    getOffset.mockResolvedValue(10);
+    const offers = Array.from({ length: 24 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
-    expect(setOffset).toHaveBeenCalledWith(USER, 10);
+    expect(setOffset).toHaveBeenCalledWith(USER, 20);
   });
 });
 
@@ -142,8 +143,8 @@ describe('handleSuite — reprise depuis l\'offset stocké', () => {
 
 describe('handleSuite — fin de liste', () => {
   it('offset ≥ nombre total d\'offres → sendMessage formatNoMoreOffers', async () => {
-    getOffset.mockResolvedValue(5);
-    const offers = Array.from({ length: 5 }, (_, i) => makeOffer(`o${i}`));
+    getOffset.mockResolvedValue(10);
+    const offers = Array.from({ length: 10 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
     expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }));
     expect(deliverJobsBatch).not.toHaveBeenCalled();
@@ -156,14 +157,14 @@ describe('handleSuite — fin de liste', () => {
   });
 
   it('fin de liste → pas de setOffset (pas d\'avancement inutile)', async () => {
-    getOffset.mockResolvedValue(10);
-    const offers = Array.from({ length: 5 }, (_, i) => makeOffer(`o${i}`));
+    getOffset.mockResolvedValue(20);
+    const offers = Array.from({ length: 10 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
     expect(setOffset).not.toHaveBeenCalled();
   });
 
   it('fin de liste → ni openWindow ni recordPullEvent ni recordPullDelivery (retour anticipé)', async () => {
-    getOffset.mockResolvedValue(10);
+    getOffset.mockResolvedValue(20);
     await handleSuite(cmd(), makeDb([]));
     expect(openWindow).not.toHaveBeenCalled();
     expect(recordPullEvent).not.toHaveBeenCalled();
@@ -194,12 +195,12 @@ describe('handleSuite — livraison', () => {
     expect(planArg).toBe('PREMIUM');
   });
 
-  it('batch limité à 5 même si l\'offset laisse plus d\'offres disponibles', async () => {
+  it('batch limité à 10 même si l\'offset laisse plus d\'offres disponibles', async () => {
     getOffset.mockResolvedValue(0);
-    const offers = Array.from({ length: 12 }, (_, i) => makeOffer(`o${i}`));
+    const offers = Array.from({ length: 22 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
     const [, , batch] = deliverJobsBatch.mock.calls[0];
-    expect(batch).toHaveLength(5);
+    expect(batch).toHaveLength(10);
   });
 });
 
@@ -219,7 +220,7 @@ describe('handleSuite — recordPullEvent', () => {
   it('appelé avec l\'id interne du user et le nombre d\'offres livrées après livraison', async () => {
     const offers = Array.from({ length: 6 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
-    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id, 5);
+    expect(recordPullEvent).toHaveBeenCalledWith(FREEMIUM_USER.id, 6);
   });
 });
 
@@ -230,7 +231,7 @@ describe('handleSuite — recordPullDelivery (historique détaillé)', () => {
     expect(recordPullDelivery).toHaveBeenCalledWith(
       FREEMIUM_USER.id,
       'SUITE',
-      ['o0', 'o1', 'o2', 'o3', 'o4'],
+      ['o0', 'o1', 'o2', 'o3', 'o4', 'o5'],
     );
   });
 });

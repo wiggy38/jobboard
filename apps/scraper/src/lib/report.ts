@@ -9,7 +9,7 @@ const HEALTH_JOB_NAME = 'health-check'
 export interface DailyReportData {
   date: string
   jobs: Array<{ name: string; result?: PipelineResult; failed?: boolean; error?: string }>
-  totals: { scraped: number; inserted: number; duplicates: number; errors: number }
+  totals: { scraped: number; inserted: number; duplicates: number; expired: number; errors: number }
   alerts: string[]
 }
 
@@ -26,7 +26,7 @@ export async function buildDailyReport(queue: Queue): Promise<DailyReportData> {
   ])
 
   const jobs: DailyReportData['jobs'] = []
-  const totals = { scraped: 0, inserted: 0, duplicates: 0, errors: 0 }
+  const totals = { scraped: 0, inserted: 0, duplicates: 0, expired: 0, errors: 0 }
   const alerts: string[] = []
 
   for (const job of completed) {
@@ -44,6 +44,7 @@ export async function buildDailyReport(queue: Queue): Promise<DailyReportData> {
       totals.scraped += result.totalScraped
       totals.inserted += result.totalInserted
       totals.duplicates += result.totalDuplicates
+      totals.expired += result.totalExpired
       totals.errors += result.totalErrors
     }
     jobs.push({ name: job.name, result })
@@ -65,6 +66,7 @@ export function formatReportText(data: DailyReportData): string {
     `Offres scrapées : ${data.totals.scraped}`,
     `Offres insérées : ${data.totals.inserted}`,
     `Doublons filtrés : ${data.totals.duplicates}`,
+    `Deadline passée (non importées) : ${data.totals.expired}`,
     `Erreurs : ${data.totals.errors}`,
     '',
     'Détail par source :',
@@ -74,7 +76,7 @@ export function formatReportText(data: DailyReportData): string {
         : j.result?.skipped
           ? `  - ${j.name} : IGNORÉ (source désactivée par le circuit breaker)`
           : j.result
-            ? `  - ${j.name} : ${j.result.totalInserted} insérées / ${j.result.totalScraped} scrapées, ${j.result.totalDuplicates} doublons, ${j.result.totalErrors} erreurs`
+            ? `  - ${j.name} : ${j.result.totalInserted} insérées / ${j.result.totalScraped} scrapées, ${j.result.totalDuplicates} doublons, ${j.result.totalExpired} deadline passée, ${j.result.totalErrors} erreurs`
             : `  - ${j.name} : aucun résultat`
     ),
   ]
@@ -89,11 +91,11 @@ export function formatReportText(data: DailyReportData): string {
 export function formatReportHtml(data: DailyReportData): string {
   const rows = data.jobs
     .map(j => {
-      if (j.failed) return `<tr><td>${j.name}</td><td colspan="4" style="color:#b91c1c">ÉCHEC — ${j.error ?? 'raison inconnue'}</td></tr>`
-      if (j.result?.skipped) return `<tr><td>${j.name}</td><td colspan="4" style="color:#b45309">IGNORÉ — source désactivée par le circuit breaker</td></tr>`
-      if (!j.result) return `<tr><td>${j.name}</td><td colspan="4">aucun résultat</td></tr>`
+      if (j.failed) return `<tr><td>${j.name}</td><td colspan="5" style="color:#b91c1c">ÉCHEC — ${j.error ?? 'raison inconnue'}</td></tr>`
+      if (j.result?.skipped) return `<tr><td>${j.name}</td><td colspan="5" style="color:#b45309">IGNORÉ — source désactivée par le circuit breaker</td></tr>`
+      if (!j.result) return `<tr><td>${j.name}</td><td colspan="5">aucun résultat</td></tr>`
       const r = j.result
-      return `<tr><td>${j.name}</td><td>${r.totalScraped}</td><td>${r.totalInserted}</td><td>${r.totalDuplicates}</td><td>${r.totalErrors}</td></tr>`
+      return `<tr><td>${j.name}</td><td>${r.totalScraped}</td><td>${r.totalInserted}</td><td>${r.totalDuplicates}</td><td>${r.totalExpired}</td><td>${r.totalErrors}</td></tr>`
     })
     .join('')
 
@@ -107,10 +109,10 @@ export function formatReportHtml(data: DailyReportData): string {
     <p>
       <strong>${data.totals.inserted}</strong> offres insérées sur
       <strong>${data.totals.scraped}</strong> scrapées —
-      ${data.totals.duplicates} doublons, ${data.totals.errors} erreurs.
+      ${data.totals.duplicates} doublons, ${data.totals.expired} deadline passée, ${data.totals.errors} erreurs.
     </p>
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
-      <thead><tr><th>Source</th><th>Scrapées</th><th>Insérées</th><th>Doublons</th><th>Erreurs</th></tr></thead>
+      <thead><tr><th>Source</th><th>Scrapées</th><th>Insérées</th><th>Doublons</th><th>Deadline passée</th><th>Erreurs</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     ${alertsHtml}

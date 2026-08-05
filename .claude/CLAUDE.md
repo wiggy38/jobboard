@@ -52,7 +52,7 @@ Monorepo pnpm. Trois briques principales :
 ## Stack
 Node.js + TypeScript, Fastify, Prisma, PostgreSQL, Redis/Upstash,
 BullMQ, Playwright, Cheerio, Meta Cloud API direct, Claude Haiku,
-CinetPay/PayDunya, Hetzner VPS, Docker, GitHub Actions
+PayDunya, Hetzner VPS, Docker, GitHub Actions
 
 ## Architecture scraping — deux phases obligatoires
 Chaque scraper suit un pipeline en deux phases strictement séparées :
@@ -66,6 +66,10 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 - Envoyer le texte brut de la fiche à Haiku
 - Haiku retourne un objet JSON normalisé :
   `{ titre, organisation, lieu, date_publication, date_cloture, description, salaire, url_source, pays }`
+- `description` est une **ébauche courte** (≤ ~250 caractères — rôle + 1-2 points clés), pas le
+  détail complet de l'annonce : l'utilisateur est redirigé vers `url_source` pour le reste (voir
+  règle 2 sous "Règles Freemium/Premium/Elite"). Le champ `requirements` n'est plus extrait pour
+  les offres scrapées.
 - Dates normalisées en ISO 8601
 - Intitulés de poste harmonisés
 
@@ -87,8 +91,11 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
   auto-join canaux — checklist d'implémentation avec écarts documentés vs le code réel. Pages
   `/subscribe`, `/subscribe/countries`, `/subscribe/success` **codées en React/Vite dans
   `apps/web/src`** (pas SvelteKit — `apps/backoffice` en SvelteKit est un projet distinct pour
-  admin/employer/offre). Backend dans `apps/api/src/subscribe.routes.ts`. CinetPay réel et
-  webhook Meta API restent à faire ; un endpoint `simulate-payment` dev-only fait le pont
+  admin/employer/offre). Backend dans `apps/api/src/subscribe.routes.ts`. Paiement réel via
+  PayDunya (Checkout Invoice API, `apps/api/src/lib/paydunya.ts`) : `/api/subscribe/pay` crée la
+  facture, `/api/subscribe/paydunya/webhook` confirme et active le plan. CinetPay abandonné au
+  profit de PayDunya. Un endpoint `simulate-payment` dev-only reste disponible en complément pour
+  les démos/tests hors prod. Webhook Meta API (join canal) reste à faire
 
 ## Modèle Freemium / Premium / Elite / Sponsored Alerts B2B (validé — voir `docs/freemium_v1.1.md` et `docs/subscription_flow_elite.md`)
 
@@ -110,12 +117,17 @@ ad hoc à partir de `user.plan`.
 1. **Contacts toujours visibles, quel que soit le plan** (y compris Freemium) — la
    différenciation Freemium se fait uniquement sur le nombre de villes/secteurs/contrats/pays
    suivis et sur les alertes mots-clés, jamais sur la visibilité des contacts.
-2. **La source scrappée (sourceUrl/sourceName) reste réservée aux plans payants**
-   (PREMIUM/ELITE) — règle indépendante de la visibilité des contacts, protège l'attribution de
-   la source plutôt que de servir de levier de conversion.
+2. **La source scrappée (sourceUrl/sourceName) est visible pour tous les plans** (y compris
+   Freemium) — n'est plus un levier de conversion. Le contenu affiché à l'utilisateur pour une
+   offre scrapée est une ébauche courte (`description` ≤ ~250 caractères, `requirements` toujours
+   `null`, cf. règle scraping ci-dessous) ; le bouton "voir la source" redirige vers l'annonce
+   complète sur le site d'origine, ce qui garantit de la visibilité au site source. Les offres
+   B2B insérées manuellement (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne sont pas
+   concernées : leur `description`/`requirements` sont saisis en clair par l'admin et affichés
+   intégralement.
 3. **DÉBLOQUER → lien direct Premium 650 FCFA**, jamais d'essai gratuit.
-4. **Paiement hors plateforme** (CinetPay/Orange Money/Moov Money) — pas d'UI admin sur le paiement, suivi via dashboard CinetPay.
-5. **Retry paiement** : PENDING > 24h → relance manuelle ; commande `VÉRIFIER` resynchronise avec CinetPay ; relance à J-7 avant expiration d'abonnement.
+4. **Paiement hors plateforme** (PayDunya : Orange Money/Moov Money/carte bancaire) — pas d'UI admin sur le paiement, suivi via dashboard PayDunya.
+5. **Retry paiement** : PENDING > 24h → relance manuelle ; commande `VÉRIFIER` resynchronise avec PayDunya ; relance à J-7 avant expiration d'abonnement.
 6. **Canaux WhatsApp — 1 canal par pays** (décision actée) : `#Emploi-BF`, `#Emploi-BJ`, `#Emploi-TG`, `#Emploi-CI`. Auto-post 08:00, zéro modération manuelle, archivage auto après 15j, toujours un lien `wa.me` par message. Remplace l'ancienne architecture à 10 canaux thématiques (par ville/secteur, BF uniquement) décrite dans `docs/freemium_v1.1.md` — cette dernière est obsolète sur ce point précis, voir `docs/subscription_flow_elite.md`.
 7. **ELITE multi-pays** : `User.countries` vide tant que l'utilisateur n'a pas choisi ses pays (1 à 3) ; auto-join Meta API + `ChannelJoin` créés uniquement après validation du choix, jamais avant paiement confirmé.
 
@@ -136,7 +148,7 @@ ad hoc à partir de `user.plan`.
 
 ### Livraison des offres
 - 1 offre = 1 message WhatsApp distinct
-- Maximum 5 offres par session pull (paginer avec SUITE)
+- Maximum 10 offres par session pull (paginer avec SUITE)
 - Délai obligatoire de 800ms entre chaque message (anti-spam WhatsApp)
 - L'offset de pagination est stocké dans Redis : session:{userId}:offset
 
@@ -146,10 +158,10 @@ ad hoc à partir de `user.plan`.
   cliquable "👉 Voir l'offre" pointant vers le lien web tokenisé — un bouton "reply" ne peut pas
   cohabiter avec un bouton CTA URL sur WhatsApp, donc l'abonnement se fait via la commande texte
   PREMIUM mentionnée dans le corps du message
-- La source de l'offre (sourceUrl/sourceName) n'est jamais exposée aux Freemium, ni dans le
-  message WhatsApp ni dans la réponse API de la page offre — uniquement pour PREMIUM/ELITE.
-  Les contacts (email/téléphone/adresse), eux, sont toujours visibles quel que soit le plan —
-  `accessLevel` vaut désormais toujours `'FULL'`, seul le champ source reste conditionné au plan.
+- La source de l'offre (sourceUrl/sourceName) et les contacts (email/téléphone/adresse) sont
+  toujours visibles quel que soit le plan, dans la réponse API de la page offre — `accessLevel`
+  vaut toujours `'FULL'`. Le WhatsApp lui-même n'a jamais affiché le contenu complet (description
+  courte + bouton source réservés à la page web tokenisée).
 - Le parser de commandes gère DEUX types d'entrée :
   1. message.text.body (texte libre)
   2. message.interactive.button_reply.id (Reply Button tapé)
@@ -168,3 +180,36 @@ ad hoc à partir de `user.plan`.
 - Webhook Fastify : retourne HTTP 200 immédiatement
 - Traitement asynchrone via setImmediate()
 - Toutes les interactions Meta Cloud API passent par src/whatsapp/client.ts
+
+## TODO — Matching
+
+### Faux positifs secteur/métier (ex: "Chauffeur ambulancier" matché sur profil infirmier)
+- **Constat (2026-08-05)** : le scorer (`packages/matching/src/scorer.ts`) ne regarde jamais le
+  titre du poste — seulement ville/secteur/niveau/contrat — donc ville+secteur+confiance
+  suffisent à dépasser le seuil de matching même si niveau et type de contrat sont à 0. Cas
+  observé : une offre "Chauffeur ambulancier" (`sector="Santé"`, `level="Non précisé"`,
+  `contractType="AUTRE"`) matche un profil cherchant villes Ouagadougou/Bobo-Dioulasso, secteurs
+  Informatique/Santé, niveau Master, contrats CDI/CDD — alors qu'il s'agit d'un poste de
+  conducteur, pas d'un poste médical.
+- **Investigation** : `SECTOR_OPTIONS` (`packages/shared/src/profileOptions.ts`) contient déjà
+  "Transport/Logistique", distinct de "Santé". Le prompt Haiku d'extraction
+  (`apps/scraper/src/lib/ai-normalizer.ts`) infère `sector` en texte libre, sans contrainte à
+  cette liste — contrairement au côté profil web, validé contre `SECTOR_OPTIONS` dans
+  `apps/api/src/subscribe.routes.ts:150-151`. Ce cas précis ressemble donc à un bug de
+  classification du secteur (organisme recruteur "Santé" plutôt que fonction réelle du poste),
+  pas nécessairement à un manque de granularité du référentiel.
+- **Décision reportée** — à trancher entre (ou combiner) :
+  - **Option A — corriger le bug de classification du secteur** (rapide, cible ce cas précis) :
+    contraindre l'extraction Haiku à choisir parmi les `SECTOR_OPTIONS` existantes (dont
+    "Transport/Logistique"), avec une règle de classification par fonction réelle du poste
+    plutôt que par domaine de l'organisme recruteur ; ajouter une validation whitelist côté
+    offre (symétrique à celle déjà faite côté profil). Pas de migration Prisma, pas de nouvel
+    écran web.
+  - **Option B — champ « métier » dédié** (chantier plus large, cause plus profonde) : ajouter
+    une 2e dimension de classification (métier/fonction) en plus du secteur, pour distinguer des
+    rôles différents au sein d'un même secteur (ex: infirmier vs réceptionniste, tous deux
+    "Santé"). Nécessite migration Prisma (`JobOffer.metier` + `Profile.metiers` + limites de
+    plan), nouvelle étape dans le wizard web `apps/web/src/pages/SubscribeProfilePage.tsx`,
+    extension du prompt Haiku (`ai-extractor.ts` + `ai-normalizer.ts`), backfill des offres
+    existantes (pattern `packages/db/scripts/backfillPlanLimits.ts`). Résout aussi les cas de
+    confusion intra-secteur, pas seulement les erreurs de classification inter-secteur.

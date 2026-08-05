@@ -196,11 +196,6 @@ function buildUserMessage(offer: RawJobOffer): string {
     }
   }
 
-  // Les exigences/qualifications aident à inférer le niveau et l'organisation
-  if (offer.requirements) {
-    parts.push(`Qualifications requises : ${offer.requirements.slice(0, 250)}`)
-  }
-
   return parts.join('\n')
 }
 
@@ -298,7 +293,11 @@ export async function aiNormalizeOffer(offer: RawJobOffer): Promise<AINormalizat
       // Haiku : rapide, bon marché, suffisant pour extraction structurée
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 256,
-      system: SYSTEM_PROMPT,
+      // cache_control sur le prompt système : identique à chaque appel. Note :
+      // le minimum de préfixe cachable sur Haiku 4.5 est 4096 tokens ; ce
+      // prompt (~900 tokens) est en dessous, donc aucun gain réel tant que le
+      // prompt ne grandit pas — marqueur sans coût, prêt si le seuil bouge.
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: buildUserMessage(offer) }],
     })
 

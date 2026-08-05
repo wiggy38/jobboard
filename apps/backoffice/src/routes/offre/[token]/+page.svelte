@@ -17,7 +17,7 @@
 			: null
 	)
 
-	const isVerified = $derived(offer?.source != null && offer!.source!.trustScore > 0.8)
+	const isVerified = $derived(offer != null && offer.sourceTrustScore > 0.8)
 
 	const waShareUrl = $derived(
 		offer
@@ -125,6 +125,23 @@
 					</section>
 				{/if}
 
+				<!-- SOURCE -->
+				{#if offer.sourceUrl}
+					<section class="section source-cta">
+						<a
+							href={offer.sourceUrl}
+							class="cta-btn cta-primary"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Voir l'offre complète sur le site source →
+						</a>
+						{#if offer.sourceName}
+							<p class="source-hint">Publiée par {offer.sourceName}</p>
+						{/if}
+					</section>
+				{/if}
+
 				<!-- EXIGENCES -->
 				{#if requirements.length > 0}
 					<section class="section">
@@ -137,33 +154,8 @@
 					</section>
 				{/if}
 
-				<!-- CONTACTS -->
-				{#if !offer.isUnlocked}
-					<section class="section contacts-locked">
-						<div class="lock-banner">🔒 Contacts réservés aux abonnés</div>
-						<div class="lock-body">
-							<span class="lock-icon">🔒</span>
-							<h2>Contacts masqués — réservés aux abonnés Premium</h2>
-							<p>Abonnez-vous pour accéder à l'email, téléphone et adresse de contact.</p>
-							<a
-								href="https://wa.me/+22600000000?text=PREMIUM"
-								class="cta-btn cta-primary"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								S'abonner · 650 FCFA/mois
-							</a>
-							<a
-								href="https://wa.me/+22600000000?text=ESSAI"
-								class="cta-secondary"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								Essai 48h gratuit → tape ESSAI sur WhatsApp
-							</a>
-						</div>
-					</section>
-				{:else}
+				<!-- CONTACTS — toujours visibles, quel que soit le plan -->
+				{#if offer.contactEmail || offer.contactPhone || offer.contactAddress}
 					<section class="section contacts-unlocked">
 						<h2>Coordonnées de contact</h2>
 						<ul class="contact-list">
@@ -186,21 +178,13 @@
 								</li>
 							{/if}
 						</ul>
-						<a
-							href={offer.sourceUrl}
-							class="cta-btn cta-primary"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Voir l'offre originale →
-						</a>
 					</section>
 				{/if}
 
 				<!-- FOOTER -->
 				<footer class="offer-footer">
-					{#if offer.source}
-						<span class="source-label">Source : {offer.source.name}</span>
+					{#if offer.sourceName}
+						<span class="source-label">Source : {offer.sourceName}</span>
 					{/if}
 					<a
 						href={waShareUrl}
@@ -364,31 +348,18 @@
 		font-weight: 700;
 	}
 
-	/* CONTACTS — LOCKED */
-	.contacts-locked { background: #fffbf0; border-color: #ffe29a; }
-
-	.lock-banner {
-		background: #ffbd59;
-		color: #5c3800;
-		font-size: 0.8rem;
-		font-weight: 700;
-		padding: 0.4rem 1rem;
-		margin: -1.25rem -1.5rem 1.25rem;
-		text-align: center;
-	}
-	.lock-body {
+	/* SOURCE */
+	.source-cta {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.5rem;
 		text-align: center;
-		padding: 0.5rem 0;
+		background: var(--color-bg-subtle, #f5f7f5);
 	}
-	.lock-icon { font-size: 2rem; }
-	.lock-body h2 { font-size: 1rem; font-weight: 700; }
-	.lock-body p { font-size: 0.85rem; color: var(--color-text-muted, #6b7280); max-width: 380px; }
+	.source-hint { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
 
-	/* CONTACTS — UNLOCKED */
+	/* CONTACTS */
 	.contact-list {
 		list-style: none;
 		padding: 0;
@@ -422,12 +393,6 @@
 		color: #fff;
 	}
 	.cta-primary:hover { background: var(--color-green-dark, #0f5730); }
-	.cta-secondary {
-		font-size: 0.85rem;
-		color: var(--color-green, #1a7c4a);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
 
 	/* FOOTER */
 	.offer-footer {

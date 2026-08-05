@@ -127,6 +127,23 @@ export async function sendInteractiveList(
   });
 }
 
+// Publie un message texte sur un WhatsApp Channel (canal national #Emploi-XX,
+// distinct des messages 1:1) — le channelId est le destinataire `to`, comme
+// pour un utilisateur, une fois que le compte Business en est administrateur.
+export async function postToChannel(channelId: string, body: string): Promise<void> {
+  if (isDryRun()) {
+    console.log(`[WhatsApp DRY-RUN] → channel:${channelId} : ${body}`);
+    return;
+  }
+
+  await post({
+    messaging_product: 'whatsapp',
+    to: channelId,
+    type: 'text',
+    text: { body, preview_url: false },
+  });
+}
+
 // AVERTISSEMENT : Ne jamais appeler cette fonction directement depuis les handlers.
 // Elle doit toujours passer par le guard TemplateCounter (étape 5) pour respecter
 // la limite de 3 templates payants par utilisateur par mois.

@@ -14,13 +14,14 @@ const SOURCE = 'pipeline'
 // bien tourné mais n'a rien trouvé, symptôme typique d'un site qui a changé
 // de structure ou déployé une protection anti-bot.
 const CIRCUIT_BREAKER_THRESHOLD = 3
-const ALERT_EMAIL_TO = process.env.REPORT_EMAIL_TO ?? 'm.miguellao@gmail.com'
+const ALERT_EMAIL_TO = process.env.REPORT_EMAIL_TO ?? 'tumaa.app@gmail.com'
 
 export interface PipelineResult {
   scraperName: string
   totalScraped: number
   totalInserted: number
   totalDuplicates: number
+  totalExpired: number
   totalErrors: number
   duration: number
   skipped?: boolean
@@ -74,6 +75,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
           totalScraped: 0,
           totalInserted: 0,
           totalDuplicates: 0,
+          totalExpired: 0,
           totalErrors: 0,
           duration: Date.now() - startTime,
           skipped: true,
@@ -100,6 +102,25 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     errors: result.errors,
   })
 
+  // Récapitulatif des fiches rejetées par Haiku ("pas une offre") — envoyé
+  // par mail à la fin du scraping pour permettre une vérification manuelle
+  // (faux négatifs éventuels) sans avoir à fouiller les logs.
+  if (result.rejectedNotJobOffer && result.rejectedNotJobOffer.length > 0) {
+    try {
+      await sendMail({
+        to: ALERT_EMAIL_TO,
+        subject: `[Tumaa Scraper] ${result.rejectedNotJobOffer.length} fiches rejetées (pas une offre) — ${scraperName}`,
+        text: [
+          `${result.rejectedNotJobOffer.length} fiches écartées par l'extraction Haiku sur la source "${scraperName}" (jugées non conformes à une offre d'emploi individuelle) :`,
+          '',
+          ...result.rejectedNotJobOffer.map(url => `  - ${url}`),
+        ].join('\n'),
+      })
+    } catch (mailErr) {
+      logError(SOURCE, `Échec envoi récapitulatif fiches rejetées : ${mailErr instanceof Error ? mailErr.message : mailErr}`)
+    }
+  }
+
   // Stamp le pays depuis la métadonnée du scraper sur chaque offre
   const stampedOffers = result.offers.map(o => ({ ...o, country: o.country ?? scraper.country }))
 
@@ -119,16 +140,27 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
   let totalInserted = 0
   let totalDuplicates = 0
+  let totalExpired = 0
   let totalErrors = result.errors.length
+
+  // Une offre dont la deadline est déjà passée ne doit jamais être importée
+  // (ni en dry-run, ni en insertion réelle) — inutile de la faire vivre en
+  // base pour la marquer EXPIRED juste après.
+  const now0 = new Date()
+  const notExpired = normalized.filter(({ offer }) => {
+    const expired = offer.deadline != null && offer.deadline < now0
+    if (expired) totalExpired++
+    return !expired
+  })
 
   if (dryRun) {
     const seen = new Set<string>()
-    for (const { hash } of normalized) {
+    for (const { hash } of notExpired) {
       if (seen.has(hash)) totalDuplicates++
       else seen.add(hash)
     }
-    totalInserted = normalized.length - totalDuplicates
-    info(SOURCE, `[dry-run] Would insert ${totalInserted} offers, ${totalDuplicates} in-batch duplicates`)
+    totalInserted = notExpired.length - totalDuplicates
+    info(SOURCE, `[dry-run] Would insert ${totalInserted} offers, ${totalDuplicates} in-batch duplicates, ${totalExpired} skipped (deadline passée)`)
 
     const duration = Date.now() - startTime
     const pipelineResult: PipelineResult = {
@@ -136,6 +168,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       totalScraped: stampedOffers.length,
       totalInserted,
       totalDuplicates,
+      totalExpired,
       totalErrors,
       duration,
     }
@@ -157,9 +190,9 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     })
     const existingHashes = new Set(activeHashes.map(h => h.hash))
 
-    const newOffers = normalized.filter(({ hash }) => !existingHashes.has(hash))
-    totalDuplicates = normalized.length - newOffers.length
-    info(SOURCE, `${newOffers.length} new, ${totalDuplicates} duplicates (vs DB)`)
+    const newOffers = notExpired.filter(({ hash }) => !existingHashes.has(hash))
+    totalDuplicates = notExpired.length - newOffers.length
+    info(SOURCE, `${newOffers.length} new, ${totalDuplicates} duplicates (vs DB), ${totalExpired} skipped (deadline passée)`)
 
     // ÉTAPE 4 — Insertion DB
     info(SOURCE, `[4/5] Inserting ${newOffers.length} offers...`)
@@ -179,8 +212,6 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
     for (const { offer, hash } of newOffers) {
       try {
-        const isAlreadyExpired = offer.deadline != null && offer.deadline < new Date()
-
         await prisma.jobOffer.create({
           data: {
             title: offer.title,
@@ -191,7 +222,6 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
             level: offer.level,
             contractType: toPrismaContractType(offer.contractType),
             description: offer.description,
-            requirements: offer.requirements,
             contactEmail: offer.contactEmail,
             contactPhone: offer.contactPhone,
             contactAddress: offer.contactAddress,
@@ -199,12 +229,13 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
             sourceId: sourceRecord.id,
             sourceUrl: offer.sourceUrl,
             isSponsored: offer.isSponsored ?? false,
+            isFeatured: offer.isFeatured ?? false,
             isFraudSuspect: offer.isFraudSuspect ?? false,
             hash,
             publishedAt: offer.publishedAt,
             deadline: offer.deadline,
             scoreConfidence: offer.scoreConfidence,
-            status: isAlreadyExpired ? JobOfferStatus.EXPIRED : JobOfferStatus.PENDING,
+            status: JobOfferStatus.PENDING,
           },
         })
         totalInserted++
@@ -298,6 +329,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     totalScraped: stampedOffers.length,
     totalInserted,
     totalDuplicates,
+    totalExpired,
     totalErrors,
     duration,
   }

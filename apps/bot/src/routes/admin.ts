@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { Queue } from 'bullmq'
+import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from '../lib/prisma'
 import { redis } from '../lib/redis'
 
@@ -174,7 +175,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const editableFields = [
       'title', 'organization', 'city', 'sector', 'level', 'contractType',
       'description', 'requirements', 'contactEmail', 'contactPhone',
-      'contactAddress', 'applicationUrl', 'isSponsored', 'isFraudSuspect',
+      'contactAddress', 'applicationUrl', 'isSponsored', 'isFeatured', 'isFraudSuspect',
       'validated', 'ttlDays',
     ]
 
@@ -184,7 +185,7 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     if ('deadline' in b) {
-      data.deadline = b.deadline ? new Date(b.deadline as string) : null
+      data.deadline = parseDeadlineInput(b.deadline as string | undefined)
     }
 
     if ('status' in b) {
@@ -304,6 +305,7 @@ export async function adminRoutes(app: FastifyInstance) {
           deadline: true,
           publishedAt: true,
           isSponsored: true,
+          isFeatured: true,
         },
       }),
     ])

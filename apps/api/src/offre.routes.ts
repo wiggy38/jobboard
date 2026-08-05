@@ -9,7 +9,9 @@ export async function offreRoutes(fastify: FastifyInstance) {
     const { jobId } = request.params
     const token = request.query.t ?? null
 
-    // ÉTAPE 2 — Vérifier le token JWT si présent
+    // ÉTAPE 2 — Vérifier le token JWT si présent (intégrité du lien + identifie
+    // l'utilisateur pour le tracking JobInteraction ; le contenu de la réponse
+    // ne dépend plus du plan de l'utilisateur)
     let userId: string | null = null
     if (token) {
       try {
@@ -32,7 +34,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     // ÉTAPE 3 — Récupérer l'offre en DB
     const job = await prisma.jobOffer.findUnique({
       where: { id: jobId },
-      include: { source: { select: { name: true, url: true } } },
+      include: { source: { select: { name: true, url: true, trustScore: true } } },
     })
 
     if (!job) {
@@ -49,25 +51,13 @@ export async function offreRoutes(fastify: FastifyInstance) {
       })
     }
 
-    // ÉTAPE 4 — Les contacts sont visibles pour tous les plans (y compris
-    // FREEMIUM). La source scrappée (sourceUrl/sourceName) reste réservée aux
-    // plans payants — cf. .claude/CLAUDE.md, règle indépendante de la grille
-    // tarifaire (protection de l'attribution de la source, pas un levier de
-    // conversion).
-    let showSource = false
-
+    // ÉTAPE 4 — Contacts et source visibles pour tous les plans (y compris
+    // FREEMIUM) : le contenu affiché est une ébauche, la source sert de
+    // redirection vers l'annonce complète — plus un levier de conversion.
     if (userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { plan: true, status: true, planEndAt: true },
-      })
-
-      showSource = !!(
-        user &&
-        user.status === 'ACTIVE' &&
-        user.plan !== 'FREEMIUM' &&
-        !(user.planEndAt && user.planEndAt < new Date())
-      )
+      await prisma.jobInteraction
+        .create({ data: { userId, jobId: job.id, action: 'SEEN' } })
+        .catch(() => {})
     }
 
     // ÉTAPE 5 — Construire la réponse
@@ -88,8 +78,9 @@ export async function offreRoutes(fastify: FastifyInstance) {
         contactPhone: job.contactPhone,
         contactAddress: job.contactAddress,
         applicationUrl: job.applicationUrl,
-        sourceUrl: showSource ? job.sourceUrl : null,
-        sourceName: showSource ? job.source.name : null,
+        sourceUrl: job.sourceUrl,
+        sourceName: job.source.name,
+        sourceTrustScore: job.source.trustScore,
       },
       accessLevel: 'FULL',
     })

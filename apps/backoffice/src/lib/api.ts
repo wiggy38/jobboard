@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import type { AdminJobOfferDetail, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedPullActivity, PaginatedPullHistory, PaginatedUsers, Scout, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage, TokenizedOffer } from './types.js';
+import type { AdminJobOfferDetail, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedPullActivity, PaginatedPullHistory, PaginatedUsers, Scout, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -47,7 +47,7 @@ export const adminApi = {
 		title: string; organization: string; city?: string; sector?: string; level?: string;
 		contractType?: string; country?: string; description?: string; requirements?: string;
 		contactEmail?: string; contactPhone?: string; contactAddress?: string;
-		applicationUrl?: string; sourceUrl?: string; isSponsored?: boolean;
+		applicationUrl?: string; sourceUrl?: string; isSponsored?: boolean; isFeatured?: boolean;
 		status?: string; deadline?: string | null;
 	}) => apiFetch<{ ok: boolean; id: string }>('/admin/offers', { method: 'POST', body: JSON.stringify(data) }),
 	runScraper: (id: string) => apiFetch<{ jobId: string }>(`/admin/scrapers/${id}/run`, { method: 'POST' }),
@@ -90,9 +90,4 @@ export const employerApi = {
 	renewOffer: (id: string) => apiFetch<void>(`/employer/offers/${id}/renew`, { method: 'POST' }),
 	sponsorOffer: (id: string) => apiFetch<void>(`/employer/offers/${id}/sponsor`, { method: 'POST' }),
 	archiveOffer: (id: string) => apiFetch<void>(`/employer/offers/${id}/archive`, { method: 'POST' }),
-};
-
-export const publicApi = {
-	getOfferByToken: (token: string) =>
-		apiFetch<TokenizedOffer>(`/offers/token/${token}`),
 };

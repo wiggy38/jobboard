@@ -2,7 +2,7 @@ import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
 import { getUserWithProfile, upsertUser, recordPullEvent, recordPullDelivery } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
-import { getOffset, setOffset, resetOffset } from '../../session/pagination';
+import { getOffset, setOffset, resetOffset, PULL_BATCH_SIZE } from '../../session/pagination';
 import { openWindow } from '../../session/window';
 import { deliverJobsBatch } from '../../messages/delivery';
 import { sendMessage } from '../../whatsapp/client';
@@ -37,13 +37,13 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
 
   await resetOffset(cmd.userId);
   const offset = 0;
-  const batch = sortedOffers.slice(offset, offset + 5);
+  const batch = sortedOffers.slice(offset, offset + PULL_BATCH_SIZE);
 
   if (batch.length === 0) {
     await sendMessage(cmd.userId, formatNoMoreOffers());
   } else {
     await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage);
-    await setOffset(cmd.userId, offset + 5);
+    await setOffset(cmd.userId, offset + PULL_BATCH_SIZE);
   }
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[offres] recordPullEvent:', err));

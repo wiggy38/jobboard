@@ -68,7 +68,7 @@ dur ici, ils évoluent. Points d'attention au moment du déploiement :
   `ADMIN_PASSWORD`, `TOKEN_SECRET`, `WEB_BASE_URL`, `API_BASE_URL`,
   `CHANNEL_INVITE_LINK_*`, `PAYDUNYA_*` (mode `live` en prod)
 - `tumaa-bot` : `DATABASE_URL`, `REDIS_URL`, `META_*` (webhook WhatsApp),
-  `ANTHROPIC_API_KEY`, `PAYDUNYA_*`/`CINETPAY_*`, `INTERNAL_API_URL` →
+  `ANTHROPIC_API_KEY`, `PAYDUNYA_*`, `INTERNAL_API_URL` →
   pointer vers le domaine privé de `tumaa-api`, `CHANNEL_INVITE_LINK_*`
 - `tumaa-scraper` : `DATABASE_URL`, `REDIS_URL`, `SMTP_*` (rapport quotidien —
   utiliser un mot de passe d'application dédié, jamais commité)

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { Prisma, JobOfferStatus } from '@prisma/client'
 import { Queue } from 'bullmq'
 import crypto from 'crypto'
+import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from './lib/prisma'
 import { redis } from './lib/redis'
 
@@ -221,6 +222,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           contractType: true,
           deadline: true,
           isSponsored: true,
+          isFeatured: true,
           scoreConfidence: true,
           status: true,
           publishedAt: true,
@@ -324,9 +326,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const applicationUrl: string | undefined = b.applicationUrl || undefined
     const sourceUrl: string = b.sourceUrl ?? ''
     const isSponsored: boolean = b.isSponsored ?? false
+    const isFeatured: boolean = b.isFeatured ?? false
     const status: string = b.status ?? 'ACTIVE'
     const publishedAt = b.publishedAt ? new Date(b.publishedAt) : new Date()
-    const deadline = b.deadline ? new Date(b.deadline) : undefined
+    const deadline = parseDeadlineInput(b.deadline) ?? undefined
 
     const hash = crypto
       .createHash('sha256')
@@ -369,6 +372,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           sourceId: source.id,
           sourceUrl,
           isSponsored,
+          isFeatured,
           hash,
           publishedAt,
           deadline,
@@ -391,7 +395,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const editableFields = [
       'title', 'organization', 'city', 'sector', 'level', 'contractType',
       'description', 'requirements', 'contactEmail', 'contactPhone',
-      'contactAddress', 'applicationUrl', 'isSponsored', 'isFraudSuspect',
+      'contactAddress', 'applicationUrl', 'isSponsored', 'isFeatured', 'isFraudSuspect',
       'validated', 'ttlDays',
     ]
 
@@ -401,7 +405,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     if ('deadline' in b) {
-      data.deadline = b.deadline ? new Date(b.deadline as string) : null
+      data.deadline = parseDeadlineInput(b.deadline as string | undefined)
     }
 
     if ('status' in b) {

@@ -52,4 +52,18 @@ describe('createHash', () => {
     const b: RawJobOffer = { ...base, publishedAt: new Date('2026-06-02T00:00:00.000Z') }
     expect(createHash(a)).not.toBe(createHash(b))
   })
+
+  it('la même offre (titre+org+date) dans deux pays différents produit des hash différents', () => {
+    const d = new Date('2026-06-01T00:00:00.000Z')
+    const a: RawJobOffer = { ...base, publishedAt: d, country: 'BF' }
+    const b: RawJobOffer = { ...base, publishedAt: d, country: 'BJ' }
+    expect(createHash(a)).not.toBe(createHash(b))
+  })
+
+  it('un country identique (ou absent des deux côtés) produit le même hash', () => {
+    const d = new Date('2026-06-01T00:00:00.000Z')
+    const a: RawJobOffer = { ...base, publishedAt: d }
+    const b: RawJobOffer = { ...base, publishedAt: d, country: undefined }
+    expect(createHash(a)).toBe(createHash(b))
+  })
 })

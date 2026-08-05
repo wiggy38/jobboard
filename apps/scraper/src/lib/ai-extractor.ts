@@ -7,8 +7,10 @@
  * fois par offre et retourne les champs de contenu normalisés.
  *
  * Volontairement, seuls les champs de CONTENU sont demandés à Haiku (title,
- * organization, city, sector, level, contractType, description, requirements,
- * contacts, applicationUrl, dates, isSponsored, isFraudSuspect). Les champs
+ * organization, city, sector, level, contractType, description (ébauche
+ * courte, ~250 caractères — pas le détail complet, l'utilisateur est
+ * redirigé vers la page source pour ça), contacts, applicationUrl, dates,
+ * isSponsored, isFraudSuspect). Les champs
  * système/métier (id, hash, status, ttlDays, scoreConfidence, validated,
  * createdAt/updatedAt, fraudConfirmedAt) restent calculés par le pipeline
  * (pipeline.ts, normalizer.ts) — jamais par le LLM.
@@ -27,6 +29,7 @@ export interface HaikuExtraction {
   contractType?: string
   sector?: string
   description?: string
+  /** @deprecated Plus jamais renseigné par Haiku — le prompt ne demande plus ce champ (ébauche courte via `description` désormais). Gardé optionnel pour ne pas casser le typage des ~40 scrapers qui font `requirements: extracted.requirements`. */
   requirements?: string
   deadline?: string        // texte brut, ex: "31/07/2025" ou "31 juillet 2025"
   publishedAt?: string     // texte brut, ex: "30/06/2026"
@@ -44,7 +47,7 @@ function getClient(): Anthropic {
   return _client
 }
 
-const EXTRACTION_SYSTEM = `Tu es un extracteur d'offres d'emploi au Burkina Faso.
+const EXTRACTION_SYSTEM = `Tu es un extracteur d'offres d'emploi.
 Lis le texte brut d'une page d'annonce et extrait les informations structurées en un seul passage.
 
 FORMAT DE SORTIE : un objet JSON valide uniquement, sans texte autour, sans markdown, sans backticks.
@@ -64,7 +67,7 @@ des champs ci-dessous.
 Certaines fiches annoncent PLUSIEURS postes distincts dans un seul article
 (ex: "05 postes à pourvoir au sein d'une mutuelle nationale", un cabinet qui
 recrute simultanément un comptable ET un chauffeur ET un gardien). Il s'agit
-de postes différents (intitulés différents et/ou profils différents), PAS de
+de postes différents (intitulés différents et/ou profils différents), liste de postes à pourvoir avec des intitulés différents, PAS de
 plusieurs postes identiques ouverts en plusieurs exemplaires (ex: "3 Agents
 commerciaux" reste UNE offre avec un seul intitulé).
 Si et seulement si la page décrit plusieurs postes distincts :
@@ -72,7 +75,7 @@ Si et seulement si la page décrit plusieurs postes distincts :
 - Mets "isJobOffer": true
 - Ajoute un champ "offers" : un tableau d'objets, un par poste, chacun avec
   les mêmes champs que décrits ci-dessous (title, organization, city, sector,
-  level, contractType, description, requirements, contactEmail,
+  level, contractType, description, contactEmail,
   contactPhone, contactAddress, applicationUrl, deadline, publishedAt,
   isSponsored, isFraudSuspect).
 - Les champs communs à toute l'annonce (organization, contactEmail,
@@ -104,9 +107,7 @@ CHAMPS À EXTRAIRE (omets les champs absents ou inconnus, ne mets jamais de vale
 
 - contractType : normalise vers CDI, CDD, STAGE, ALTERNANCE, FREELANCE, BENEVOLE ou AUTRE.
 
-- description : missions, activités et responsabilités principales du poste, max 1200 caractères.
-
-- requirements : compétences, diplômes, expérience, langues et conditions requises, max 1200 caractères.
+- description : résumé court du poste (l'essentiel de la mission + 1-2 exigences clés si notables), max 250 caractères. Ce n'est PAS un résumé exhaustif de l'annonce : l'utilisateur sera redirigé vers la page source pour le détail complet, ce champ ne sert qu'à donner une idée du poste avant de cliquer.
 
 - contactEmail : adresse email de dépôt de candidature.
 
@@ -135,6 +136,8 @@ const FRENCH_MONTHS: Record<string, number> = {
 /**
  * Parse une date en texte libre telle que retournée par Haiku
  * (formats numériques ou français), indépendamment du contexte.
+ * Retourne toujours une date sans heure (minuit local) — voir
+ * `endOfDay()` pour dériver une heure limite (deadline) à partir de là.
  */
 export function parseFlexibleDateText(raw: string | undefined): Date | undefined {
   if (!raw) return undefined
@@ -173,17 +176,37 @@ export function parseFlexibleDateText(raw: string | undefined): Date | undefined
   return undefined
 }
 
-async function callHaikuExtraction(pageText: string, fallbackTitle: string, scraperName: string): Promise<HaikuExtraction | undefined> {
+/**
+ * Dérive l'heure limite de dépôt (23:59 par défaut) d'une deadline qui n'a
+ * qu'une date connue (pas d'heure) — sans quoi une deadline stockée à minuit
+ * exclurait de fait les candidatures déposées le jour même de la clôture.
+ * Ne touche pas les dates qui portent déjà une heure explicite (ex: saisie
+ * manuelle admin avec heure précise).
+ */
+export function endOfDay(date: Date | undefined): Date | undefined {
+  if (!date) return undefined
+  if (date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0) return date
+  const d = new Date(date)
+  d.setHours(23, 59, 0, 0)
+  return d
+}
+
+async function callHaikuExtraction(pageText: string, fallbackTitle: string, scraperName: string, wideWindow = true): Promise<HaikuExtraction | undefined> {
   try {
     const client = getClient()
     // Tronquer : intro (contexte organisation + poste) + fin (contact + date limite).
-    // Fenêtre large car les fiches multi-postes (ex: "05 postes à pourvoir")
-    // listent leurs descriptions séquentiellement sur toute la page — une
-    // fenêtre trop courte coupe les postes du milieu et empêche Haiku de
-    // détecter isMultiOffer.
-    const text = pageText.length <= 10_000
+    // Fenêtre large (7000/3000) réservée aux sources qui exploitent la
+    // détection multi-postes (extractOffersWithHaiku) : les fiches groupées
+    // (ex: "05 postes à pourvoir") listent leurs descriptions séquentiellement
+    // sur toute la page, et une fenêtre trop courte coupe les postes du
+    // milieu. Les sources single-offer (extractWithHaiku, qui ignore de toute
+    // façon "offers" au-delà du premier élément) n'ont besoin que d'assez de
+    // texte pour titre/organisation/description/contacts — fenêtre réduite
+    // pour limiter les tokens d'entrée envoyés à Haiku sur ces sources.
+    const [threshold, headChars, tailChars] = wideWindow ? [10_000, 7000, 3000] : [6_000, 4000, 1500]
+    const text = pageText.length <= threshold
       ? pageText
-      : `${pageText.slice(0, 7000)}\n...\n${pageText.slice(-3000)}`
+      : `${pageText.slice(0, headChars)}\n...\n${pageText.slice(-tailChars)}`
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -197,7 +220,13 @@ async function callHaikuExtraction(pageText: string, fallbackTitle: string, scra
       // condition nécessaire à la stabilité du hash de dédup (voir
       // deduplicator.ts).
       temperature: 0,
-      system: EXTRACTION_SYSTEM,
+      // cache_control sur le prompt système : identique à chaque appel, donc
+      // en théorie réutilisable d'une fiche à l'autre. Note : le minimum de
+      // préfixe cachable sur Haiku 4.5 est 4096 tokens ; ce prompt (~1500
+      // tokens) est en dessous, donc aucun gain réel tant que le prompt ne
+      // grandit pas — ce marqueur ne coûte rien et devient actif sans autre
+      // changement si le prompt dépasse ce seuil ou si le minimum baisse.
+      system: [{ type: 'text', text: EXTRACTION_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: `Titre connu : ${fallbackTitle}\n\nTexte de la page :\n${text}` }],
     })
 
@@ -226,7 +255,7 @@ async function callHaikuExtraction(pageText: string, fallbackTitle: string, scra
  * ici — utiliser extractOffersWithHaiku pour récupérer la fiche complète.
  */
 export async function extractWithHaiku(pageText: string, fallbackTitle: string, scraperName: string): Promise<HaikuExtraction> {
-  const parsed = await callHaikuExtraction(pageText, fallbackTitle, scraperName)
+  const parsed = await callHaikuExtraction(pageText, fallbackTitle, scraperName, false)
   if (!parsed) return {}
   if (parsed.isMultiOffer && Array.isArray(parsed.offers) && parsed.offers.length > 0) {
     return { isJobOffer: parsed.isJobOffer, ...parsed.offers[0] }

@@ -29,16 +29,16 @@
 	let createForm = $state({
 		title: '', organization: '', city: '', sector: '', level: '',
 		contractType: 'CDI', country: 'BF', description: '', requirements: '',
-		contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '',
-		isSponsored: false, status: 'ACTIVE',
+		contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '', deadlineTime: '23:59',
+		isSponsored: false, isFeatured: false, status: 'ACTIVE',
 	});
 
 	function openCreate() {
 		createForm = {
 			title: '', organization: '', city: '', sector: '', level: '',
 			contractType: 'CDI', country: 'BF', description: '', requirements: '',
-			contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '',
-			isSponsored: false, status: 'ACTIVE',
+			contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '', deadlineTime: '23:59',
+			isSponsored: false, isFeatured: false, status: 'ACTIVE',
 		};
 		showCreate = true;
 	}
@@ -63,8 +63,9 @@
 				contactEmail: createForm.contactEmail || undefined,
 				contactPhone: createForm.contactPhone || undefined,
 				applicationUrl: createForm.applicationUrl || undefined,
-				deadline: createForm.deadline || null,
+				deadline: createForm.deadline ? `${createForm.deadline}T${createForm.deadlineTime || '23:59'}` : null,
 				isSponsored: createForm.isSponsored,
+				isFeatured: createForm.isFeatured,
 				status: createForm.status,
 			});
 			showCreate = false;
@@ -305,6 +306,10 @@
 						<span>Date limite</span>
 						<input type="date" bind:value={createForm.deadline} />
 					</label>
+					<label class="form-field">
+						<span>Heure limite</span>
+						<input type="time" bind:value={createForm.deadlineTime} />
+					</label>
 				</div>
 
 				<div class="form-section-title">Description</div>
@@ -337,6 +342,10 @@
 					<label class="form-checkbox">
 						<input type="checkbox" bind:checked={createForm.isSponsored} />
 						<span>Offre sponsorisée</span>
+					</label>
+					<label class="form-checkbox">
+						<input type="checkbox" bind:checked={createForm.isFeatured} />
+						<span>Offre mise en avant</span>
 					</label>
 				</div>
 			</div>

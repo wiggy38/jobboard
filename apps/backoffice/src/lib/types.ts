@@ -15,6 +15,7 @@ export interface JobOffer {
   contractType: ContractType;
   deadline: string | null;
   isSponsored: boolean;
+  isFeatured: boolean;
   scoreConfidence: number;
   status: JobOfferStatus;
   publishedAt?: string | null;
@@ -85,6 +86,7 @@ export interface PipelineResult {
   totalScraped: number;
   totalInserted: number;
   totalDuplicates: number;
+  totalExpired: number;
   totalErrors: number;
   duration: number;
 }
@@ -286,16 +288,11 @@ export interface PaginatedPullHistory {
 }
 
 export interface TokenizedOffer extends JobOffer {
-  isUnlocked: boolean;
   contactEmail: string | null;
   contactPhone: string | null;
   contactAddress: string | null;
   requirements: string | null;
   sourceUrl: string;
-  source: {
-    id: string;
-    name: string;
-    trustScore: number;
-    type: string;
-  } | null;
+  sourceName: string | null;
+  sourceTrustScore: number;
 }

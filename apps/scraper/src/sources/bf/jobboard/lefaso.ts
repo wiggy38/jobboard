@@ -48,6 +48,7 @@ export class LefasoScraper extends BaseScraper {
   async scrape(seenSourceUrls: Set<string> = new Set()): Promise<ScraperResult> {
     const errors: string[] = []
     const offers: RawJobOffer[] = []
+    const rejectedNotJobOffer: string[] = []
 
     info(this.name, `Fetching listing: ${this.url}`)
 
@@ -173,7 +174,8 @@ export class LefasoScraper extends BaseScraper {
         const extractedOffers = await extractOffersWithHaiku(pageText, item.title, this.name)
 
         if (extractedOffers.length === 0) {
-          info(this.name, `Rejeté (pas une offre) : "${item.title.slice(0, 60)}"`)
+          info(this.name, `Rejeté (pas une offre) : "${item.title.slice(0, 60)}" — ${item.link}`)
+          rejectedNotJobOffer.push(item.link)
           continue
         }
 
@@ -208,7 +210,7 @@ export class LefasoScraper extends BaseScraper {
       }
     }
 
-    return { source: this.name, offers, errors, scrapedAt: new Date() }
+    return { source: this.name, offers, errors, scrapedAt: new Date(), rejectedNotJobOffer }
   }
 }
 

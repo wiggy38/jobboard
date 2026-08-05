@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import OffrePage from './pages/OffrePage'
 import ExpiredPage from './pages/ExpiredPage'
 import PremiumPage from './pages/PremiumPage'
 import SubscribePage from './pages/SubscribePage'
@@ -13,7 +12,6 @@ function App() {
   return (
     <BrowserRouter basename="/subscribe">
       <Routes>
-        <Route path="/offre/:jobId" element={<OffrePage />} />
         <Route path="/premium" element={<PremiumPage />} />
         <Route path="/" element={<SubscribePage />} />
         <Route path="/profile" element={<SubscribeProfilePage />} />

@@ -132,6 +132,10 @@
 							<span class="stat-value">{r.totalDuplicates}</span>
 							<span class="stat-label">Doublons</span>
 						</div>
+						<div class="stat">
+							<span class="stat-value">{r.totalExpired}</span>
+							<span class="stat-label">Deadline passée</span>
+						</div>
 						<div class="stat {r.totalErrors > 0 ? 'stat-red' : ''}">
 							<span class="stat-value">{r.totalErrors}</span>
 							<span class="stat-label">Erreurs</span>

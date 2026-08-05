@@ -1,5 +1,7 @@
 import { redisClient } from './redis';
 
+export const PULL_BATCH_SIZE = 10;
+
 const OFFSET_TTL = 86_400;
 
 const key = (userId: string) => `session:${userId}:offset`;

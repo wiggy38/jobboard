@@ -42,7 +42,7 @@ const FAQ_ITEMS = [
   {
     question: 'Mon paiement est resté en attente, que faire ?',
     answer:
-      "Tape VÉRIFIER sur WhatsApp pour resynchroniser ton paiement avec CinetPay. Si le paiement date de plus de 24h et reste bloqué, contacte le support depuis WhatsApp.",
+      "Tape VÉRIFIER sur WhatsApp pour resynchroniser ton paiement avec PayDunya. Si le paiement date de plus de 24h et reste bloqué, contacte le support depuis WhatsApp.",
   },
   {
     question: 'Puis-je annuler mon abonnement ?',

@@ -17,54 +17,59 @@ const baseOffer = {
   status: 'ACTIVE',
   publishedAt: '2026-06-01T00:00:00Z',
   description: 'Développement de services backend Node.js.',
-  requirements: 'Node.js\nPostgreSQL\nTypeScript',
+  requirements: null,
   applicationUrl: null,
   contactEmail: null,
   contactPhone: null,
   contactAddress: null,
-  requirements: null,
   sourceUrl: 'https://example.bf/offre/1',
-  source: { id: 's1', name: 'Lefaso.net', trustScore: 0.9, type: 'MEDIA_LOCAL' },
+  sourceName: 'Lefaso.net',
+  sourceTrustScore: 0.9,
+}
+
+function makeUrl(query: string) {
+  return { searchParams: new URLSearchParams(query) } as unknown as URL
 }
 
 describe('Page offre tokenisée — load function', () => {
-  it('affiche les contacts masqués pour un utilisateur Freemium', async () => {
-    const freemiumOffer = { ...baseOffer, isUnlocked: false }
+  it('affiche la source et les contacts pour tous les plans (pas de token)', async () => {
+    const offer = { ...baseOffer }
     const mockFetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => freemiumOffer,
+      json: async () => offer,
     })
 
     const { load } = await import('../+page')
     const result = await load({
       fetch: mockFetch as unknown as typeof fetch,
-      params: { token: 'valid-token' },
+      params: { token: 'offer-123' },
+      url: makeUrl(''),
     } as Parameters<typeof load>[0])
 
-    expect(result.offer?.isUnlocked).toBe(false)
-    expect(result.offer?.contactEmail).toBeNull()
+    expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/api/offre/offer-123?t=`)
+    expect(result.offer?.sourceUrl).toBe('https://example.bf/offre/1')
     expect(result.error).toBeNull()
   })
 
-  it('affiche les contacts en clair pour un utilisateur Essentiel', async () => {
-    const premiumOffer = {
+  it('affiche les contacts en clair quand ils sont renseignés', async () => {
+    const offer = {
       ...baseOffer,
-      isUnlocked: true,
       contactEmail: 'rh@ong-tech.bf',
       contactPhone: '+22670000000',
     }
     const mockFetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => premiumOffer,
+      json: async () => offer,
     })
 
     const { load } = await import('../+page')
     const result = await load({
       fetch: mockFetch as unknown as typeof fetch,
-      params: { token: 'valid-premium-token' },
+      params: { token: 'offer-123' },
+      url: makeUrl('t=valid-jwt'),
     } as Parameters<typeof load>[0])
 
-    expect(result.offer?.isUnlocked).toBe(true)
+    expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/api/offre/offer-123?t=valid-jwt`)
     expect(result.offer?.contactEmail).toBe('rh@ong-tech.bf')
     expect(result.offer?.contactPhone).toBe('+22670000000')
   })
@@ -79,7 +84,8 @@ describe('Page offre tokenisée — load function', () => {
     const { load } = await import('../+page')
     const result = await load({
       fetch: mockFetch as unknown as typeof fetch,
-      params: { token: 'expired-token' },
+      params: { token: 'expired-offer' },
+      url: makeUrl(''),
     } as Parameters<typeof load>[0])
 
     expect(result.offer).toBeNull()

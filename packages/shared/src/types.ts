@@ -16,6 +16,7 @@ export interface RawJobOffer {
   publishedAt?: Date
   deadline?: Date
   isSponsored?: boolean
+  isFeatured?: boolean
   isFraudSuspect?: boolean
 }
 
@@ -24,6 +25,7 @@ export interface ScraperResult {
   offers: RawJobOffer[]
   errors: string[]
   scrapedAt: Date
+  rejectedNotJobOffer?: string[]
 }
 
 export interface NormalizedJobOffer extends RawJobOffer {

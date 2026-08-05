@@ -11,6 +11,7 @@ jest.mock('../../../session/pagination', () => ({
   resetOffset: jest.fn().mockResolvedValue(undefined),
   setOffset: jest.fn().mockResolvedValue(undefined),
   getOffset: jest.fn().mockResolvedValue(0),
+  PULL_BATCH_SIZE: 10,
 }));
 
 jest.mock('../../../session/window', () => ({
@@ -139,16 +140,16 @@ describe('handleOffres — pagination', () => {
     expect(resetOffset).toHaveBeenCalledWith(USER);
   });
 
-  it('met l\'offset à 5 après livraison du premier lot', async () => {
+  it('met l\'offset à 10 après livraison du premier lot', async () => {
     await handleOffres(cmd(), makeDb([makeOffer('o1')]));
-    expect(setOffset).toHaveBeenCalledWith(USER, 5);
+    expect(setOffset).toHaveBeenCalledWith(USER, 10);
   });
 
-  it('le batch livré est limité aux 5 premières offres ordonnées', async () => {
-    const offers = Array.from({ length: 8 }, (_, i) => makeOffer(`o${i}`));
+  it('le batch livré est limité aux 10 premières offres ordonnées', async () => {
+    const offers = Array.from({ length: 15 }, (_, i) => makeOffer(`o${i}`));
     await handleOffres(cmd(), makeDb(offers));
     const [, , batch] = deliverJobsBatch.mock.calls[0];
-    expect(batch).toHaveLength(5);
+    expect(batch).toHaveLength(10);
   });
 
   it('n\'appelle pas setOffset si aucune offre disponible', async () => {

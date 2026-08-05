@@ -6,7 +6,7 @@ import {
   UserProfile,
 } from '@tumaa/matching';
 
-export const MATCH_SCORE_THRESHOLD = 60;
+export const MATCH_SCORE_THRESHOLD = 65;
 
 type ProfileLike = {
   cities: string[];
@@ -50,6 +50,7 @@ export async function getMatchedOffers(
       publishedAt: o.publishedAt ?? new Date(),
       scoreConfidence: o.scoreConfidence,
       isSponsored: o.isSponsored,
+      isFeatured: o.isFeatured,
     })),
     matchingProfile,
     MATCH_SCORE_THRESHOLD,

@@ -17,6 +17,7 @@ export const jobIT: JobOffer = {
   publishedAt: days(0),
   scoreConfidence: 1.0,
   isSponsored: false,
+  isFeatured: false,
 };
 
 export const jobStage: JobOffer = {
@@ -31,6 +32,7 @@ export const jobStage: JobOffer = {
   publishedAt: days(7),
   scoreConfidence: 0.8,
   isSponsored: false,
+  isFeatured: false,
 };
 
 export const jobSponsored: JobOffer = {
@@ -45,6 +47,7 @@ export const jobSponsored: JobOffer = {
   publishedAt: days(2),
   scoreConfidence: 0.9,
   isSponsored: true,
+  isFeatured: false,
 };
 
 export const jobOld: JobOffer = {
@@ -59,4 +62,5 @@ export const jobOld: JobOffer = {
   publishedAt: days(30),
   scoreConfidence: 0.6,
   isSponsored: false,
+  isFeatured: false,
 };

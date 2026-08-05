@@ -103,6 +103,7 @@ export class ProfessionnallinkScraper extends BaseScraper {
   async scrape(seenSourceUrls: Set<string> = new Set()): Promise<ScraperResult> {
     const errors: string[] = []
     const offers: RawJobOffer[] = []
+    const rejectedNotJobOffer: string[] = []
 
     const cardDataList: CardData[] = []
     for (let page = 0; page < LISTING_PAGES; page++) {
@@ -180,7 +181,8 @@ export class ProfessionnallinkScraper extends BaseScraper {
         const extractedOffers = await extractOffersWithHaiku(pageText, card.title, this.name)
 
         if (extractedOffers.length === 0) {
-          info(this.name, `Rejeté (pas une offre) : "${card.title.slice(0, 60)}"`)
+          info(this.name, `Rejeté (pas une offre) : "${card.title.slice(0, 60)}" — ${card.sourceUrl}`)
+          rejectedNotJobOffer.push(card.sourceUrl)
           continue
         }
 
@@ -231,7 +233,7 @@ export class ProfessionnallinkScraper extends BaseScraper {
     }
 
     info(this.name, `Done. ${offers.length} offers, ${errors.length} errors.`)
-    return { source: this.name, offers, errors, scrapedAt: new Date() }
+    return { source: this.name, offers, errors, scrapedAt: new Date(), rejectedNotJobOffer }
   }
 }
 

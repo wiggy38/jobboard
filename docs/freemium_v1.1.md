@@ -5,8 +5,23 @@
 > **Mise à jour** : un 3e tier **ELITE** (1 250 FCFA/mois, multi-pays jusqu'à 3 pays) a été validé
 > en complément de ce document. Le flow complet (onboarding, paiement, sélection des pays,
 > auto-join canaux) est décrit dans `docs/subscription_flow_elite.md`. Les règles Freemium/Premium
-> et B2B Sponsored Alerts ci-dessous restent valides telles quelles ; seule la table des tiers et
-> l'architecture des canaux évoluent (voir la note sur les canaux nationaux dans le nouveau doc).
+> ci-dessous restent valides ; seule la table des tiers et l'architecture des canaux évoluent (voir
+> la note sur les canaux nationaux dans le nouveau doc).
+>
+> **Mise à jour (2026-08-05)** : la section "SPONSORED ALERTS — B2B" ci-dessous est **obsolète**.
+> Elle reposait sur "Freemium voit les contacts en entier uniquement si l'offre est Sponsored" —
+> or les contacts sont désormais visibles pour tous les plans, y compris Freemium (règle 1,
+> `.claude/CLAUDE.md`), donc ce levier n'existe plus. Nouvelle proposition de valeur, déjà
+> **implémentée dans le code réel** (pas de migration à faire) : `isFeatured`/`isSponsored`
+> boostent le score de matching (+5 chacun, `packages/matching/src/scorer.ts`) et priorisent
+> l'ordre du teaser quotidien posté sur le canal WhatsApp national (`apps/bot/src/services/
+> channelTeaser.ts::buildChannelTeaser`, top 5 offres/canal/jour). Pas de mécanique de relance
+> manuelle (`sponsoredSentCount`/`sponsoredLastSentAt`/bouton "Relancer" décrits plus bas) : une
+> offre sponsorisée reste naturellement visible en tête du canal tant qu'elle est dans le top 5,
+> jusqu'à expiration de son TTL (30j par défaut) — inutile de la repousser à la main. Voir
+> `.claude/CLAUDE.md` pour le résumé de la décision. Le reste de cette section (schéma
+> `sponsoredSentCount`, bouton dashboard, mécanisme "Freemium voit l'offre complète") est conservé
+> ci-dessous comme trace historique de la spec d'origine, pas comme plan d'implémentation.
 
 ---
 

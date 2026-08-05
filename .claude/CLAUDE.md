@@ -131,17 +131,26 @@ ad hoc à partir de `user.plan`.
 6. **Canaux WhatsApp — 1 canal par pays** (décision actée) : `#Emploi-BF`, `#Emploi-BJ`, `#Emploi-TG`, `#Emploi-CI`. Auto-post 08:00, zéro modération manuelle, archivage auto après 15j, toujours un lien `wa.me` par message. Remplace l'ancienne architecture à 10 canaux thématiques (par ville/secteur, BF uniquement) décrite dans `docs/freemium_v1.1.md` — cette dernière est obsolète sur ce point précis, voir `docs/subscription_flow_elite.md`.
 7. **ELITE multi-pays** : `User.countries` vide tant que l'utilisateur n'a pas choisi ses pays (1 à 3) ; auto-join Meta API + `ChannelJoin` créés uniquement après validation du choix, jamais avant paiement confirmé.
 
-### Sponsored Alerts & Mise en avant (B2B)
-- ⚠️ **Non résolu** : ce mécanisme reposait sur "Freemium voit les contacts en entier
-  uniquement si l'offre est Sponsored" — désormais obsolète puisque les contacts sont visibles
-  pour tous les plans (voir règle 1 ci-dessus). La proposition de valeur de Sponsored Alerts est
-  à revoir avant implémentation (champs Prisma `isFeatured`/`isSponsored` pas encore créés — rien
-  à migrer côté code, mais ne pas implémenter B2B sans clarifier ce point avec le produit).
-- Un employeur paie Tumaa pour que son offre soit mise en avant (`isFeatured`) et/ou éligible aux relances (`isSponsored`).
-- Ingestion B2B = **point unique manuel** : Admin crée `JobSubmission` après paiement hors plateforme, valide format/complétude (jamais de deepdive anti-fraude), puis crée le `JobOffer`.
-- Options par offre : `isFeatured` (priorité dans les résultats matching) et `isSponsored` (éligible aux relances Sponsored Alert).
-- Chaque relance Sponsored Alert incrémente `JobOffer.sponsoredSentCount` et met à jour `sponsoredLastSentAt` — l'employeur peut relancer plusieurs fois (J1, J3, J5...).
-- Champs Prisma à prévoir : `Employer`, `JobSubmission.isFeatured/isSponsored/employerId`, `JobOffer.isFeatured/isSponsored/sponsoredSentCount/sponsoredLastSentAt/employerId`.
+### Sponsored Alerts & Mise en avant (B2B) — résolu 2026-08-05
+- **Décision** : la proposition de valeur n'est plus "débloquer les contacts" (obsolète depuis
+  que les contacts sont visibles pour tous les plans, règle 1 ci-dessus) mais **visibilité /
+  priorité d'exposition**, sans mécanique de relance manuelle. Un employeur paie pour que son
+  offre soit vue plus / en premier, jamais pour donner accès à une info par ailleurs cachée.
+- `isFeatured` et `isSponsored` boostent chacun le score de matching de +5
+  (`packages/matching/src/scorer.ts::scoreFeatured/scoreSponsored`) — l'offre remonte dans les
+  résultats `OFFRES`/`SUITE`.
+- Le teaser quotidien posté sur le canal WhatsApp national (08:00, top 5 offres/pays/jour) trie
+  par `isFeatured desc, isSponsored desc, publishedAt desc`
+  (`apps/bot/src/services/channelTeaser.ts::buildChannelTeaser`) — une offre sponsorisée reste
+  naturellement en tête tant qu'elle est dans le top 5, jusqu'à expiration de son TTL (30j) : pas
+  besoin de bouton "Relancer" ni de compteur `sponsoredSentCount`/`sponsoredLastSentAt` (ces
+  champs, décrits dans `docs/freemium_v1.1.md` v1, ne seront pas implémentés).
+- Ingestion B2B = **point unique manuel** : Admin crée `JobSubmission` après paiement hors
+  plateforme, valide format/complétude (jamais de deepdive anti-fraude), coche `isFeatured`/
+  `isSponsored`, puis crée le `JobOffer` (`apps/api/src/routes/admin/submissions.ts`).
+- **Déjà en place, rien à migrer** : `Employer`, `JobSubmission`, `JobOffer.isFeatured`/
+  `isSponsored` existent dans `packages/db/prisma/schema.prisma` et sont câblés de bout en bout
+  (admin → scoring → tri du canal).
 
 
 ## Règles métier critiques — Tumaa Bot

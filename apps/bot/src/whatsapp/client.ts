@@ -1,27 +1,27 @@
 import type { OutgoingMessage } from './types';
+import { getWhatsAppConfig } from './config';
 
 const BASE_URL = 'https://graph.facebook.com/v19.0';
 
-function isDryRun(): boolean {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  return !token || token === 'EAAxxxx';
+function isDryRun(accessToken: string): boolean {
+  return !accessToken || accessToken === 'EAAxxxx';
 }
 
-export async function sendMessage(to: string, payload: OutgoingMessage): Promise<void> {
-  if (isDryRun()) {
+export async function sendMessage(to: string, payload: OutgoingMessage, country?: string): Promise<void> {
+  const { phoneNumberId, accessToken } = getWhatsAppConfig(country);
+
+  if (isDryRun(accessToken)) {
     console.log(`[WhatsApp DRY-RUN] → ${to}`, JSON.stringify(payload));
     return;
   }
 
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}/${phoneId}/messages`, {
+    res = await fetch(`${BASE_URL}/${phoneNumberId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',

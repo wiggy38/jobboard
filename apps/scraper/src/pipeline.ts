@@ -1,9 +1,10 @@
-import { PrismaClient, JobOfferStatus, ContractType as PrismaContractType } from '@prisma/client'
-import { RawJobOffer } from '@tumaa/shared'
+import { PrismaClient, JobOfferStatus, ScraperRunStatus, ContractType as PrismaContractType } from '@prisma/client'
+import { RawJobOffer, SETTING_KEYS } from '@tumaa/shared'
 import { normalizeWithAI } from './lib/normalizer'
 import { createHash } from './lib/deduplicator'
 import { info, warn, error as logError, success } from './lib/logger'
 import { sendMail } from './lib/mailer'
+import { getSetting } from './lib/settings'
 import sources from './sources'
 
 const SOURCE = 'pipeline'
@@ -14,7 +15,6 @@ const SOURCE = 'pipeline'
 // bien tourné mais n'a rien trouvé, symptôme typique d'un site qui a changé
 // de structure ou déployé une protection anti-bot.
 const CIRCUIT_BREAKER_THRESHOLD = 3
-const ALERT_EMAIL_TO = process.env.REPORT_EMAIL_TO ?? 'tumaa.app@gmail.com'
 
 export interface PipelineResult {
   scraperName: string
@@ -25,6 +25,42 @@ export interface PipelineResult {
   totalErrors: number
   duration: number
   skipped?: boolean
+}
+
+// Persiste un run dans ScraperRun (historique des pulls, affiché en admin).
+// Best-effort : un échec d'écriture de l'historique ne doit jamais faire
+// planter le pipeline lui-même.
+async function recordRun(params: {
+  sourceId: string
+  status: ScraperRunStatus
+  totalScraped?: number
+  totalInserted?: number
+  totalDuplicates?: number
+  totalExpired?: number
+  totalErrors?: number
+  duration: number
+  errorMessage?: string
+}): Promise<void> {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.scraperRun.create({
+      data: {
+        sourceId: params.sourceId,
+        status: params.status,
+        totalScraped: params.totalScraped ?? 0,
+        totalInserted: params.totalInserted ?? 0,
+        totalDuplicates: params.totalDuplicates ?? 0,
+        totalExpired: params.totalExpired ?? 0,
+        totalErrors: params.totalErrors ?? 0,
+        duration: params.duration,
+        errorMessage: params.errorMessage,
+      },
+    })
+  } catch (err) {
+    logError(SOURCE, `Échec écriture historique ScraperRun : ${err instanceof Error ? err.message : err}`)
+  } finally {
+    await prisma.$disconnect()
+  }
 }
 
 function computeScoreConfidence(offer: RawJobOffer): number {
@@ -70,6 +106,8 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       const existing = await prismaCheck.source.findUnique({ where: { url: scraper.url } })
       if (existing && !existing.isActive) {
         warn(SOURCE, `Source "${scraperName}" désactivée (circuit breaker, ${existing.emptyRuns} runs vides) — scraping ignoré`)
+        const duration = Date.now() - startTime
+        await recordRun({ sourceId: existing.id, status: ScraperRunStatus.SKIPPED, duration })
         return {
           scraperName,
           totalScraped: 0,
@@ -77,7 +115,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
           totalDuplicates: 0,
           totalExpired: 0,
           totalErrors: 0,
-          duration: Date.now() - startTime,
+          duration,
           skipped: true,
         }
       }
@@ -95,7 +133,28 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
   }
 
   info(SOURCE, `[1/5] Scraping ${scraperName}${dryRun ? ' (dry-run)' : ''}...`)
-  const result = await scraper.scrape(seenSourceUrls)
+  let result: Awaited<ReturnType<typeof scraper.scrape>>
+  try {
+    result = await scraper.scrape(seenSourceUrls)
+  } catch (err) {
+    if (!dryRun) {
+      const prismaLookup = new PrismaClient()
+      try {
+        const existing = await prismaLookup.source.findUnique({ where: { url: scraper.url } })
+        if (existing) {
+          await recordRun({
+            sourceId: existing.id,
+            status: ScraperRunStatus.ERROR,
+            duration: Date.now() - startTime,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          })
+        }
+      } finally {
+        await prismaLookup.$disconnect()
+      }
+    }
+    throw err
+  }
   info(SOURCE, `Scraped ${result.offers.length} raw offers (${result.errors.length} scraper errors)`, {
     scraperName,
     rawCount: result.offers.length,
@@ -108,7 +167,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
   if (result.rejectedNotJobOffer && result.rejectedNotJobOffer.length > 0) {
     try {
       await sendMail({
-        to: ALERT_EMAIL_TO,
+        to: await getSetting(SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO),
         subject: `[Tumaa Scraper] ${result.rejectedNotJobOffer.length} fiches rejetées (pas une offre) — ${scraperName}`,
         text: [
           `${result.rejectedNotJobOffer.length} fiches écartées par l'extraction Haiku sur la source "${scraperName}" (jugées non conformes à une offre d'emploi individuelle) :`,
@@ -178,6 +237,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
   // Mode normal — accès DB
   const prisma = new PrismaClient()
+  let sourceId: string | undefined
 
   try {
     // Récupère les hash de toutes les offres existantes, quel que soit le
@@ -209,6 +269,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       },
       update: {},
     })
+    sourceId = sourceRecord.id
 
     for (const { offer, hash } of newOffers) {
       try {
@@ -267,7 +328,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
         warn(SOURCE, `[CIRCUIT BREAKER] Source "${scraper.name}" désactivée après ${updated.emptyRuns} runs consécutifs sans offre`)
         try {
           await sendMail({
-            to: ALERT_EMAIL_TO,
+            to: await getSetting(SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO),
             subject: `[Tumaa Scraper] Source désactivée automatiquement : ${scraper.name}`,
             text: [
               `La source "${scraper.name}" (${scraper.url}) n'a retourné aucune offre lors des ${updated.emptyRuns} derniers runs consécutifs.`,
@@ -319,6 +380,22 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     }
 
     info(SOURCE, `Expired ${byDeadline.count} by deadline, ${staleIds.length} by TTL`)
+  } catch (err) {
+    const duration = Date.now() - startTime
+    if (sourceId) {
+      await recordRun({
+        sourceId,
+        status: ScraperRunStatus.ERROR,
+        totalScraped: stampedOffers.length,
+        totalInserted,
+        totalDuplicates,
+        totalExpired,
+        totalErrors: totalErrors + 1,
+        duration,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      })
+    }
+    throw err
   } finally {
     await prisma.$disconnect()
   }
@@ -332,6 +409,18 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     totalExpired,
     totalErrors,
     duration,
+  }
+  if (sourceId) {
+    await recordRun({
+      sourceId,
+      status: totalErrors > 0 ? ScraperRunStatus.ERROR : ScraperRunStatus.SUCCESS,
+      totalScraped: stampedOffers.length,
+      totalInserted,
+      totalDuplicates,
+      totalExpired,
+      totalErrors,
+      duration,
+    })
   }
   success(SOURCE, `Pipeline complete: ${scraperName}`, pipelineResult)
   return pipelineResult

@@ -9,7 +9,7 @@ jest.mock('../../../services/pull', () => ({
 jest.mock('../../../session/pagination', () => ({
   getOffset: jest.fn().mockResolvedValue(0),
   setOffset: jest.fn().mockResolvedValue(undefined),
-  PULL_BATCH_SIZE: 10,
+  getPullBatchSize: jest.fn().mockResolvedValue(10),
 }));
 
 jest.mock('../../../session/window', () => ({
@@ -146,14 +146,14 @@ describe('handleSuite — fin de liste', () => {
     getOffset.mockResolvedValue(10);
     const offers = Array.from({ length: 10 }, (_, i) => makeOffer(`o${i}`));
     await handleSuite(cmd(), makeDb(offers));
-    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }));
+    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }), undefined);
     expect(deliverJobsBatch).not.toHaveBeenCalled();
   });
 
   it('aucune offre du tout → sendMessage formatNoMoreOffers', async () => {
     getOffset.mockResolvedValue(0);
     await handleSuite(cmd(), makeDb([]));
-    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }));
+    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }), undefined);
   });
 
   it('fin de liste → pas de setOffset (pas d\'avancement inutile)', async () => {
@@ -184,6 +184,7 @@ describe('handleSuite — livraison', () => {
       expect.any(Array),
       'FREEMIUM',
       expect.any(Function),
+      undefined,
     );
   });
 

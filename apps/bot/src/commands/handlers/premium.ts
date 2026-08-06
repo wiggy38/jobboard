@@ -22,5 +22,6 @@ export async function handlePremium(cmd: ParsedCommand, db: PrismaClient): Promi
       '✓ Jusqu\'à 3 pays de recherche',
     '👉 Choisir ma formule',
     buildSubscribeUrl(token),
+    cmd.country,
   );
 }

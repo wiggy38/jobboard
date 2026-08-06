@@ -19,7 +19,9 @@ import {
   fetchSubscribeCountries,
   saveSubscribeCountries,
   joinHomeChannel,
+  fetchReferenceOptions,
   type SubscribeChannel,
+  type ReferenceOption,
 } from '../lib/api'
 
 type Step = 'city' | 'sector' | 'contract' | 'level' | 'country'
@@ -173,6 +175,26 @@ export default function SubscribeProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Référentiels édités en backoffice — CITY_OPTIONS/SECTOR_OPTIONS/LEVEL_OPTIONS
+  // de @tumaa/shared servent d'état initial (pas de flash vide le temps du
+  // fetch), remplacés dès que /api/reference/options répond. Villes : BF
+  // uniquement pour l'instant (app mono-pays côté abonnement), comme avant.
+  const [cityOptions, setCityOptions] = useState<ReferenceOption[]>(CITY_OPTIONS)
+  const [sectorOptions, setSectorOptions] = useState<ReferenceOption[]>(SECTOR_OPTIONS)
+  const [levelOptions, setLevelOptions] = useState<ReferenceOption[]>(LEVEL_OPTIONS)
+
+  useEffect(() => {
+    fetchReferenceOptions()
+      .then((opts) => {
+        setCityOptions(opts.citiesByCountry.BF ?? CITY_OPTIONS)
+        setSectorOptions(opts.sectors)
+        setLevelOptions(opts.levels)
+      })
+      .catch(() => {
+        // pas bloquant : on garde les valeurs par défaut de @tumaa/shared
+      })
+  }, [])
+
   useEffect(() => {
     if (plan !== 'ELITE' || !token) return
     fetchSubscribeCountries(token)
@@ -262,7 +284,7 @@ export default function SubscribeProfilePage() {
       <JoinChannelScreen
         channel={channel}
         token={token}
-        onContinue={() => navigate(`/subscribe/success?plan=${plan}`)}
+        onContinue={() => navigate(`/success?plan=${plan}`)}
       />
     )
   }
@@ -288,7 +310,7 @@ export default function SubscribeProfilePage() {
         <ToggleOptionStep
           title="Choisis tes villes"
           subtitle="Sélectionne au moins une ville et cliques sur Suivant"
-          options={CITY_OPTIONS}
+          options={cityOptions}
           selected={cities}
           max={limits.maxCities}
           onToggle={(v) => toggle(cities, setCities, v, limits.maxCities)}
@@ -302,7 +324,7 @@ export default function SubscribeProfilePage() {
         <ToggleOptionStep
           title="Dans quels secteurs d'activités recherches-tu un emploi ?"
           subtitle="Sélectionne au moins un secteur et cliques sur Suivant"
-          options={SECTOR_OPTIONS}
+          options={sectorOptions}
           selected={sectors}
           max={limits.maxSectors}
           onToggle={(v) => toggle(sectors, setSectors, v, limits.maxSectors)}
@@ -330,7 +352,7 @@ export default function SubscribeProfilePage() {
         <ToggleOptionStep
           title="Pour quel(s) niveau(x) d'études recherches-tu un emploi ?"
           subtitle="Sélectionne au moins un niveau d'études."
-          options={LEVEL_OPTIONS}
+          options={levelOptions}
           selected={levels}
           max={limits.maxLevels}
           onToggle={(v) => toggle(levels, setLevels, v, limits.maxLevels)}

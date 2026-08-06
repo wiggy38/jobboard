@@ -10,7 +10,7 @@ export async function handleStop(cmd: ParsedCommand, db: PrismaClient): Promise<
   });
 
   if (!user) {
-    await sendText(cmd.userId, 'Aucun compte trouvé pour ce numéro.');
+    await sendText(cmd.userId, 'Aucun compte trouvé pour ce numéro.', cmd.country);
     return;
   }
 
@@ -18,6 +18,7 @@ export async function handleStop(cmd: ParsedCommand, db: PrismaClient): Promise<
     await sendText(
       cmd.userId,
       'Tu es déjà désinscrit. Réponds *REPRENDRE* pour revenir.',
+      cmd.country,
     );
     return;
   }
@@ -35,5 +36,6 @@ export async function handleStop(cmd: ParsedCommand, db: PrismaClient): Promise<
       'Tu ne recevras plus d\'offres.\n\n' +
       'Tes données sont conservées.\n' +
       'Reviens quand tu veux en écrivant *REPRENDRE*.',
+    cmd.country,
   );
 }

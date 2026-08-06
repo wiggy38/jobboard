@@ -2,7 +2,7 @@ import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
 import { getUserWithProfile, recordPullEvent, recordPullDelivery } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
-import { getOffset, setOffset, PULL_BATCH_SIZE } from '../../session/pagination';
+import { getOffset, setOffset, getPullBatchSize } from '../../session/pagination';
 import { openWindow } from '../../session/window';
 import { deliverJobsBatch } from '../../messages/delivery';
 import { sendMessage } from '../../whatsapp/client';
@@ -17,15 +17,16 @@ export async function handleSuite(cmd: ParsedCommand, db: PrismaClient): Promise
   const sortedOffers = await getMatchedOffers(db, cmd.userId, userPlan, user.profile, user.countries);
 
   const offset = await getOffset(cmd.userId);
-  const batch = sortedOffers.slice(offset, offset + PULL_BATCH_SIZE);
+  const batchSize = await getPullBatchSize();
+  const batch = sortedOffers.slice(offset, offset + batchSize);
 
   if (batch.length === 0) {
-    await sendMessage(cmd.userId, formatNoMoreOffers());
+    await sendMessage(cmd.userId, formatNoMoreOffers(), cmd.country);
     return;
   }
 
-  await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage);
-  await setOffset(cmd.userId, offset + PULL_BATCH_SIZE);
+  await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country);
+  await setOffset(cmd.userId, offset + batchSize);
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[suite] recordPullEvent:', err));
   recordPullDelivery(user.id, 'SUITE', batch.map((o) => o.id)).catch((err) =>

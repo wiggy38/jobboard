@@ -8,6 +8,7 @@ export async function sendPaidTemplate(
   type: TemplateType,
   templateName: string,
   components: object[],
+  country?: string,
 ): Promise<{ sent: boolean; reason?: string }> {
   const { allowed, reason } = await canSendTemplate(userId, type);
   if (!allowed) {
@@ -15,7 +16,7 @@ export async function sendPaidTemplate(
     return { sent: false, reason };
   }
 
-  await sendTemplate(to, templateName, components);
+  await sendTemplate(to, templateName, components, country);
 
   if (type === 'RELANCE') {
     await recordRelanceAttempt(userId);

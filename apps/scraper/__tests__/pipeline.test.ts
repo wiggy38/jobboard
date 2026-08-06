@@ -6,6 +6,7 @@ import sources from '../src/sources'
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(),
   JobOfferStatus: { ACTIVE: 'ACTIVE', EXPIRED: 'EXPIRED', ARCHIVED: 'ARCHIVED' },
+  ScraperRunStatus: { SUCCESS: 'SUCCESS', ERROR: 'ERROR', SKIPPED: 'SKIPPED' },
   ContractType: {
     CDI: 'CDI', CDD: 'CDD', STAGE: 'STAGE',
     ALTERNANCE: 'ALTERNANCE', FREELANCE: 'FREELANCE',

@@ -3,6 +3,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	optimizeDeps: {
+		include: ['@tumaa/shared'],
+	},
 	server: {
 		port: 5173,
 		proxy: {

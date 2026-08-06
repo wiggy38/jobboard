@@ -2,7 +2,10 @@
 // canal WhatsApp national correspondant (1 canal par pays — voir
 // docs/subscription_flow_elite.md et .claude/CLAUDE.md).
 
-export { ELITE_MAX_COUNTRIES } from '@tumaa/shared';
+import { ELITE_MAX_COUNTRIES, SETTING_KEYS } from '@tumaa/shared';
+import { getSetting } from './settings';
+
+export { ELITE_MAX_COUNTRIES };
 
 const COUNTRY_BY_PREFIX: Record<string, string> = {
   '226': 'BF',
@@ -38,8 +41,9 @@ export function getCountryFromPhone(phone: string): string {
 // Lien d'invitation WhatsApp Channel (wa.me/channel/<code>) par pays — Meta ne fournit
 // aucune API pour auto-abonner un utilisateur à un Channel, seul le clic de l'utilisateur
 // sur ce lien fonctionne. Configuré via env var CHANNEL_INVITE_LINK_<PAYS>.
-export function getChannelInviteLink(country: string): string | undefined {
-  return process.env[`CHANNEL_INVITE_LINK_${country}`];
+export async function getChannelInviteLink(country: string): Promise<string | undefined> {
+  const links = await getSetting(SETTING_KEYS.CHANNEL_INVITE_LINKS);
+  return links[country];
 }
 
 // Identifiant WhatsApp du Channel (distinct du lien d'invitation) utilisé

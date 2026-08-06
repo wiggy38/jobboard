@@ -1,17 +1,15 @@
 import { redis } from '../lib/redis';
 import { prisma } from '../lib/prisma';
 import { TemplateType as PrismaTemplateType } from '@prisma/client';
+import { SETTING_KEYS, type TemplateCaps } from '@tumaa/shared';
+import { getSetting } from '../lib/settings';
 import { isDormant } from './dormancyGuard';
 
 export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM';
 
-const CAPS: Record<TemplateType, number> = {
-  RELANCE: 2,
-  MATCH_PARFAIT: 1,
-  NUDGE_PREMIUM: 1,
-};
-
-const GLOBAL_CAP = 3;
+async function getCaps(): Promise<TemplateCaps> {
+  return getSetting(SETTING_KEYS.TEMPLATE_CAPS);
+}
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7); // "YYYY-MM"
@@ -47,9 +45,10 @@ async function checkViaRedis(
   );
   const totalCount = parseInt(totalVal ?? '0', 10);
   const typeCount = parseInt(typeVal ?? '0', 10);
+  const caps = await getCaps();
 
-  if (totalCount >= GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
-  if (typeCount >= CAPS[type]) return { allowed: false, reason: 'CAP_TYPE' };
+  if (totalCount >= caps.GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
+  if (typeCount >= caps[type]) return { allowed: false, reason: 'CAP_TYPE' };
   return { allowed: true };
 }
 
@@ -74,9 +73,10 @@ async function checkViaPg(
 
   const typeCount = typeRow?.count ?? 0;
   const totalCount = allRows.reduce((sum, r) => sum + r.count, 0);
+  const caps = await getCaps();
 
-  if (totalCount >= GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
-  if (typeCount >= CAPS[type]) return { allowed: false, reason: 'CAP_TYPE' };
+  if (totalCount >= caps.GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
+  if (typeCount >= caps[type]) return { allowed: false, reason: 'CAP_TYPE' };
   return { allowed: true };
 }
 
@@ -203,11 +203,13 @@ export async function checkAndIncrementTemplate(
 // State query
 // -------------------------------------------------------------------
 
+const TEMPLATE_TYPES: TemplateType[] = ['RELANCE', 'MATCH_PARFAIT', 'NUDGE_PREMIUM'];
+
 export async function getTemplateCounters(
   userId: string,
 ): Promise<{ total: number; byType: Record<TemplateType, number> }> {
   const month = currentMonth();
-  const types = Object.keys(CAPS) as TemplateType[];
+  const types = TEMPLATE_TYPES;
 
   try {
     const keys = [totalKey(userId, month), ...types.map((t) => typeKey(userId, month, t))];

@@ -75,7 +75,7 @@ describe('postDailyChannelTeasers', () => {
     const db = makeDb([makeOffer('o1')]);
     const results = await postDailyChannelTeasers(db);
 
-    expect(postToChannel).toHaveBeenCalledWith('channel-bf-id', expect.stringContaining('Développeur Web'));
+    expect(postToChannel).toHaveBeenCalledWith('channel-bf-id', expect.stringContaining('Développeur Web'), 'BF');
     const bfResult = results.find((r) => r.country === 'BF');
     expect(bfResult?.posted).toBe(true);
   });

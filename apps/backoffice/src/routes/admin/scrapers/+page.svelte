@@ -8,6 +8,50 @@
 	let running = $state<Set<string>>(new Set());
 	let disabled = $state<Set<string>>(new Set());
 
+	const countryLabel: Record<string, string> = {
+		BF: '🇧🇫 Burkina Faso',
+		BJ: '🇧🇯 Bénin',
+		CI: '🇨🇮 Côte d\'Ivoire',
+		SN: '🇸🇳 Sénégal',
+		TG: '🇹🇬 Togo',
+		MULTI: '🌍 Multi-pays',
+	};
+
+	const countries = $derived.by(() => {
+		const set = new Set(data.scrapers.map(s => s.country ?? 'MULTI'));
+		return [...set].sort((a, b) => {
+			if (a === 'MULTI') return 1;
+			if (b === 'MULTI') return -1;
+			return a.localeCompare(b);
+		});
+	});
+
+	let activeCountry = $state<string | null>(null);
+
+	const currentCountry = $derived(activeCountry ?? countries[0] ?? null);
+
+	let nameFilter = $state('');
+	let lastCrawlFilter = $state(''); // format <input type="date"> : YYYY-MM-DD
+
+	const visibleScrapers = $derived.by(() => {
+		const name = nameFilter.trim().toLowerCase();
+		return data.scrapers.filter(s => {
+			if ((s.country ?? 'MULTI') !== currentCountry) return false;
+			if (name && !s.name.toLowerCase().includes(name)) return false;
+			if (lastCrawlFilter) {
+				if (!s.lastCrawl) return false;
+				const crawlDate = new Date(s.lastCrawl).toLocaleDateString('en-CA'); // YYYY-MM-DD
+				if (crawlDate !== lastCrawlFilter) return false;
+			}
+			return true;
+		});
+	});
+
+	function resetFilters() {
+		nameFilter = '';
+		lastCrawlFilter = '';
+	}
+
 	// Modal state
 	let modal = $state<{
 		open: boolean;
@@ -91,6 +135,7 @@
 	function closeHealthModal() {
 		healthModal = { ...healthModal, open: false };
 	}
+
 </script>
 
 <!-- Modal -->
@@ -218,6 +263,40 @@
 		<button class="btn-health" onclick={runHealthCheck}>⚡ Health Check</button>
 	</div>
 
+	<div class="tabs" role="tablist">
+		{#each countries as c}
+			{@const count = data.scrapers.filter(s => (s.country ?? 'MULTI') === c).length}
+			<button
+				class="tab"
+				class:tab-active={currentCountry === c}
+				role="tab"
+				aria-selected={currentCountry === c}
+				onclick={() => (activeCountry = c)}
+			>
+				{countryLabel[c] ?? c}
+				<span class="tab-count">{count}</span>
+			</button>
+		{/each}
+	</div>
+
+	<div class="filters">
+		<input
+			class="filter-input"
+			type="text"
+			placeholder="Filtrer par nom…"
+			bind:value={nameFilter}
+		/>
+		<input
+			class="filter-input"
+			type="date"
+			aria-label="Filtrer par date de dernier crawl"
+			bind:value={lastCrawlFilter}
+		/>
+		{#if nameFilter || lastCrawlFilter}
+			<button class="btn-reset" onclick={resetFilters}>✕ Réinitialiser</button>
+		{/if}
+	</div>
+
 	<div class="table-wrap">
 		<table>
 			<thead>
@@ -232,7 +311,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.scrapers as s}
+				{#each visibleScrapers as s}
 					{@const isRunning = running.has(s.id)}
 					{@const isDisabled = disabled.has(s.id)}
 					<tr class:row-disabled={isDisabled}>
@@ -271,11 +350,17 @@
 							>
 								{isDisabled ? 'Désactivé' : 'Désactiver'}
 							</button>
+							<a class="btn-history" href={`/admin/scrapers/${s.id}/historique`}>
+								🕒 Historique
+							</a>
 						</td>
 					</tr>
 				{/each}
 			</tbody>
 		</table>
+		{#if visibleScrapers.length === 0}
+			<p class="empty-state">Aucun scraper ne correspond à ces filtres.</p>
+		{/if}
 	</div>
 </div>
 
@@ -372,6 +457,20 @@
 
 	.btn-run:disabled, .btn-disable:disabled { opacity: 0.5; cursor: not-allowed; }
 
+	.btn-history {
+		display: inline-block;
+		padding: 0.3rem 0.7rem;
+		border-radius: var(--radius-md);
+		font-size: 0.75rem;
+		font-weight: 600;
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-text-muted);
+		text-decoration: none;
+		transition: background 0.12s, color 0.12s;
+	}
+	.btn-history:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+
 	/* ── Modal ── */
 	.overlay {
 		position: fixed;
@@ -391,6 +490,7 @@
 		max-width: calc(100vw - 2rem);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
 	}
+
 
 	.modal-header {
 		display: flex;
@@ -536,6 +636,92 @@
 		transition: background 0.12s;
 	}
 	.btn-health:hover { background: var(--color-border); }
+
+	/* ── Filters ── */
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin-bottom: 1rem;
+	}
+
+	.filter-input {
+		padding: 0.4rem 0.7rem;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+		background: var(--color-bg);
+		color: var(--color-text);
+		font-size: 0.8rem;
+	}
+	.filter-input:focus { outline: 2px solid #2b9964; outline-offset: -1px; }
+
+	.filter-input[type="text"] { min-width: 220px; }
+
+	.btn-reset {
+		padding: 0.4rem 0.7rem;
+		border-radius: var(--radius-md);
+		font-size: 0.8rem;
+		font-weight: 600;
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s;
+	}
+	.btn-reset:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+
+	.empty-state {
+		padding: 1.5rem;
+		text-align: center;
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+	}
+
+	/* ── Country tabs ── */
+	.tabs {
+		display: flex;
+		gap: 0.4rem;
+		margin-bottom: 1rem;
+		border-bottom: 1px solid var(--color-border);
+		overflow-x: auto;
+	}
+
+	.tab {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.55rem 0.9rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		background: none;
+		border: none;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: color 0.12s, border-color 0.12s;
+	}
+
+	.tab:hover { color: var(--color-text); }
+
+	.tab-active {
+		color: var(--color-text);
+		border-bottom-color: #2b9964;
+	}
+
+	.tab-count {
+		font-size: 0.7rem;
+		font-weight: 700;
+		padding: 1px 6px;
+		border-radius: 999px;
+		background: var(--color-bg-subtle);
+		color: var(--color-text-muted);
+	}
+
+	.tab-active .tab-count {
+		background: var(--color-green-light);
+		color: var(--color-green-dark);
+	}
 
 	/* ── Health modal ── */
 	.health-ok {

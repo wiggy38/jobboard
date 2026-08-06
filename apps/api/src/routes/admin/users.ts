@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma'
-import { adminAuth } from '../../middleware/adminAuth'
+import { adminAuth, requireRole } from '../../middleware/adminAuth'
 
 export async function userRoutes(fastify: FastifyInstance) {
   // GET /admin/users
@@ -188,13 +188,27 @@ export async function userRoutes(fastify: FastifyInstance) {
       }),
     ])
 
+    const jobIds = [...new Set(deliveries.flatMap((d) => d.offers.map((o) => o.id)))]
+    const interactions = jobIds.length
+      ? await prisma.jobInteraction.findMany({
+          where: { userId: id, jobId: { in: jobIds }, action: { in: ['SEEN', 'CLICKED_SOURCE'] } },
+          select: { jobId: true, action: true, createdAt: true },
+        })
+      : []
+    const seenAt = new Map(interactions.filter((i) => i.action === 'SEEN').map((i) => [i.jobId, i.createdAt.toISOString()]))
+    const clickedAt = new Map(interactions.filter((i) => i.action === 'CLICKED_SOURCE').map((i) => [i.jobId, i.createdAt.toISOString()]))
+
     return reply.send({
       data: deliveries.map((d) => ({
         id: d.id,
         command: d.command,
         offersCount: d.offersCount,
         createdAt: d.createdAt.toISOString(),
-        offers: d.offers,
+        offers: d.offers.map((o) => ({
+          ...o,
+          seenAt: seenAt.get(o.id) ?? null,
+          sourceClickedAt: clickedAt.get(o.id) ?? null,
+        })),
       })),
       total,
       page,
@@ -203,8 +217,83 @@ export async function userRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // GET /admin/tracking
+  // Liste paginée des événements de tracking d'offres (SEEN = ouverture de la
+  // page offre tokenisée, CLICKED_SOURCE = clic sortant vers la source) sur
+  // une période donnée, avec un résumé agrégé (vues, clics, taux de clic).
+  fastify.get('/admin/tracking', { preHandler: adminAuth }, async (request, reply) => {
+    const q = request.query as {
+      from?: string
+      to?: string
+      action?: string
+      jobTitle?: string
+      page?: string
+      limit?: string
+    }
+
+    const page = Math.max(1, Number(q.page ?? '1'))
+    const limit = Math.min(100, Math.max(1, Number(q.limit ?? '20')))
+    const skip = (page - 1) * limit
+
+    const now = new Date()
+    const defaultFrom = new Date(now)
+    defaultFrom.setDate(defaultFrom.getDate() - 30)
+
+    const from = q.from ? new Date(q.from) : defaultFrom
+    const to = q.to ? new Date(q.to) : now
+    const fromDate = new Date(from.toISOString().split('T')[0])
+    const toDate = new Date(to.toISOString().split('T')[0])
+    toDate.setHours(23, 59, 59, 999)
+
+    const where: Record<string, any> = {
+      action: { in: ['SEEN', 'CLICKED_SOURCE'] },
+      createdAt: { gte: fromDate, lte: toDate },
+    }
+    if (q.action) where.action = q.action
+    if (q.jobTitle) where.job = { title: { contains: q.jobTitle, mode: 'insensitive' } }
+
+    const [total, events, seenCount, clickCount] = await Promise.all([
+      prisma.jobInteraction.count({ where }),
+      prisma.jobInteraction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          job: { select: { id: true, title: true, organization: true } },
+          user: { select: { id: true, phone: true, displayName: true } },
+        },
+      }),
+      prisma.jobInteraction.count({ where: { ...where, action: 'SEEN' } }),
+      prisma.jobInteraction.count({ where: { ...where, action: 'CLICKED_SOURCE' } }),
+    ])
+
+    return reply.send({
+      data: events.map((e) => ({
+        id: e.id,
+        action: e.action,
+        createdAt: e.createdAt.toISOString(),
+        job: e.job,
+        user: e.user,
+      })),
+      total,
+      page,
+      perPage: limit,
+      totalPages: Math.ceil(total / limit),
+      period: { from: fromDate.toISOString(), to: toDate.toISOString() },
+      summary: {
+        views: seenCount,
+        clicks: clickCount,
+        clickRate: seenCount > 0 ? clickCount / seenCount : 0,
+      },
+    })
+  })
+
   // PATCH /admin/users/:id/extend
-  fastify.patch('/admin/users/:id/extend', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.patch(
+    '/admin/users/:id/extend',
+    { preHandler: [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')] },
+    async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as { days?: number }
 
@@ -225,6 +314,7 @@ export async function userRoutes(fastify: FastifyInstance) {
 
     await prisma.user.update({ where: { id }, data: { planEndAt } })
 
-    return reply.send({ ok: true, planEndAt })
-  })
+      return reply.send({ ok: true, planEndAt })
+    },
+  )
 }

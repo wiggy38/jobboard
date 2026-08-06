@@ -1,9 +1,10 @@
 import { PrismaClient } from '@prisma/client'
+import { SETTING_KEYS } from '@tumaa/shared'
 import { warn, info } from './logger'
+import { getSetting } from './settings'
 
 const SOURCE = 'monitor'
 const STALE_HOURS = 25
-const ALERT_THRESHOLD = 3
 
 export interface SourceAlert {
   id: string
@@ -17,6 +18,7 @@ export async function checkSourceHealth(): Promise<SourceAlert[]> {
   const alerts: SourceAlert[] = []
 
   try {
+    const alertThreshold = await getSetting(SETTING_KEYS.SCRAPER_ALERT_THRESHOLD)
     const now = new Date()
     const staleThreshold = new Date(now.getTime() - STALE_HOURS * 60 * 60 * 1000)
 
@@ -36,8 +38,8 @@ export async function checkSourceHealth(): Promise<SourceAlert[]> {
         data: { crawlErrors: { increment: 1 } },
       })
 
-      if (updated.crawlErrors > ALERT_THRESHOLD) {
-        warn(SOURCE, `[ALERTE] Source ${source.name} : 3 crawls manqués consécutifs`)
+      if (updated.crawlErrors > alertThreshold) {
+        warn(SOURCE, `[ALERTE] Source ${source.name} : ${alertThreshold} crawls manqués consécutifs`)
         alerts.push({
           id: source.id,
           name: source.name,

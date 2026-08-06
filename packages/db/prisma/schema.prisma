@@ -176,9 +176,37 @@ model Source {
   emptyRuns   Int        @default(0)
 
   jobs        JobOffer[]
+  runs        ScraperRun[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum ScraperRunStatus {
+  SUCCESS
+  ERROR
+  SKIPPED   // circuit breaker : source désactivée après trop de runs vides
+}
+
+// Historique des exécutions de pipeline (un run = un passage scraping +
+// normalisation + dédup + insertion pour une source). Alimenté par
+// runPipeline() (apps/scraper/src/pipeline.ts) à chaque fin de run, succès
+// ou échec, pour donner à l'admin un historique des pulls par scraper.
+model ScraperRun {
+  id              String            @id @default(uuid())
+  sourceId        String
+  source          Source            @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status          ScraperRunStatus
+  totalScraped    Int               @default(0)
+  totalInserted   Int               @default(0)
+  totalDuplicates Int               @default(0)
+  totalExpired    Int               @default(0)
+  totalErrors     Int               @default(0)
+  duration        Int               @default(0)   // ms
+  errorMessage    String?
+  startedAt       DateTime          @default(now())
+
+  @@index([sourceId, startedAt])
 }
 
 model JobOffer {
@@ -237,7 +265,7 @@ model JobInteraction {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobId     String
   job       JobOffer @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  action    String   // SEEN | UNLOCKED | BOOKMARKED | REPORTED_FRAUD
+  action    String   // SEEN | CLICKED_SOURCE | UNLOCKED | BOOKMARKED | REPORTED_FRAUD | SHARED
   createdAt DateTime @default(now())
 
   @@unique([userId, jobId, action])
@@ -441,4 +469,40 @@ model ScoutPayment {
 
   @@index([scoutId])
   @@index([month])
+}
+
+// ============================================================
+// COMPTES BACKOFFICE (staff interne, distinct du User bot WhatsApp)
+// ============================================================
+
+enum AdminRole {
+  SUPER_ADMIN // accès total + gestion des comptes backoffice
+  ADMIN       // accès total aux fonctionnalités métier, sauf gestion des comptes
+  EDITOR      // offres (lecture/édition) + abonnés (lecture) uniquement
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         AdminRole @default(EDITOR)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// PARAMÈTRES — configuration métier éditable en backoffice
+// ============================================================
+
+// Table clé/valeur générique. Les clés et leurs valeurs par défaut sont
+// centralisées dans packages/shared/src/settings.ts (source de vérité pour
+// les types) — une ligne absente ici retombe sur DEFAULT_SETTINGS[key].
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }

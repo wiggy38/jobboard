@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma'
-import { adminAuth } from '../../middleware/adminAuth'
+import { adminAuth, requireRole } from '../../middleware/adminAuth'
+
+const guard = [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')]
 
 export async function fraudRoutes(fastify: FastifyInstance) {
   // GET /admin/fraud
-  fastify.get('/admin/fraud', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/fraud', { preHandler: guard }, async (request, reply) => {
     const q = request.query as { page?: string; limit?: string }
     const page = Math.max(1, Number(q.page ?? '1'))
     const limit = Math.min(100, Math.max(1, Number(q.limit ?? '20')))
@@ -37,7 +39,7 @@ export async function fraudRoutes(fastify: FastifyInstance) {
   })
 
   // GET /admin/fraud/:jobId
-  fastify.get('/admin/fraud/:jobId', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/fraud/:jobId', { preHandler: guard }, async (request, reply) => {
     const { jobId } = request.params as { jobId: string }
 
     const offer = await prisma.jobOffer.findUnique({
@@ -67,7 +69,7 @@ export async function fraudRoutes(fastify: FastifyInstance) {
   // POST /admin/fraud/:jobId/confirm
   fastify.post(
     '/admin/fraud/:jobId/confirm',
-    { preHandler: adminAuth },
+    { preHandler: guard },
     async (request, reply) => {
       const { jobId } = request.params as { jobId: string }
 
@@ -89,7 +91,7 @@ export async function fraudRoutes(fastify: FastifyInstance) {
   // POST /admin/fraud/:jobId/clear
   fastify.post(
     '/admin/fraud/:jobId/clear',
-    { preHandler: adminAuth },
+    { preHandler: guard },
     async (request, reply) => {
       const { jobId } = request.params as { jobId: string }
 

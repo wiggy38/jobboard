@@ -2,12 +2,14 @@ import { Queue, Worker } from 'bullmq'
 import dotenv from 'dotenv'
 import path from 'path'
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+import { SETTING_KEYS } from '@tumaa/shared'
 import { runPipeline } from './pipeline'
 import { checkSourceHealth } from './lib/monitor'
 import { buildDailyReport, formatReportText, formatReportHtml } from './lib/report'
 import { sendMail } from './lib/mailer'
 import { info, error as logError, success, warn } from './lib/logger'
 import { syncSources } from './lib/sync-sources'
+import { getSetting } from './lib/settings'
 
 
 const NAME = 'scheduler'
@@ -20,47 +22,33 @@ const connection = {
 
 const queue = new Queue('scraper', { connection })
 
-// Deux vagues : 12h (midi) et 22h (soir) — offres du jour disponibles dès midi, mises à jour le soir
-const SCRAPER_JOBS = [
-  { name: 'lefaso-daily',             scraperKey: 'lefaso',             pattern: '0 12 * * *' },
-  { name: 'reliefweb-daily',          scraperKey: 'reliefweb',          pattern: '5 12 * * *' },
-  { name: 'anpe-daily',               scraperKey: 'anpe-bf',            pattern: '10 12 * * *' },
-  { name: 'bfemploi-daily',           scraperKey: 'bfemploi',           pattern: '15 12 * * *' },
-  { name: 'icipe-daily',              scraperKey: 'icipe',              pattern: '20 12 * * *' },
-  { name: 'professionnallink-daily',  scraperKey: 'professionnallink',  pattern: '25 12 * * *' },
-  { name: 'afriqueemplois-daily',     scraperKey: 'afriqueemplois',     pattern: '30 12 * * *' },
-  { name: 'emploiburkina-daily',      scraperKey: 'emploiburkina',      pattern: '0 22 * * *' },
-  { name: 'criburkina-daily',         scraperKey: 'criburkina',         pattern: '5 22 * * *' },
-  { name: 'emploi-lefaso-daily',      scraperKey: 'emploi-lefaso',      pattern: '10 22 * * *' },
-  { name: 'goafricaonline-daily',     scraperKey: 'goafricaonline',     pattern: '15 22 * * *' },
-  { name: 'linkedin-daily',           scraperKey: 'linkedin',           pattern: '20 22 * * *' },
-  { name: 'sidwaya-daily',            scraperKey: 'sidwaya',            pattern: '25 22 * * *' },
-  { name: 'faso7-daily',              scraperKey: 'faso7',              pattern: '30 22 * * *' },
-]
-
 const HEALTH_JOB = { name: 'health-check', pattern: '0 */6 * * *' }
 
 // 22h30 — après la vague du soir (22h00-22h10), avant minuit
 const DAILY_REPORT_JOB = { name: 'daily-report', pattern: '30 22 * * *' }
-const REPORT_EMAIL_TO = process.env.REPORT_EMAIL_TO ?? 'm.miguellao@gmail.com'
-
-// Retries automatiques : 3 tentatives, backoff exponentiel (1min, 2min, 4min)
-const RETRY_OPTS = { attempts: 3, backoff: { type: 'exponential' as const, delay: 60_000 } }
 
 async function registerJobs(): Promise<void> {
-  for (const job of SCRAPER_JOBS) {
+  // Programmation des scrapers (SETTING_KEYS.SCRAPER_SCHEDULE) éditable depuis le
+  // backoffice — l'API admin réconcilie directement la queue BullMQ à chaque
+  // modification (voir apps/api/src/routes/admin/settings.ts), cette liste au
+  // démarrage ne sert qu'à l'amorçage initial / redémarrage du process.
+  const scraperJobs = await getSetting(SETTING_KEYS.SCRAPER_SCHEDULE)
+  const attempts = await getSetting(SETTING_KEYS.SCRAPER_RETRY_ATTEMPTS)
+  const retryOpts = { attempts, backoff: { type: 'exponential' as const, delay: 60_000 } }
+
+  for (const job of scraperJobs) {
     await queue.add(
       job.name,
       { scraperKey: job.scraperKey },
-      { repeat: { pattern: job.pattern }, ...RETRY_OPTS }
+      { repeat: { pattern: job.pattern }, ...retryOpts }
     )
     info(NAME, `Registered: ${job.name} (${job.pattern})`)
   }
 
-  await queue.add(HEALTH_JOB.name, {}, { repeat: { pattern: HEALTH_JOB.pattern }, ...RETRY_OPTS })
+  await queue.add(HEALTH_JOB.name, {}, { repeat: { pattern: HEALTH_JOB.pattern }, ...retryOpts })
   info(NAME, `Registered: ${HEALTH_JOB.name} (${HEALTH_JOB.pattern})`)
 
-  await queue.add(DAILY_REPORT_JOB.name, {}, { repeat: { pattern: DAILY_REPORT_JOB.pattern }, ...RETRY_OPTS })
+  await queue.add(DAILY_REPORT_JOB.name, {}, { repeat: { pattern: DAILY_REPORT_JOB.pattern }, ...retryOpts })
   info(NAME, `Registered: ${DAILY_REPORT_JOB.name} (${DAILY_REPORT_JOB.pattern})`)
 }
 
@@ -78,14 +66,15 @@ const worker = new Worker(
 
     if (job.name === DAILY_REPORT_JOB.name) {
       const report = await buildDailyReport(queue)
+      const reportEmailTo = await getSetting(SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO)
       try {
         await sendMail({
-          to: REPORT_EMAIL_TO,
+          to: reportEmailTo,
           subject: `[Tumaa Scraper] Rapport quotidien — ${report.date}`,
           text: formatReportText(report),
           html: formatReportHtml(report),
         })
-        success(NAME, `Rapport quotidien envoyé à ${REPORT_EMAIL_TO}`)
+        success(NAME, `Rapport quotidien envoyé à ${reportEmailTo}`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         warn(NAME, `Échec envoi rapport quotidien : ${msg}`)

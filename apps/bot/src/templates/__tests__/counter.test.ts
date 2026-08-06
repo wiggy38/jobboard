@@ -5,6 +5,17 @@ jest.mock('../../whatsapp/client', () => ({
   sendMessage: jest.fn().mockResolvedValue(undefined),
 }));
 
+// canSendTemplate/incrementTemplateCounter lisent désormais les plafonds via
+// ../../lib/settings (getSetting), qui utilise le singleton ../../lib/prisma
+// — indépendant du `db` injecté en paramètre dans ce fichier. Pas de ligne en
+// base ici → retombe sur DEFAULT_SETTINGS[TEMPLATE_CAPS] (mêmes valeurs que
+// les tests : RELANCE 2, MATCH_PARFAIT 1, NUDGE_PREMIUM 1, GLOBAL_CAP 3).
+jest.mock('../../lib/prisma', () => ({
+  prisma: {
+    setting: { findUnique: jest.fn().mockResolvedValue(null) },
+  },
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { sendMessage } = require('../../whatsapp/client') as { sendMessage: jest.Mock };
 
@@ -118,7 +129,7 @@ describe('sendTemplateIfAllowed', () => {
     const result = await sendTemplateIfAllowed(USER, 'RELANCE', TEXT_MSG, PHONE, db);
 
     expect(result).toEqual({ sent: true });
-    expect(sendMessage).toHaveBeenCalledWith(PHONE, TEXT_MSG);
+    expect(sendMessage).toHaveBeenCalledWith(PHONE, TEXT_MSG, undefined);
     expect((db as ReturnType<typeof makeMockDb>)._notificationCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isPaid: true, userId: USER }) }),
     );

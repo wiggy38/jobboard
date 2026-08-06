@@ -7,9 +7,13 @@ export async function handleVoir(cmd: ParsedCommand, _db: PrismaClient): Promise
   const n = parts[1] ? parseInt(parts[1], 10) : NaN;
 
   if (isNaN(n) || n < 1 || n > 5) {
-    await sendText(cmd.userId, 'Réponds *VOIR 1* à *VOIR 5* pour débloquer une offre.');
+    await sendText(cmd.userId, 'Réponds *VOIR 1* à *VOIR 5* pour débloquer une offre.', cmd.country);
     return;
   }
 
-  await sendText(cmd.userId, `🔍 VOIR ${n} — fonctionnalité en cours d'intégration dans le nouveau routeur.\nRéponds *OFFRES* pour actualiser la liste.`);
+  await sendText(
+    cmd.userId,
+    `🔍 VOIR ${n} — fonctionnalité en cours d'intégration dans le nouveau routeur.\nRéponds *OFFRES* pour actualiser la liste.`,
+    cmd.country,
+  );
 }

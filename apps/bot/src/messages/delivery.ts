@@ -19,23 +19,24 @@ export async function deliverJobsBatch(
   dbUserId: string,
   jobs: JobOffer[],
   userPlan: UserPlan,
-  sendFn: (to: string, msg: OutgoingMessage) => Promise<void>,
+  sendFn: (to: string, msg: OutgoingMessage, country?: string) => Promise<void>,
+  country?: string,
 ): Promise<void> {
   if (jobs.length === 0) {
-    await sendFn(phone, formatTeaserSummary(0));
+    await sendFn(phone, formatTeaserSummary(0), country);
     return;
   }
 
-  await sendFn(phone, formatTeaserSummary(jobs.length));
+  await sendFn(phone, formatTeaserSummary(jobs.length), country);
 
   for (const job of jobs) {
     await delay(MESSAGE_DELAY_MS);
-    await sendFn(phone, formatJobMessage(job, userPlan, dbUserId));
+    await sendFn(phone, formatJobMessage(job, userPlan, dbUserId), country);
   }
 
   if (jobs.length > BATCH_SIZE) {
-    await sendFn(phone, formatPaginationPrompt(jobs.length - BATCH_SIZE));
+    await sendFn(phone, formatPaginationPrompt(jobs.length - BATCH_SIZE), country);
   } else {
-    await sendFn(phone, formatNoMoreOffers());
+    await sendFn(phone, formatNoMoreOffers(), country);
   }
 }

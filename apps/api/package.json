@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
-    "generate:admin-token": "ts-node-dev src/scripts/generateAdminToken.ts"
+    "create:admin": "ts-node-dev --transpile-only src/scripts/createAdmin.ts"
   },
   "dependencies": {
     "@fastify/formbody": "^7.4.0",
@@ -17,12 +17,14 @@
     "@prisma/client": "*",
     "@tumaa/db": "workspace:*",
     "@tumaa/shared": "workspace:*",
+    "bcrypt": "^5.1.1",
     "bullmq": "^5.8.0",
     "dotenv": "^17.4.2",
     "fastify": "^4.27.0",
     "ioredis": "^5.3.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/node": "^20.0.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.0"

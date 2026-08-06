@@ -15,7 +15,12 @@ function findCountryByRowId(id: string): string | undefined {
   return Object.keys(COUNTRY_NAMES).find((code) => countryRowId(code).toUpperCase() === id);
 }
 
-async function sendCountryList(userId: string, selected: string[], maxCountries: number): Promise<void> {
+async function sendCountryList(
+  userId: string,
+  selected: string[],
+  maxCountries: number,
+  country?: string,
+): Promise<void> {
   const header =
     selected.length > 0
       ? `Pays sélectionnés : *${selected.map((c) => COUNTRY_NAMES[c]).join(', ')}*\n\n`
@@ -40,6 +45,7 @@ async function sendCountryList(userId: string, selected: string[], maxCountries:
     `${header}Choisissez jusqu'à ${maxCountries} pays de recherche, puis validez avec *Terminé*.`,
     'Choisir un pays',
     [{ title: 'Pays', rows }],
+    country,
   );
 }
 
@@ -54,6 +60,7 @@ export async function handlePays(cmd: ParsedCommand, db: PrismaClient): Promise<
       cmd.userId,
       '👑 La sélection de plusieurs pays est réservée aux membres *ELITE*.\n' +
         'Tapez *PREMIUM* pour découvrir les offres ELITE.',
+      cmd.country,
     );
     return;
   }
@@ -61,7 +68,7 @@ export async function handlePays(cmd: ParsedCommand, db: PrismaClient): Promise<
   const maxCountries = user.profile?.maxCountries ?? ELITE_MAX_COUNTRIES;
   const preselected = user.countries.filter((c) => c in COUNTRY_NAMES);
   await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: preselected, maxCountries } });
-  await sendCountryList(cmd.userId, preselected, maxCountries);
+  await sendCountryList(cmd.userId, preselected, maxCountries, cmd.country);
 }
 
 // ── Suite — dispatché quand l'état de session est ELITE_COUNTRY_SELECT ─────────
@@ -76,8 +83,8 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
 
   if (id === COUNTRY_DONE) {
     if (selected.length === 0) {
-      await sendText(cmd.userId, '⚠️ Sélectionnez au moins un pays avant de continuer.');
-      await sendCountryList(cmd.userId, selected, maxCountries);
+      await sendText(cmd.userId, '⚠️ Sélectionnez au moins un pays avant de continuer.', cmd.country);
+      await sendCountryList(cmd.userId, selected, maxCountries, cmd.country);
       return;
     }
 
@@ -102,20 +109,21 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
       cmd.userId,
       `✅ Pays mis à jour : *${selected.map((c) => COUNTRY_NAMES[c]).join(', ')}*\n` +
         `Clique sur le(s) lien(s) ci-dessus pour rejoindre chaque canal et recevoir un teaser des offres chaque matin à 08:00.`,
+      cmd.country,
     );
     return;
   }
 
   const code = findCountryByRowId(id);
   if (!code) {
-    await sendText(cmd.userId, 'Merci de choisir un pays dans la liste ci-dessous.');
-    await sendCountryList(cmd.userId, selected, maxCountries);
+    await sendText(cmd.userId, 'Merci de choisir un pays dans la liste ci-dessous.', cmd.country);
+    await sendCountryList(cmd.userId, selected, maxCountries, cmd.country);
     return;
   }
 
   if (!selected.includes(code) && selected.length >= maxCountries) {
-    await sendText(cmd.userId, `⚠️ Maximum ${maxCountries} pays. Décochez-en un avant d'en ajouter un autre.`);
-    await sendCountryList(cmd.userId, selected, maxCountries);
+    await sendText(cmd.userId, `⚠️ Maximum ${maxCountries} pays. Décochez-en un avant d'en ajouter un autre.`, cmd.country);
+    await sendCountryList(cmd.userId, selected, maxCountries, cmd.country);
     return;
   }
 
@@ -124,5 +132,5 @@ export async function handlePaysSelection(cmd: ParsedCommand, db: PrismaClient):
     : [...selected, code];
 
   await setState(cmd.userId, { step: 'ELITE_COUNTRY_SELECT', data: { selected: updated, maxCountries } });
-  await sendCountryList(cmd.userId, updated, maxCountries);
+  await sendCountryList(cmd.userId, updated, maxCountries, cmd.country);
 }

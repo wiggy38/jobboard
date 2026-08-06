@@ -1,15 +1,33 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { PageData } from './$types.js';
 
 	let { data }: { data: PageData } = $props();
 
-	// TPQ chart — 7 derniers jours, valeurs fixes (source: analytics cache)
-	const TPQ_VALUES = [55, 62, 58, 71, 64, 60, 68];
-	const TPQ_MAX = 71;
+	const COUNTRY_OPTIONS = [
+		{ value: 'BF', label: 'Burkina Faso' },
+		{ value: 'BJ', label: 'Bénin' },
+		{ value: 'TG', label: 'Togo' },
+		{ value: 'CI', label: "Côte d'Ivoire" },
+	];
+
+	function onCountryChange(e: Event) {
+		const value = (e.target as HTMLSelectElement).value;
+		const params = new URLSearchParams(page.url.searchParams);
+		if (value) params.set('country', value);
+		else params.delete('country');
+		goto(`?${params}`, { keepFocus: true, noScroll: true });
+	}
+
+	// TPQ chart — 7 derniers jours (source: PullEvent / admin/stats)
 	const BAR_W = 28;
 	const BAR_GAP = 12;
 	const CHART_H = 100;
 	const START_X = 6;
+
+	const TPQ_VALUES = $derived((data.stats.tpqHistory ?? []).map((r) => r.count));
+	const TPQ_MAX = $derived(Math.max(...TPQ_VALUES, 1));
 
 	function dayLabels(): string[] {
 		return Array.from({ length: 7 }, (_, i) => {
@@ -27,10 +45,8 @@
 	const DAILY_START_X = 6;
 	const DAILY_DAYS = 10;
 
-	function buildDailySeries(): { label: string; count: number }[] {
-		const historyMap = new Map(
-			(data.stats.offersDailyHistory ?? []).map((r) => [r.date, r.count])
-		);
+	function buildDailySeries(offersDailyHistory: { date: string; count: number }[]): { label: string; count: number }[] {
+		const historyMap = new Map(offersDailyHistory.map((r) => [r.date, r.count]));
 		return Array.from({ length: DAILY_DAYS }, (_, i) => {
 			const d = new Date();
 			d.setDate(d.getDate() - (DAILY_DAYS - 1 - i));
@@ -40,8 +56,8 @@
 		});
 	}
 
-	const dailySeries = buildDailySeries();
-	const dailyMax = Math.max(...dailySeries.map((d) => d.count), 1);
+	const dailySeries = $derived(buildDailySeries(data.stats.offersDailyHistory ?? []));
+	const dailyMax = $derived(Math.max(...dailySeries.map((d) => d.count), 1));
 
 	// Template budget alerts
 	const ALERT_THRESHOLD = 0.65;
@@ -63,7 +79,18 @@
 </script>
 
 <div class="dashboard">
-	<h1>Tableau de bord</h1>
+	<div class="dashboard-header">
+		<h1>Tableau de bord</h1>
+		<label class="country-select">
+			<span>Pays</span>
+			<select value={data.country ?? ''} onchange={onCountryChange}>
+				<option value="">Tous les pays</option>
+				{#each COUNTRY_OPTIONS as opt}
+					<option value={opt.value}>{opt.label}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
 
 	<!-- 1. Métriques -->
 	<div class="metrics-grid">
@@ -229,7 +256,35 @@
 <style>
 	.dashboard { max-width: 960px; }
 
-	h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-bottom: 1.5rem; }
+	h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin: 0; }
+
+	.dashboard-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.country-select {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.country-select select {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		padding: 0.4rem 0.75rem;
+		cursor: pointer;
+	}
 
 	h2 {
 		font-size: 0.95rem;

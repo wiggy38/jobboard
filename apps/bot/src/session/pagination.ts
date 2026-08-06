@@ -1,6 +1,10 @@
+import { SETTING_KEYS } from '@tumaa/shared';
 import { redisClient } from './redis';
+import { getSetting } from '../lib/settings';
 
-export const PULL_BATCH_SIZE = 10;
+export async function getPullBatchSize(): Promise<number> {
+  return getSetting(SETTING_KEYS.PULL_BATCH_SIZE);
+}
 
 const OFFSET_TTL = 86_400;
 

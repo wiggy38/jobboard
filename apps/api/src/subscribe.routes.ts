@@ -4,12 +4,11 @@ import { prisma } from './lib/prisma'
 import { COUNTRY_NAMES, NATIONAL_CHANNELS, getChannelInviteLink, getCountryFromPhone } from './lib/country'
 import { createInvoice, confirmInvoice } from './lib/paydunya'
 import { sendText } from './lib/whatsapp'
+import { applyPlanLimits } from './lib/planLimits'
+import { getSetting } from './lib/settings'
 import {
-  applyPlanLimits,
   isUnlimited,
-  CITY_OPTIONS,
-  SECTOR_OPTIONS,
-  LEVEL_OPTIONS,
+  SETTING_KEYS,
   CONTRACT_GROUPS,
   ContractGroupId,
 } from '@tumaa/shared'
@@ -140,17 +139,24 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'USER_NOT_FOUND' })
     }
 
-    const { maxCities, maxSectors, maxLevels, maxContractGroups } = user.profile
+    const { maxCities, maxSectors, maxLevels, maxContractGroups, country } = user.profile
+
+    const [citiesByCountry, sectorOptions, levelOptions] = await Promise.all([
+      getSetting(SETTING_KEYS.REFERENCE_CITIES_BY_COUNTRY),
+      getSetting(SETTING_KEYS.REFERENCE_SECTORS),
+      getSetting(SETTING_KEYS.REFERENCE_LEVELS),
+    ])
+    const cityOptions = citiesByCountry[country] ?? []
 
     const withinBounds = (selected: unknown[] | undefined, max: number): selected is unknown[] =>
       Array.isArray(selected) && selected.length >= 1 && (isUnlimited(max) || selected.length <= max)
 
     const citiesValid =
-      withinBounds(cities, maxCities) && cities!.every((c) => CITY_OPTIONS.some((o) => o.value === c))
+      withinBounds(cities, maxCities) && cities!.every((c) => cityOptions.some((o) => o.value === c))
     const sectorsValid =
-      withinBounds(sectors, maxSectors) && sectors!.every((s) => SECTOR_OPTIONS.some((o) => o.value === s))
+      withinBounds(sectors, maxSectors) && sectors!.every((s) => sectorOptions.some((o) => o.value === s))
     const levelsValid =
-      withinBounds(levels, maxLevels) && levels!.every((l) => LEVEL_OPTIONS.some((o) => o.value === l))
+      withinBounds(levels, maxLevels) && levels!.every((l) => levelOptions.some((o) => o.value === l))
     const contractGroupsValid =
       withinBounds(contractGroups, maxContractGroups) &&
       contractGroups!.every((g) => g in CONTRACT_GROUPS)
@@ -220,7 +226,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
         country,
         name: COUNTRY_NAMES[country],
         channel: NATIONAL_CHANNELS[country],
-        inviteLink: getChannelInviteLink(country) ?? null,
+        inviteLink: (await getChannelInviteLink(country)) ?? null,
       },
     })
   })
@@ -307,7 +313,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
 
     await activateSubscription(user.id, plan)
 
-    const redirectUrl = `/subscribe/profile?t=${t}&plan=${plan}`
+    const redirectUrl = `/profile?t=${t}&plan=${plan}`
 
     return reply.send({ ok: true, plan, redirectUrl })
   })

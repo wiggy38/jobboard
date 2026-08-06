@@ -3,16 +3,16 @@ import { adminApi } from '$lib/api.js';
 import type { JobOffer, ScraperStatus } from '$lib/types.js';
 
 const MOCK_OFFERS: JobOffer[] = [
-	{ id: '1', title: 'Développeur Full-Stack', organization: 'Société Burkina Tech', city: 'Ouagadougou', sector: 'Informatique', level: 'Confirmé', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.92, status: 'ACTIVE' },
-	{ id: '2', title: 'Chargé de Communication', organization: 'ONG Espoir Sahel', city: 'Bobo-Dioulasso', sector: 'Communication', level: 'Junior', contractType: 'CDD', deadline: '2026-07-15', isSponsored: true, isFeatured: false, scoreConfidence: 0.78, status: 'ACTIVE' },
-	{ id: '3', title: 'Comptable Senior', organization: 'Cabinet Audit BF', city: 'Ouagadougou', sector: 'Finance', level: 'Senior', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.85, status: 'ACTIVE' },
-	{ id: '4', title: 'Ingénieur Génie Civil', organization: 'BTP Sahara', city: 'Koudougou', sector: 'BTP', level: 'Confirmé', contractType: 'CDI', deadline: '2026-06-30', isSponsored: false, isFeatured: false, scoreConfidence: 0.70, status: 'EXPIRED' },
-	{ id: '5', title: 'Assistant Administratif', organization: 'Ministère de la Santé', city: 'Ouagadougou', sector: 'Administration', level: 'Junior', contractType: 'STAGE', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.88, status: 'ACTIVE' },
+	{ id: '1', title: 'Développeur Full-Stack', organization: 'Société Burkina Tech', city: 'Ouagadougou', country: 'BF', sector: 'Informatique', level: 'Confirmé', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.92, status: 'ACTIVE' },
+	{ id: '2', title: 'Chargé de Communication', organization: 'ONG Espoir Sahel', city: 'Bobo-Dioulasso', country: 'BF', sector: 'Communication', level: 'Junior', contractType: 'CDD', deadline: '2026-07-15', isSponsored: true, isFeatured: false, scoreConfidence: 0.78, status: 'ACTIVE' },
+	{ id: '3', title: 'Comptable Senior', organization: 'Cabinet Audit BF', city: 'Ouagadougou', country: 'BF', sector: 'Finance', level: 'Senior', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.85, status: 'ACTIVE' },
+	{ id: '4', title: 'Ingénieur Génie Civil', organization: 'BTP Sahara', city: 'Koudougou', country: 'BF', sector: 'BTP', level: 'Confirmé', contractType: 'CDI', deadline: '2026-06-30', isSponsored: false, isFeatured: false, scoreConfidence: 0.70, status: 'EXPIRED' },
+	{ id: '5', title: 'Assistant Administratif', organization: 'Ministère de la Santé', city: 'Ouagadougou', country: 'BF', sector: 'Administration', level: 'Junior', contractType: 'STAGE', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.88, status: 'ACTIVE' },
 ];
 
 const MOCK_SCRAPERS: ScraperStatus[] = [
-	{ id: 'lefaso', name: 'Lefaso.net', type: 'HTML', lastCrawl: null, newOffers: 0, consecutiveErrors: 0, status: 'ok' },
-	{ id: 'anpe', name: 'ANPE Burkina', type: 'HTML', lastCrawl: null, newOffers: 0, consecutiveErrors: 0, status: 'ok' },
+	{ id: 'lefaso', name: 'Lefaso.net', type: 'HTML', country: 'BF', lastCrawl: null, newOffers: 0, consecutiveErrors: 0, status: 'ok' },
+	{ id: 'anpe-bf', name: 'ANPE Burkina', type: 'HTML', country: 'BF', lastCrawl: null, newOffers: 0, consecutiveErrors: 0, status: 'ok' },
 ];
 
 export const ssr = false;
@@ -30,6 +30,8 @@ export const load: PageLoad = async ({ url }) => {
 	const sector = url.searchParams.get('sector') ?? '';
 	const score = url.searchParams.get('score') ?? '';
 	const title = url.searchParams.get('title') ?? '';
+	const country = url.searchParams.get('country') ?? '';
+	const city = url.searchParams.get('city') ?? '';
 
 	const filters: Record<string, string> = {};
 	if (source) filters.source = source;
@@ -38,6 +40,8 @@ export const load: PageLoad = async ({ url }) => {
 	if (sector) filters.sector = sector;
 	if (score) filters.score = score;
 	if (title) filters.title = title;
+	if (country) filters.country = country;
+	if (city) filters.city = city;
 
 	const [offersRes, scrapersRes] = await Promise.allSettled([
 		adminApi.getOffers(page, filters),
@@ -66,6 +70,8 @@ export const load: PageLoad = async ({ url }) => {
 		if (filters.score && o.scoreConfidence * 100 < Number(filters.score)) return false;
 		if (filters.date && o.createdAt && o.createdAt < filters.date) return false;
 		if (filters.title && !o.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
+		if (filters.country && o.country !== filters.country) return false;
+		if (filters.city && !o.city.toLowerCase().includes(filters.city.toLowerCase())) return false;
 		return true;
 	});
 	return { offers: filtered, total: filtered.length, perPage: 20, totalPages: 1, scrapers, page, filters, error: msg };

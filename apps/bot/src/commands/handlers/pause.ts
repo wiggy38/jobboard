@@ -9,7 +9,7 @@ export async function handlePause(cmd: ParsedCommand, db: PrismaClient): Promise
   });
 
   if (!user) {
-    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer.');
+    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer.', cmd.country);
     return;
   }
 
@@ -17,6 +17,7 @@ export async function handlePause(cmd: ParsedCommand, db: PrismaClient): Promise
     await sendText(
       cmd.userId,
       '⏸️ Tu es déjà en pause.\n\nRéponds *OFFRES* pour reprendre.',
+      cmd.country,
     );
     return;
   }
@@ -31,5 +32,6 @@ export async function handlePause(cmd: ParsedCommand, db: PrismaClient): Promise
     '⏸️ *Notifications mises en pause*\n\n' +
       'Tu ne recevras plus d\'alertes automatiques.\n\n' +
       'Réponds *OFFRES* quand tu veux reprendre.',
+    cmd.country,
   );
 }

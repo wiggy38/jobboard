@@ -20,6 +20,11 @@ jest.mock('../../lib/prisma', () => ({
       findMany: jest.fn().mockResolvedValue([]),
       upsert: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    setting: {
+      // Pas de ligne en base dans les tests → getSetting() retombe sur
+      // DEFAULT_SETTINGS[SETTING_KEYS.TEMPLATE_CAPS] (voir packages/shared/src/settings.ts).
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
   },
 }));

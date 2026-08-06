@@ -29,5 +29,5 @@ export async function handleAide(cmd: ParsedCommand, db: PrismaClient): Promise<
     'AIDE — Afficher ce menu',
   ];
 
-  await sendText(cmd.userId, lines.join('\n'));
+  await sendText(cmd.userId, lines.join('\n'), cmd.country);
 }

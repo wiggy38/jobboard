@@ -98,6 +98,22 @@ export function markChannelJoined(token: string): void {
   }
 }
 
+export interface ReferenceOption {
+  value: string
+  label: string
+}
+
+export interface ReferenceOptions {
+  levels: ReferenceOption[]
+  sectors: ReferenceOption[]
+  citiesByCountry: Record<string, ReferenceOption[]>
+}
+
+export async function fetchReferenceOptions(): Promise<ReferenceOptions> {
+  const { data } = await axios.get<ReferenceOptions>('/api/reference/options')
+  return data
+}
+
 export interface SubscribeProfileData {
   cities: string[]
   sectors: string[]

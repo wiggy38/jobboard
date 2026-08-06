@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { planLimitsForCreate } from '@tumaa/shared';
+import { planLimitsForCreate } from '../lib/planLimits';
 
 export async function upsertUser(phone: string): Promise<{
   id: string;
@@ -7,6 +7,7 @@ export async function upsertUser(phone: string): Promise<{
   status: string;
   trialUsed: boolean;
 }> {
+  const freemiumLimits = await planLimitsForCreate('FREEMIUM');
   const user = await prisma.user.upsert({
     where: { phone },
     create: {
@@ -25,7 +26,7 @@ export async function upsertUser(phone: string): Promise<{
           keywords: [],
           notificationTime: '08:00',
           language: 'fr',
-          ...planLimitsForCreate('FREEMIUM'),
+          ...freemiumLimits,
         },
       },
     },

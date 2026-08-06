@@ -5,6 +5,7 @@ export async function sendRelance(
   userId: string,
   phone: string,
   db: PrismaClient,
+  country?: string,
 ): Promise<{ sent: boolean; reason?: string }> {
   return sendTemplateIfAllowed(
     userId,
@@ -20,5 +21,6 @@ export async function sendRelance(
     },
     phone,
     db,
+    country,
   );
 }

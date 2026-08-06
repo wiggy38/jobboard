@@ -1,14 +1,17 @@
 import type { ParsedCommand } from './types';
+import { getCountryFromPhoneNumberId } from './config';
 
 export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
-  const msg = (webhookBody as any)?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  const value = (webhookBody as any)?.entry?.[0]?.changes?.[0]?.value;
+  const msg = value?.messages?.[0];
   if (!msg) return null;
 
   const userId: string = msg.from;
+  const country = getCountryFromPhoneNumberId(value?.metadata?.phone_number_id);
 
   if (msg.type === 'text' && typeof msg.text?.body === 'string') {
     const raw: string = msg.text.body;
-    return { userId, command: raw.trim().toUpperCase(), raw };
+    return { userId, command: raw.trim().toUpperCase(), raw, country };
   }
 
   if (
@@ -17,7 +20,7 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
     typeof msg.interactive.button_reply?.id === 'string'
   ) {
     const raw: string = msg.interactive.button_reply.id;
-    return { userId, command: raw.trim().toUpperCase(), raw };
+    return { userId, command: raw.trim().toUpperCase(), raw, country };
   }
 
   if (
@@ -26,7 +29,7 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
     typeof msg.interactive.list_reply?.id === 'string'
   ) {
     const raw: string = msg.interactive.list_reply.id;
-    return { userId, command: raw.trim().toUpperCase(), raw };
+    return { userId, command: raw.trim().toUpperCase(), raw, country };
   }
 
   // delivery status, reaction, or unsupported type — ignore

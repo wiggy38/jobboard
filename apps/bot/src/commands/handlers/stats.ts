@@ -29,5 +29,6 @@ export async function handleStats(cmd: ParsedCommand, db: PrismaClient): Promise
       `🏢 Secteurs : ${secteursStr}\n\n` +
       `Réponds *OFFRES* pour les recevoir maintenant\n\n` +
       `Réponds *MODIFIER* pour changer tes critères`,
+    cmd.country,
   );
 }

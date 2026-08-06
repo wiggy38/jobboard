@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types.js';
 	import { adminApi } from '$lib/api.js';
-	import type { JobOfferStatus } from '$lib/types.js';
+	import type { JobOfferStatus, OfferInteractionEvent } from '$lib/types.js';
 	import RichEditor from '../../../../components/RichEditor.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -12,6 +12,30 @@
 	let saving = $state(false);
 	let statusLoading = $state(false);
 	let toast = $state<{ msg: string; ok: boolean } | null>(null);
+
+	const INTERACTIONS_PER_PAGE = 20;
+	let interactionEvents = $state<OfferInteractionEvent[]>([]);
+	let interactionsPage = $state(1);
+	let interactionsTotalPages = $state(1);
+	let interactionsTotal = $state(0);
+	let interactionsLoading = $state(false);
+
+	async function loadInteractions(page: number) {
+		interactionsLoading = true;
+		try {
+			const res = await adminApi.getOfferInteractions(o.id, page, INTERACTIONS_PER_PAGE);
+			interactionEvents = res.data;
+			interactionsPage = res.page;
+			interactionsTotalPages = res.totalPages;
+			interactionsTotal = res.total;
+		} catch {
+			// silencieux — la section reste vide, pas bloquant pour le reste de la page
+		} finally {
+			interactionsLoading = false;
+		}
+	}
+
+	$effect(() => { loadInteractions(1); });
 
 	let editForm = $state(buildForm());
 
@@ -141,12 +165,30 @@
 
 	const interactions = [
 		{ key: 'SEEN', label: 'Vues' },
+		{ key: 'CLICKED_SOURCE', label: 'Clics source' },
+		{ key: 'SHARED', label: 'Partages' },
 		{ key: 'UNLOCKED', label: 'Déverrouillées' },
 		{ key: 'BOOKMARKED', label: 'Sauvegardées' },
 		{ key: 'REPORTED_FRAUD', label: 'Signalements fraude' },
 	];
 
 	const CONTRACT_TYPES = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE', 'FREELANCE', 'BENEVOLE', 'AUTRE'];
+
+	const interactionLabel: Record<string, string> = {
+		SEEN: '👁 Vue',
+		CLICKED_SOURCE: '🔗 Clic source',
+		SHARED: '📤 Partagée',
+		UNLOCKED: '🔓 Déverrouillée',
+		BOOKMARKED: '🔖 Sauvegardée',
+		REPORTED_FRAUD: '⚠ Signalée (fraude)',
+	};
+
+	function fmtDateTime(iso: string): string {
+		return new Date(iso).toLocaleString('fr-FR', {
+			day: 'numeric', month: 'short', year: 'numeric',
+			hour: '2-digit', minute: '2-digit',
+		});
+	}
 </script>
 
 <!-- Toast -->
@@ -380,6 +422,61 @@
 					<div class="prose">{@html o.requirements}</div>
 				</section>
 			{/if}
+
+			<!-- Interactions abonnés -->
+			<section class="section">
+				<h2>Interactions abonnés ({interactionsTotal})</h2>
+				{#if interactionsLoading}
+					<p class="empty-hint">Chargement…</p>
+				{:else if interactionEvents.length === 0}
+					<p class="empty-hint">Aucune interaction enregistrée pour le moment.</p>
+				{:else}
+					<div class="table-wrap">
+						<table class="interactions-table">
+							<thead>
+								<tr>
+									<th>Abonné</th>
+									<th>Interaction</th>
+									<th>Date</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each interactionEvents as ev}
+									<tr>
+										<td>
+											<span class="user-name">{ev.user.displayName ?? '—'}</span>
+											<span class="user-phone">{ev.user.phone}</span>
+										</td>
+										<td>{interactionLabel[ev.action] ?? ev.action}</td>
+										<td>{fmtDateTime(ev.createdAt)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					{#if interactionsTotalPages > 1}
+						<div class="pagination">
+							<button
+								type="button"
+								class="btn-page"
+								disabled={interactionsPage <= 1}
+								onclick={() => loadInteractions(interactionsPage - 1)}
+							>
+								← Précédent
+							</button>
+							<span class="pagination-info">Page {interactionsPage} / {interactionsTotalPages}</span>
+							<button
+								type="button"
+								class="btn-page"
+								disabled={interactionsPage >= interactionsTotalPages}
+								onclick={() => loadInteractions(interactionsPage + 1)}
+							>
+								Suivant →
+							</button>
+						</div>
+					{/if}
+				{/if}
+			</section>
 		</div>
 
 		<div class="col-side">
@@ -757,6 +854,89 @@
 	.prose :global(h1) { font-size: 1.1em; }
 	.prose :global(h2) { font-size: 1em; }
 	.prose :global(h3) { font-size: 0.95em; }
+
+	/* ── Interactions ────────────────────────────────────── */
+	.empty-hint {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+		margin: 0;
+	}
+
+	.table-wrap {
+		overflow-x: auto;
+	}
+
+	.interactions-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.85rem;
+	}
+
+	.interactions-table th {
+		text-align: left;
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 0 0.75rem 0.5rem 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.interactions-table td {
+		padding: 0.5rem 0.75rem 0.5rem 0;
+		border-bottom: 1px solid var(--color-border);
+		color: var(--color-text);
+		vertical-align: middle;
+	}
+
+	.interactions-table tr:last-child td {
+		border-bottom: none;
+	}
+
+	.user-name {
+		display: block;
+		font-weight: 600;
+	}
+
+	.user-phone {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+
+	.pagination-info {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+	}
+
+	.btn-page {
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 5px 12px;
+		border-radius: var(--radius-sm);
+		border: 1.5px solid var(--color-border);
+		background: var(--color-bg);
+		color: var(--color-text);
+		cursor: pointer;
+		transition: border-color 0.12s, color 0.12s;
+	}
+	.btn-page:hover:not(:disabled) {
+		border-color: #2b9964;
+		color: #2b9964;
+	}
+	.btn-page:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
 
 	/* ── Technique ───────────────────────────────────────── */
 	.mono {

@@ -14,9 +14,9 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
       const body = await res.json().catch(() => ({}))
       return { offer: null, error: (body as { error?: string }).error ?? `Erreur ${res.status}` }
     }
-    const offer: TokenizedOffer = await res.json()
-    return { offer, error: null }
+    const body: { job: TokenizedOffer; accessLevel: string } = await res.json()
+    return { offer: body.job, error: null, jobId, jwt, apiBase }
   } catch {
-    return { offer: null, error: 'Erreur réseau — réessayez dans quelques instants.' }
+    return { offer: null, error: 'Erreur réseau — réessayez dans quelques instants.', jobId, jwt, apiBase }
   }
 }

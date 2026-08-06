@@ -18,6 +18,17 @@ jest.mock('../../../services/tokenService', () => ({
   buildSubscribeUrl: jest.fn().mockReturnValue('https://tumaa.bf/subscribe?t=mock-token'),
 }));
 
+jest.mock('../../../lib/planLimits', () => ({
+  planLimitsForCreate: jest.fn().mockResolvedValue({
+    maxCities: 1,
+    maxSectors: 1,
+    maxLevels: 1,
+    maxContractGroups: 1,
+    maxCountries: 1,
+    keywordAlertsEnabled: false,
+  }),
+}));
+
 const { sendText, sendInteractiveCtaUrl } = require('../../../services/whatsapp');
 const { openWindow } = require('../../../session/window');
 const { resetOffset } = require('../../../session/pagination');
@@ -33,7 +44,7 @@ beforeEach(() => jest.clearAllMocks());
 describe('startOnboarding', () => {
   it('envoie un message de bienvenue mentionnant le choix de formule', async () => {
     await startOnboarding(cmd(''), db());
-    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('formule'));
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('formule'), undefined);
   });
 
   it('crée le user + profile FREEMIUM avec villes/secteurs/contrats vides', async () => {
@@ -78,6 +89,7 @@ describe('startOnboarding', () => {
       expect.any(String),
       expect.any(String),
       buildSubscribeUrl('mock-token'),
+      undefined,
     );
   });
 });

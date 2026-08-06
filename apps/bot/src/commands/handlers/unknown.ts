@@ -8,5 +8,6 @@ export async function handleUnknown(cmd: ParsedCommand, _db: PrismaClient): Prom
     '❓ Je n\'ai pas compris cette commande.\n' +
       'Tapez *AIDE* pour voir les commandes disponibles,\n' +
       'ou *OFFRES* pour recevoir vos offres du jour.',
+    cmd.country,
   );
 }

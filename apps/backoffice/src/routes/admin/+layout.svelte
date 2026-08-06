@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { isAdminAuthenticated, logout } from '$lib/auth.js';
+	import { isAdminAuthenticated, getAdminIdentity, logout } from '$lib/auth.js';
 	import { adminApi } from '$lib/api.js';
 	import type { PipelineResult } from '$lib/types.js';
 	import type { Snippet } from 'svelte';
@@ -145,15 +145,24 @@
 
 	// ─────────────────────────────────────────────────────────────────────
 
+	const identity = browser ? getAdminIdentity() : undefined;
+
 	const navLinks = [
 		{ href: '/admin', label: 'Dashboard', exact: true },
 		{ href: '/admin/offres', label: 'Offres', exact: false },
 		{ href: '/admin/abonnes', label: 'Abonnés', exact: false },
 		{ href: '/admin/activite', label: 'Activité pull', exact: false },
+		{ href: '/admin/tracking', label: 'Tracking clics', exact: false },
 		{ href: '/admin/scrapers', label: 'Scrapers', exact: false },
 		{ href: '/admin/templates', label: 'Templates', exact: false },
 		{ href: '/admin/employeurs', label: 'Employeurs', exact: false },
 		{ href: '/admin/scouts', label: 'Scouts', exact: false },
+		...(identity?.role === 'SUPER_ADMIN'
+			? [
+				{ href: '/admin/utilisateurs', label: 'Utilisateurs', exact: false },
+				{ href: '/admin/parametres', label: 'Paramètres', exact: false },
+			]
+			: []),
 	];
 
 	function isActive(link: { href: string; exact: boolean }): boolean {

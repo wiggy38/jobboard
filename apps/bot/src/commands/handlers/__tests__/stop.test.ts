@@ -33,14 +33,14 @@ describe('handleStop', () => {
   it('message d\'erreur si le numéro n\'a pas de compte', async () => {
     const db = makeDb(null);
     await handleStop(cmd, db);
-    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('Aucun compte'));
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('Aucun compte'), undefined);
     expect(db.user.update).not.toHaveBeenCalled();
   });
 
   it('informe l\'utilisateur déjà désinscrit sans le re-mettre à jour', async () => {
     const db = makeDb({ id: 'uuid-1', status: 'STOPPED' });
     await handleStop(cmd, db);
-    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('déjà désinscrit'));
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('déjà désinscrit'), undefined);
     expect(db.user.update).not.toHaveBeenCalled();
   });
 
@@ -63,7 +63,7 @@ describe('handleStop', () => {
   it('envoie le message d\'au revoir', async () => {
     const db = makeDb({ id: 'uuid-1', status: 'ACTIVE' });
     await handleStop(cmd, db);
-    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('désinscrit'));
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('désinscrit'), undefined);
   });
 
   it('ne touche pas la fenêtre d\'un autre utilisateur', async () => {

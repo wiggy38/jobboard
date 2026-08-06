@@ -57,8 +57,11 @@ export interface ProfilePlanLimitsFields {
   keywordAlertsEnabled: boolean
 }
 
-export function planLimitsForCreate(plan: UserPlan): ProfilePlanLimitsFields {
-  const limits = PLAN_LIMITS[plan]
+export function planLimitsForCreate(
+  plan: UserPlan,
+  overrides: Record<UserPlan, PlanLimits> = PLAN_LIMITS
+): ProfilePlanLimitsFields {
+  const limits = overrides[plan]
   return {
     maxCities: limits.maxCities,
     maxSectors: limits.maxSectors,
@@ -84,10 +87,11 @@ export interface PrismaProfileLimitsClient {
 export async function applyPlanLimits(
   client: PrismaProfileLimitsClient,
   userId: string,
-  plan: UserPlan
+  plan: UserPlan,
+  overrides: Record<UserPlan, PlanLimits> = PLAN_LIMITS
 ): Promise<void> {
   await client.profile.update({
     where: { userId },
-    data: planLimitsForCreate(plan),
+    data: planLimitsForCreate(plan, overrides),
   })
 }

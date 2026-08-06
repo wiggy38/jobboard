@@ -225,23 +225,35 @@
 										<thead>
 											<tr>
 												<th>Titre</th>
-												<th>Organisation</th>
 												<th>Ville</th>
 												<th>Secteur</th>
-												<th>Contrat</th>
 												<th>Statut</th>
+												<th>Page ouverte</th>
+												<th>Source cliquée</th>
 											</tr>
 										</thead>
 										<tbody>
 											{#each pull.offers as offer}
 												<tr onclick={() => goto(`/admin/offres/${offer.id}`)} class="clickable-row">
 													<td>{offer.title}</td>
-													<td class="muted">{offer.organization}</td>
 													<td class="muted">{offer.city}</td>
 													<td class="muted">{offer.sector}</td>
-													<td class="muted">{offer.contractType}</td>
 													<td>
 														<span class="badge badge-offer-{offer.status.toLowerCase()}">{offer.status}</span>
+													</td>
+													<td class="muted">
+														{#if offer.seenAt}
+															<span class="badge badge-tracking-yes">✔ {formatDateTime(offer.seenAt)}</span>
+														{:else}
+															<span class="badge badge-tracking-no">Non ouverte</span>
+														{/if}
+													</td>
+													<td class="muted">
+														{#if offer.sourceClickedAt}
+															<span class="badge badge-tracking-yes">✔ {formatDateTime(offer.sourceClickedAt)}</span>
+														{:else}
+															<span class="badge badge-tracking-no">—</span>
+														{/if}
 													</td>
 												</tr>
 											{/each}
@@ -421,6 +433,8 @@
 	.badge-offer-pending { background: #fef9c3; color: #854d0e; }
 	.badge-offer-expired { background: #f3f4f6; color: var(--color-text-muted); }
 	.badge-offer-archived { background: #fee2e2; color: #991b1b; }
+	.badge-tracking-yes { background: var(--color-green-light); color: var(--color-green-dark); }
+	.badge-tracking-no { background: #f3f4f6; color: var(--color-text-muted); font-weight: 500; text-transform: none; letter-spacing: normal; }
 
 	.pagination {
 		display: flex;

@@ -7,6 +7,7 @@
 		goto('/admin');
 	}
 
+	let email = $state('');
 	let password = $state('');
 	let error = $state<string | null>(null);
 	let loading = $state(false);
@@ -20,12 +21,13 @@
 			const res = await fetch('/auth/login', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ password }),
+				body: JSON.stringify({ email, password }),
 				credentials: 'include',
 			});
 
 			if (!res.ok) {
-				error = 'Mot de passe incorrect.';
+				const body = await res.json().catch(() => ({}));
+				error = body.error ?? 'Identifiants invalides.';
 				return;
 			}
 
@@ -52,6 +54,15 @@
 		{/if}
 
 		<form onsubmit={handleSubmit}>
+			<label for="email">Email</label>
+			<input
+				id="email"
+				type="email"
+				bind:value={email}
+				placeholder="prenom@tumaa.bf"
+				autocomplete="username"
+				required
+			/>
 			<label for="password">Mot de passe</label>
 			<input
 				id="password"

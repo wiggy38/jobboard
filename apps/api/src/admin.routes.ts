@@ -1,27 +1,28 @@
 import type { FastifyInstance } from 'fastify'
-import { Prisma, JobOfferStatus } from '@prisma/client'
+import { Prisma, JobOfferStatus, TemplateType } from '@prisma/client'
 import { Queue } from 'bullmq'
 import crypto from 'crypto'
 import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from './lib/prisma'
 import { redis } from './lib/redis'
+import { adminAuth, requireRole } from './middleware/adminAuth'
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const scraperGuard = [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')]
+
+// Pays couverts par les canaux WhatsApp — 1 canal par pays (voir CLAUDE.md)
+const SUPPORTED_COUNTRIES = ['BF', 'BJ', 'TG', 'CI']
+
+function parseCountry(query: unknown): string | undefined {
+  const c = (query as { country?: string } | undefined)?.country
+  return c && SUPPORTED_COUNTRIES.includes(c) ? c : undefined
+}
 
 export async function adminRoutes(fastify: FastifyInstance) {
-  // ── Auth ──────────────────────────────────────────────────────────────
-  fastify.post('/admin/login', async (request, reply) => {
-    const body = request.body as { password?: string }
-    if (!body?.password || body.password !== ADMIN_PASSWORD) {
-      return reply.status(401).send({ error: 'Unauthorized' })
-    }
-    reply.header('Set-Cookie', 'tumaa_admin_session=1; Path=/; Max-Age=28800; SameSite=Lax')
-    return reply.send({ ok: true })
-  })
-
   // ── Scrapers : relancer ──────────────────────────────────────────────
-  fastify.post('/admin/scrapers/:id/run', async (request, reply) => {
+  fastify.post('/admin/scrapers/:id/run', { preHandler: scraperGuard }, async (request, reply) => {
     const { id } = request.params as { id: string }
+    if (!UUID_RE.test(id)) return reply.status(404).send({ error: 'Source introuvable' })
     const source = await prisma.source.findUnique({ where: { id }, select: { name: true } })
     if (!source) return reply.status(404).send({ error: 'Source introuvable' })
 
@@ -34,8 +35,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Scrapers : désactiver/réactiver ──────────────────────────────────
-  fastify.post('/admin/scrapers/:id/disable', async (request, reply) => {
+  fastify.post('/admin/scrapers/:id/disable', { preHandler: scraperGuard }, async (request, reply) => {
     const { id } = request.params as { id: string }
+    if (!UUID_RE.test(id)) return reply.status(404).send({ error: 'Source introuvable' })
     const source = await prisma.source.findUnique({ where: { id }, select: { isActive: true } })
     if (!source) return reply.status(404).send({ error: 'Source introuvable' })
     await prisma.source.update({ where: { id }, data: { isActive: !source.isActive } })
@@ -43,7 +45,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Scrapers : sync tous ─────────────────────────────────────────────
-  fastify.post('/admin/scrapers/sync', async (_request, reply) => {
+  fastify.post('/admin/scrapers/sync', { preHandler: scraperGuard }, async (_request, reply) => {
     let sources: { name: string }[]
     try {
       sources = await prisma.source.findMany({ where: { isActive: true }, select: { name: true } })
@@ -73,7 +75,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Scrapers : health check ──────────────────────────────────────────
-  fastify.post('/admin/scrapers/health', async (_request, reply) => {
+  fastify.post('/admin/scrapers/health', { preHandler: scraperGuard }, async (_request, reply) => {
     const STALE_MS = 25 * 60 * 60 * 1000
     const now = new Date()
 
@@ -110,7 +112,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Jobs : état ──────────────────────────────────────────────────────
-  fastify.get('/admin/jobs/:jobId', async (request, reply) => {
+  fastify.get('/admin/jobs/:jobId', { preHandler: scraperGuard }, async (request, reply) => {
     const { jobId } = request.params as { jobId: string }
     const queue = new Queue('scraper', { connection: redis })
     const job = await queue.getJob(jobId)
@@ -127,11 +129,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Stats globales ────────────────────────────────────────────────────
-  fastify.get('/admin/stats', async (_request, reply) => {
+  fastify.get('/admin/stats', { preHandler: adminAuth }, async (request, reply) => {
+    const country = parseCountry(request.query)
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
     const currentMonth = new Date().toISOString().slice(0, 7) // "2026-06"
+
+    const offerCountryWhere = country ? { country } : {}
+    const userCountryWhere = country ? { countries: { has: country } } : {}
 
     const [
       totalOffers,
@@ -141,32 +147,57 @@ export async function adminRoutes(fastify: FastifyInstance) {
       archivedOffers,
       offersInsertedToday,
       activeUsers,
+      totalActiveUsers,
       templatesSentThisMonth,
       dailyHistory,
+      pullHistory,
     ] = await Promise.all([
-      prisma.jobOffer.count(),
-      prisma.jobOffer.count({ where: { status: 'PENDING' } }),
-      prisma.jobOffer.count({ where: { status: 'ACTIVE' } }),
-      prisma.jobOffer.count({ where: { status: 'EXPIRED' } }),
-      prisma.jobOffer.count({ where: { status: 'ARCHIVED' } }),
-      prisma.jobOffer.count({ where: { createdAt: { gte: todayStart } } }),
-      prisma.user.count({ where: { plan: { not: 'FREEMIUM' }, status: 'ACTIVE' } }),
+      prisma.jobOffer.count({ where: offerCountryWhere }),
+      prisma.jobOffer.count({ where: { status: 'PENDING', ...offerCountryWhere } }),
+      prisma.jobOffer.count({ where: { status: 'ACTIVE', ...offerCountryWhere } }),
+      prisma.jobOffer.count({ where: { status: 'EXPIRED', ...offerCountryWhere } }),
+      prisma.jobOffer.count({ where: { status: 'ARCHIVED', ...offerCountryWhere } }),
+      prisma.jobOffer.count({ where: { createdAt: { gte: todayStart }, ...offerCountryWhere } }),
+      prisma.user.count({ where: { plan: { not: 'FREEMIUM' }, status: 'ACTIVE', ...userCountryWhere } }),
+      prisma.user.count({ where: { status: 'ACTIVE', ...userCountryWhere } }),
       prisma.templateCounter.aggregate({
         _sum: { count: true },
-        where: { month: currentMonth },
+        where: { month: currentMonth, ...(country ? { user: { countries: { has: country } } } : {}) },
       }),
       prisma.$queryRaw<{ date: string; count: bigint }[]>`
         SELECT TO_CHAR(DATE("createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
         FROM "JobOffer"
         WHERE "createdAt" >= NOW() - INTERVAL '10 days'
+        ${country ? Prisma.sql`AND country = ${country}` : Prisma.empty}
         GROUP BY DATE("createdAt")
+        ORDER BY date ASC
+      `,
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT TO_CHAR(pe."date", 'YYYY-MM-DD') AS date, COUNT(DISTINCT pe."userId") AS count
+        FROM "PullEvent" pe
+        JOIN "User" u ON u.id = pe."userId"
+        WHERE pe."date" >= NOW() - INTERVAL '7 days'
+        ${country ? Prisma.sql`AND ${country} = ANY(u."countries")` : Prisma.empty}
+        GROUP BY pe."date"
         ORDER BY date ASC
       `,
     ])
 
+    const pullsByDate = new Map(pullHistory.map((r) => [String(r.date), Number(r.count)]))
+    const todayIso = todayStart.toISOString().slice(0, 10)
+    const tpqPct = (pulls: number) =>
+      totalActiveUsers === 0 ? 0 : Math.round((pulls / totalActiveUsers) * 100)
+
+    const tpqHistory = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(todayStart)
+      d.setDate(d.getDate() - (6 - i))
+      const iso = d.toISOString().slice(0, 10)
+      return { date: iso, count: tpqPct(pullsByDate.get(iso) ?? 0) }
+    })
+
     return reply.send({
       activeUsers,
-      tpqToday: 0,
+      tpqToday: tpqPct(pullsByDate.get(todayIso) ?? 0),
       totalOffers,
       pendingOffers,
       activeOffers,
@@ -179,11 +210,44 @@ export async function adminRoutes(fastify: FastifyInstance) {
         date: String(r.date),
         count: Number(r.count),
       })),
+      tpqHistory,
     })
   })
 
+  // ── Templates : usage du mois par type ─────────────────────────────────
+  fastify.get('/admin/templates/usage', { preHandler: adminAuth }, async (request, reply) => {
+    const country = parseCountry(request.query)
+    const currentMonth = new Date().toISOString().slice(0, 7)
+
+    // Plafonds par utilisateur/mois (voir schema.prisma — enum TemplateType)
+    const PER_USER_CAP: Record<string, number> = {
+      RELANCE: 2,
+      MATCH_PARFAIT: 1,
+      NUDGE_PREMIUM: 1,
+    }
+
+    const [usage, activeUsers] = await Promise.all([
+      prisma.templateCounter.groupBy({
+        by: ['type'],
+        where: { month: currentMonth, ...(country ? { user: { countries: { has: country } } } : {}) },
+        _sum: { count: true },
+      }),
+      prisma.user.count({ where: { status: 'ACTIVE', ...(country ? { countries: { has: country } } : {}) } }),
+    ])
+
+    const usedByType = new Map(usage.map((u) => [u.type, u._sum.count ?? 0]))
+
+    return reply.send(
+      Object.keys(PER_USER_CAP).map((type) => ({
+        type,
+        used: usedByType.get(type as TemplateType) ?? 0,
+        cap: activeUsers * PER_USER_CAP[type],
+      }))
+    )
+  })
+
   // ── Offres : liste ────────────────────────────────────────────────────
-  fastify.get('/admin/offers', async (request, reply) => {
+  fastify.get('/admin/offers', { preHandler: adminAuth }, async (request, reply) => {
     const q = request.query as {
       page?: string
       source?: string
@@ -192,6 +256,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       sector?: string
       score?: string
       title?: string
+      country?: string
+      city?: string
     }
     const page = Math.max(1, Number(q.page ?? '1'))
     const take = 20
@@ -204,6 +270,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (q.score) where.scoreConfidence = { gte: Number(q.score) / 100 }
     if (q.date) where.createdAt = { gte: new Date(q.date) }
     if (q.title) where.title = { contains: q.title, mode: 'insensitive' }
+    if (q.city) where.city = { contains: q.city, mode: 'insensitive' }
+    const country = parseCountry(q)
+    if (country) where.country = country
 
     const [total, offers] = await Promise.all([
       prisma.jobOffer.count({ where }),
@@ -217,6 +286,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           title: true,
           organization: true,
           city: true,
+          country: true,
           sector: true,
           level: true,
           contractType: true,
@@ -230,11 +300,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }),
     ])
 
+    const offerIds = offers.map((o) => o.id)
+    const interactionStats = offerIds.length
+      ? await prisma.jobInteraction.groupBy({
+          by: ['jobId', 'action'],
+          where: { jobId: { in: offerIds }, action: { in: ['SEEN', 'CLICKED_SOURCE'] } },
+          _count: { _all: true },
+        })
+      : []
+    const statsByOffer = new Map<string, { views: number; clicks: number }>()
+    for (const s of interactionStats) {
+      const entry = statsByOffer.get(s.jobId) ?? { views: 0, clicks: 0 }
+      if (s.action === 'SEEN') entry.views = s._count._all
+      if (s.action === 'CLICKED_SOURCE') entry.clicks = s._count._all
+      statsByOffer.set(s.jobId, entry)
+    }
+
     return reply.send({
       offers: offers.map((o) => ({
         ...o,
         deadline: o.deadline?.toISOString() ?? null,
         publishedAt: o.publishedAt?.toISOString() ?? null,
+        views: statsByOffer.get(o.id)?.views ?? 0,
+        clicks: statsByOffer.get(o.id)?.clicks ?? 0,
       })),
       total,
       page,
@@ -244,13 +332,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Scrapers : liste ─────────────────────────────────────────────────
-  fastify.get('/admin/scrapers', async (_request, reply) => {
+  fastify.get('/admin/scrapers', { preHandler: scraperGuard }, async (request, reply) => {
+    const country = parseCountry(request.query)
     const sources = await prisma.source.findMany({
+      where: country ? { country } : undefined,
       orderBy: { name: 'asc' },
       select: {
         id: true,
         name: true,
         type: true,
+        country: true,
         lastCrawled: true,
         crawlErrors: true,
         isActive: true,
@@ -263,6 +354,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         id: s.id,
         name: s.name,
         type: s.type,
+        country: s.country,
         lastCrawl: s.lastCrawled?.toISOString() ?? null,
         newOffers: s._count.jobs,
         consecutiveErrors: s.crawlErrors,
@@ -275,8 +367,41 @@ export async function adminRoutes(fastify: FastifyInstance) {
     )
   })
 
+  // ── Scrapers : historique des pulls ───────────────────────────────────
+  fastify.get('/admin/scrapers/:id/runs', { preHandler: scraperGuard }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const query = request.query as { limit?: string }
+    const limit = Math.min(Math.max(parseInt(query.limit ?? '50', 10) || 50, 1), 200)
+    if (!UUID_RE.test(id)) return reply.status(404).send({ error: 'Source introuvable' })
+
+    const source = await prisma.source.findUnique({ where: { id }, select: { id: true, name: true } })
+    if (!source) return reply.status(404).send({ error: 'Source introuvable' })
+
+    const runs = await prisma.scraperRun.findMany({
+      where: { sourceId: id },
+      orderBy: { startedAt: 'desc' },
+      take: limit,
+    })
+
+    return reply.send({
+      source: { id: source.id, name: source.name },
+      runs: runs.map((r) => ({
+        id: r.id,
+        status: r.status,
+        totalScraped: r.totalScraped,
+        totalInserted: r.totalInserted,
+        totalDuplicates: r.totalDuplicates,
+        totalExpired: r.totalExpired,
+        totalErrors: r.totalErrors,
+        duration: r.duration,
+        errorMessage: r.errorMessage,
+        startedAt: r.startedAt.toISOString(),
+      })),
+    })
+  })
+
   // ── Offres : détail ───────────────────────────────────────────────────
-  fastify.get('/admin/offers/:id', async (request, reply) => {
+  fastify.get('/admin/offers/:id', { preHandler: adminAuth }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const offer = await prisma.jobOffer.findUnique({
@@ -303,8 +428,43 @@ export async function adminRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // ── Offres : interactions abonnés (paginé) ──────────────────────────────
+  fastify.get('/admin/offers/:id/interactions', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const q = request.query as { page?: string; perPage?: string }
+    const page = Math.max(1, Number(q.page) || 1)
+    const perPage = Math.min(100, Math.max(1, Number(q.perPage) || 20))
+
+    const [data, total] = await Promise.all([
+      prisma.jobInteraction.findMany({
+        where: { jobId: id },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+        select: {
+          action: true,
+          createdAt: true,
+          user: { select: { id: true, phone: true, displayName: true } },
+        },
+      }),
+      prisma.jobInteraction.count({ where: { jobId: id } }),
+    ])
+
+    return reply.send({
+      data: data.map((i) => ({
+        action: i.action,
+        createdAt: i.createdAt.toISOString(),
+        user: i.user,
+      })),
+      total,
+      page,
+      perPage,
+      totalPages: Math.max(1, Math.ceil(total / perPage)),
+    })
+  })
+
   // ── Offres : créer (admin direct) ────────────────────────────────────
-  fastify.post('/admin/offers', async (request, reply) => {
+  fastify.post('/admin/offers', { preHandler: adminAuth }, async (request, reply) => {
     const b = (request.body as Record<string, any>) ?? {}
 
     const title: string = b.title ?? ''
@@ -388,7 +548,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   // ── Offres : modifier (champs + statut) ──────────────────────────────
-  fastify.patch('/admin/offers/:id', async (request, reply) => {
+  fastify.patch('/admin/offers/:id', { preHandler: adminAuth }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const b = request.body as Record<string, any>
 

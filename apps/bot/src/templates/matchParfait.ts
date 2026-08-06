@@ -15,7 +15,16 @@ export async function sendMatchParfait(
   phone: string,
   job: JobOffer,
   db: PrismaClient,
+  country?: string,
 ): Promise<{ sent: boolean; reason?: string }> {
+  const alreadyPulled = await db.pullDelivery.findFirst({
+    where: { userId, offers: { some: { id: job.id } } },
+    select: { id: true },
+  });
+  if (alreadyPulled) {
+    return { sent: false, reason: 'ALREADY_PULLED' };
+  }
+
   const body =
     `🔥 *Offre idéale détectée !*\n\n` +
     `💼 ${job.title} — ${job.contractType}\n` +
@@ -30,5 +39,6 @@ export async function sendMatchParfait(
     { type: 'text', text: { body } },
     phone,
     db,
+    country,
   );
 }

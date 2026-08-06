@@ -10,6 +10,7 @@ export interface JobOffer {
   title: string;
   organization: string;
   city: string;
+  country: string;
   sector: string;
   level: string;
   contractType: ContractType;
@@ -21,6 +22,8 @@ export interface JobOffer {
   publishedAt?: string | null;
   description?: string | null;
   applicationUrl?: string | null;
+  views?: number;
+  clicks?: number;
 }
 
 export interface EmployerStats {
@@ -54,6 +57,20 @@ export interface AdminJobOfferDetail extends JobOffer {
   interactions: Record<string, number>;
 }
 
+export interface OfferInteractionEvent {
+  action: 'SEEN' | 'CLICKED_SOURCE' | 'SHARED' | 'UNLOCKED' | 'BOOKMARKED' | 'REPORTED_FRAUD';
+  createdAt: string;
+  user: { id: string; phone: string; displayName: string | null };
+}
+
+export interface PaginatedOfferInteractions {
+  data: OfferInteractionEvent[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+}
+
 export interface AdminStats {
   activeUsers: number;
   tpqToday: number;
@@ -66,6 +83,7 @@ export interface AdminStats {
   templatesSentThisMonth: number;
   templateBudgetCap: number;
   offersDailyHistory: { date: string; count: number }[];
+  tpqHistory: { date: string; count: number }[];
 }
 
 export type TemplateDeliveryStatus = 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
@@ -74,11 +92,30 @@ export interface ScraperStatus {
   id: string;
   name: string;
   type: string;
+  country: string;
   lastCrawl: string | null;
   newOffers: number;
   consecutiveErrors: number;
   status: 'ok' | 'warn' | 'error';
   errorMessage?: string;
+}
+
+export interface ScraperRun {
+  id: string;
+  status: 'SUCCESS' | 'ERROR' | 'SKIPPED';
+  totalScraped: number;
+  totalInserted: number;
+  totalDuplicates: number;
+  totalExpired: number;
+  totalErrors: number;
+  duration: number;
+  errorMessage: string | null;
+  startedAt: string;
+}
+
+export interface ScraperRunHistory {
+  source: { id: string; name: string };
+  runs: ScraperRun[];
 }
 
 export interface PipelineResult {
@@ -261,6 +298,24 @@ export interface PaginatedPullActivity {
   period: { from: string; to: string };
 }
 
+export interface TrackingEvent {
+  id: string;
+  action: 'SEEN' | 'CLICKED_SOURCE';
+  createdAt: string;
+  job: { id: string; title: string; organization: string };
+  user: { id: string; phone: string; displayName: string | null };
+}
+
+export interface PaginatedTracking {
+  data: TrackingEvent[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+  period: { from: string; to: string };
+  summary: { views: number; clicks: number; clickRate: number };
+}
+
 export interface PullDeliveryOffer {
   id: string;
   title: string;
@@ -269,6 +324,8 @@ export interface PullDeliveryOffer {
   sector: string;
   contractType: ContractType;
   status: JobOfferStatus;
+  seenAt: string | null;
+  sourceClickedAt: string | null;
 }
 
 export interface PullDelivery {
@@ -285,6 +342,19 @@ export interface PaginatedPullHistory {
   page: number;
   perPage: number;
   totalPages: number;
+}
+
+// Comptes backoffice (staff interne) — distinct de AdminUser (abonné WhatsApp bot)
+export type AdminAccountRole = 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR';
+
+export interface AdminAccount {
+  id: string;
+  email: string;
+  name: string;
+  role: AdminAccountRole;
+  active: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
 }
 
 export interface TokenizedOffer extends JobOffer {

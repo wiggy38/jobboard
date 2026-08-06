@@ -12,6 +12,15 @@
 	let sector = $state(data.filters.sector ?? '');
 	let score = $state(data.filters.score ?? '');
 	let title = $state(data.filters.title ?? '');
+	let country = $state(data.filters.country ?? '');
+	let city = $state(data.filters.city ?? '');
+
+	const COUNTRIES = [
+		{ code: 'BF', name: 'Burkina Faso' },
+		{ code: 'BJ', name: 'Bénin' },
+		{ code: 'TG', name: 'Togo' },
+		{ code: 'CI', name: "Côte d'Ivoire" },
+	];
 
 	let titleDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -87,6 +96,8 @@
 		if (sector) p.set('sector', sector);
 		if (score) p.set('score', score);
 		if (title) p.set('title', title);
+		if (country) p.set('country', country);
+		if (city) p.set('city', city);
 		return p.toString();
 	}
 
@@ -109,6 +120,8 @@
 		sector = '';
 		score = '';
 		title = '';
+		country = '';
+		city = '';
 		goto('/admin/offres?page=1');
 	}
 
@@ -117,7 +130,7 @@
 	}
 
 	const hasFilters = $derived(
-		source !== '' || date !== '' || status !== '' || sector !== '' || score !== '' || title !== ''
+		source !== '' || date !== '' || status !== '' || sector !== '' || score !== '' || title !== '' || country !== '' || city !== ''
 	);
 </script>
 
@@ -126,6 +139,13 @@
 		<h1>Offres d'emploi</h1>
 		<button class="btn-create" onclick={openCreate}>+ Nouvelle offre</button>
 	</div>
+
+	<nav class="country-tabs">
+		<a href="/admin/offres" class="country-tab active">🌍 Toutes</a>
+		{#each COUNTRIES as c}
+			<a href="/admin/offres/pays/{c.code.toLowerCase()}" class="country-tab">{c.name}</a>
+		{/each}
+	</nav>
 
 	{#if data.error}
 		<div class="api-error">⚠ API error (données mock affichées) : <code>{data.error}</code></div>
@@ -141,6 +161,21 @@
 					bind:value={title}
 					oninput={onTitleInput}
 				/>
+			</label>
+
+			<label class="filter-field">
+				<span>Pays</span>
+				<select bind:value={country}>
+					<option value="">Tous</option>
+					{#each COUNTRIES as c}
+						<option value={c.code}>{c.name}</option>
+					{/each}
+				</select>
+			</label>
+
+			<label class="filter-field">
+				<span>Ville</span>
+				<input type="text" placeholder="ex: Ouagadougou" bind:value={city} />
 			</label>
 
 			<label class="filter-field">
@@ -196,10 +231,13 @@
 		<thead>
 			<tr>
 				<th>Titre</th>
+				<th>Pays</th>
 				<th>Ville</th>
 				<th>Secteur</th>
 				<th>Délai</th>
 				<th>Statut</th>
+				<th>Vues</th>
+				<th>Clics</th>
 				<th>Score</th>
 			</tr>
 		</thead>
@@ -207,6 +245,7 @@
 			{#each data.offers as offer}
 				<tr onclick={() => goto(`/admin/offres/${offer.id}`)} class="clickable">
 					<td class="title">{offer.title}</td>
+					<td class="country">{offer.country}</td>
 					<td class="city">{offer.city}</td>
 					<td>{offer.sector}</td>
 					<td class="deadline">{offer.deadline ? new Date(offer.deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
@@ -215,11 +254,13 @@
 							{offer.status}
 						</span>
 					</td>
+					<td class="metric-cell">{offer.views ?? 0}</td>
+					<td class="metric-cell">{offer.clicks ?? 0}</td>
 					<td>{(offer.scoreConfidence * 100).toFixed(0)}%</td>
 				</tr>
 			{/each}
 			{#if data.offers.length === 0}
-				<tr><td colspan="6" class="empty">Aucune offre trouvée.</td></tr>
+				<tr><td colspan="9" class="empty">Aucune offre trouvée.</td></tr>
 			{/if}
 		</tbody>
 	</table>
@@ -489,8 +530,10 @@
 	}
 
 	td.title { font-weight: 500; color: var(--color-text); max-width: 280px; }
+	td.country { width: 60px; white-space: nowrap; color: var(--color-text-muted); font-weight: 600; }
 	td.city { width: 140px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	td.deadline { width: 120px; white-space: nowrap; color: var(--color-text-muted); }
+	td.metric-cell { width: 70px; text-align: right; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 	td.empty { text-align: center; color: var(--color-text-muted); padding: 2rem; }
 
 	.tag {
@@ -602,6 +645,29 @@
 	}
 	.btn-create:hover { opacity: 0.88; }
 	.btn-create:active { transform: scale(0.93); }
+
+	/* Country tabs */
+	.country-tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.country-tab {
+		display: inline-block;
+		padding: 0.4rem 0.9rem;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--color-border);
+		background: var(--color-bg);
+		color: var(--color-text-muted);
+		font-size: 0.8rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.country-tab:hover { background: var(--color-green-light); border-color: var(--color-green-mid); }
+	.country-tab.active { background: var(--color-green); border-color: var(--color-green); color: #fff; }
 
 	/* Modal */
 	.modal-overlay {

@@ -57,7 +57,7 @@ export async function postDailyChannelTeasers(db: PrismaClient): Promise<Channel
       continue;
     }
 
-    await postToChannel(channelId, teaser);
+    await postToChannel(channelId, teaser, country);
     results.push({ country, posted: true });
   }
 

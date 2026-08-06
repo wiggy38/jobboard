@@ -12,8 +12,35 @@ function deleteCookie(name: string): void {
 	document.cookie = `${name}=; Max-Age=0; path=/`;
 }
 
+export interface AdminIdentity {
+	sub: string;
+	email: string;
+	role: 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR';
+	exp?: number;
+}
+
+function decodeJwtPayload<T>(token: string): T | undefined {
+	try {
+		const payloadB64 = token.split('.')[1];
+		if (!payloadB64) return undefined;
+		const json = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
+		return JSON.parse(json) as T;
+	} catch {
+		return undefined;
+	}
+}
+
+export function getAdminIdentity(): AdminIdentity | undefined {
+	const token = getCookie('tumaa_admin_session');
+	if (!token) return undefined;
+	const payload = decodeJwtPayload<AdminIdentity>(token);
+	if (!payload) return undefined;
+	if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return undefined;
+	return payload;
+}
+
 export function isAdminAuthenticated(): boolean {
-	return !!getCookie('tumaa_admin_session');
+	return !!getAdminIdentity();
 }
 
 export function isEmployerAuthenticated(): boolean {

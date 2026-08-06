@@ -9,7 +9,7 @@ export async function handleParrainer(cmd: ParsedCommand, db: PrismaClient): Pro
   });
 
   if (!user) {
-    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer et obtenir ton code de parrainage.');
+    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer et obtenir ton code de parrainage.', cmd.country);
     return;
   }
 
@@ -20,5 +20,6 @@ export async function handleParrainer(cmd: ParsedCommand, db: PrismaClient): Pro
       `Jours Premium gagnés : *${user.referralCredits}*\n\n` +
       'Partage ton code. Pour chaque ami inscrit,\n' +
       'vous gagnez tous les deux 7 jours Premium offerts !',
+    cmd.country,
   );
 }

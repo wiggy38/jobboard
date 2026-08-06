@@ -36,10 +36,6 @@
 		FAILED: 'Échec',
 	};
 
-	function maskPhone(phone: string): string {
-		if (phone.length <= 6) return phone;
-		return phone.slice(0, 7) + '•••' + phone.slice(-2);
-	}
 </script>
 
 <div class="page">
@@ -79,7 +75,7 @@
 			<tbody>
 				{#each filteredLogs as log}
 					<tr>
-						<td class="phone">{maskPhone(log.phoneNumber)}</td>
+						<td class="phone">{log.phoneNumber}</td>
 						<td>
 							<span class="type-badge type-{log.type.toLowerCase()}">{typeLabel[log.type] ?? log.type}</span>
 						</td>

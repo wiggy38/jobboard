@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify'
+import { SETTING_KEYS } from '@tumaa/shared'
 import { prisma } from '../../lib/prisma'
-import { adminAuth } from '../../middleware/adminAuth'
+import { getSetting } from '../../lib/settings'
+import { adminAuth, requireRole } from '../../middleware/adminAuth'
+
+const guard = [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')]
 
 function getMonthBounds(yyyyMm: string): { start: Date; end: Date } {
   const [y, m] = yyyyMm.split('-').map(Number)
@@ -11,7 +15,7 @@ function getMonthBounds(yyyyMm: string): { start: Date; end: Date } {
 
 export async function scoutRoutes(fastify: FastifyInstance) {
   // GET /admin/scouts
-  fastify.get('/admin/scouts', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/scouts', { preHandler: guard }, async (request, reply) => {
     const q = request.query as {
       isActive?: string
       zone?: string
@@ -22,7 +26,7 @@ export async function scoutRoutes(fastify: FastifyInstance) {
     const page = Math.max(1, Number(q.page ?? '1'))
     const limit = Math.min(100, Math.max(1, Number(q.limit ?? '20')))
     const skip = (page - 1) * limit
-    const CAPTURE_RATE = Number(process.env.SCOUT_CAPTURE_RATE ?? 200)
+    const CAPTURE_RATE = await getSetting(SETTING_KEYS.SCOUTS_CAPTURE_RATE)
 
     const where: Record<string, any> = {}
     if (q.isActive !== undefined) where.isActive = q.isActive === 'true'
@@ -100,7 +104,7 @@ export async function scoutRoutes(fastify: FastifyInstance) {
   })
 
   // GET /admin/scouts/payments — must be before /:id
-  fastify.get('/admin/scouts/payments', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/scouts/payments', { preHandler: guard }, async (request, reply) => {
     const q = request.query as { scoutId?: string; month?: string }
 
     const where: Record<string, any> = {}
@@ -117,9 +121,9 @@ export async function scoutRoutes(fastify: FastifyInstance) {
   })
 
   // GET /admin/scouts/:id
-  fastify.get('/admin/scouts/:id', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/scouts/:id', { preHandler: guard }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const CAPTURE_RATE = Number(process.env.SCOUT_CAPTURE_RATE ?? 200)
+    const CAPTURE_RATE = await getSetting(SETTING_KEYS.SCOUTS_CAPTURE_RATE)
 
     const scout = await prisma.scout.findUnique({
       where: { id },
@@ -154,7 +158,7 @@ export async function scoutRoutes(fastify: FastifyInstance) {
   })
 
   // POST /admin/scouts
-  fastify.post('/admin/scouts', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.post('/admin/scouts', { preHandler: guard }, async (request, reply) => {
     const body = request.body as { name?: string; phone?: string; zone?: string }
 
     if (!body.name || !body.phone || !body.zone) {
@@ -187,7 +191,7 @@ export async function scoutRoutes(fastify: FastifyInstance) {
   })
 
   // PATCH /admin/scouts/:id
-  fastify.patch('/admin/scouts/:id', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.patch('/admin/scouts/:id', { preHandler: guard }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as {
       name?: string
@@ -220,7 +224,7 @@ export async function scoutRoutes(fastify: FastifyInstance) {
   })
 
   // POST /admin/scouts/:id/pay
-  fastify.post('/admin/scouts/:id/pay', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.post('/admin/scouts/:id/pay', { preHandler: guard }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as { month?: string; amount?: number }
 

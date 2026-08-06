@@ -78,7 +78,7 @@ function FreemiumCard({ token, botPhone }: { token: string | null; botPhone: str
       <p className="text-sm text-slate-600 mb-4">1 ville, 1 secteur, 1 niveau d'étude, 1 type de contrat</p>
       <button
         type="button"
-        onClick={() => navigate(`/subscribe/profile?t=${token}&plan=FREEMIUM`)}
+        onClick={() => navigate(`/profile?t=${token}&plan=FREEMIUM`)}
         className="block w-full py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-center hover:bg-slate-100 transition-colors duration-200"
       >
         Définir mon profil

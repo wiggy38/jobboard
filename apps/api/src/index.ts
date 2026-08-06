@@ -9,6 +9,10 @@ import { submissionRoutes } from './routes/admin/submissions'
 import { scoutRoutes } from './routes/admin/scouts'
 import { fraudRoutes } from './routes/admin/fraud'
 import { userRoutes } from './routes/admin/users'
+import { adminAuthRoutes } from './routes/admin/auth'
+import { adminUserRoutes } from './routes/admin/admin-users'
+import { settingsRoutes } from './routes/admin/settings'
+import { referenceRoutes } from './routes/reference'
 import path from 'path'
 
 const app = Fastify({ logger: true })
@@ -22,11 +26,15 @@ app.get('/health', async () => ({ status: 'ok' }))
 
 app.register(offreRoutes)
 app.register(subscribeRoutes)
+app.register(adminAuthRoutes)
+app.register(adminUserRoutes)
 app.register(adminRoutes)
 app.register(submissionRoutes)
 app.register(scoutRoutes)
 app.register(fraudRoutes)
 app.register(userRoutes)
+app.register(settingsRoutes)
+app.register(referenceRoutes)
 
 const start = async () => {
   if (process.env.NODE_ENV === 'production') {

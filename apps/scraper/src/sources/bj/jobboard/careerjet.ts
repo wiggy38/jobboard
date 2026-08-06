@@ -1,10 +1,11 @@
 import axios from 'axios'
-import { RawJobOffer, ScraperResult } from '@tumaa/shared'
+import { RawJobOffer, ScraperResult, SETTING_KEYS } from '@tumaa/shared'
 import { BaseScraper } from '../../../lib/scraper-base'
 import { info, warn } from '../../../lib/logger'
 import { extractWithHaiku } from '../../../lib/ai-extractor'
 import { isLikelyNotJobOffer } from '../../../lib/content-filter'
 import { prioritizeUnseen } from '../../../lib/pagination'
+import { getSetting } from '../../../lib/settings'
 
 // emploibenin.com et optioncarriere.bj sont tous deux protégés par un
 // challenge Cloudflare Turnstile (CAPTCHA) sur toutes leurs pages, y compris
@@ -61,9 +62,9 @@ export class CareerjetBjScraper extends BaseScraper {
     const errors: string[] = []
     const offers: RawJobOffer[] = []
 
-    const affid = process.env.CAREERJET_AFFID
+    const affid = await getSetting(SETTING_KEYS.SCRAPER_CAREERJET_AFFID)
     if (!affid) {
-      errors.push('CAREERJET_AFFID manquant dans .env')
+      errors.push('CAREERJET_AFFID manquant (à configurer dans /admin/parametres ou .env)')
       return { source: this.name, offers: [], errors, scrapedAt: new Date() }
     }
 

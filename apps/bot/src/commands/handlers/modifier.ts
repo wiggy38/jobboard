@@ -13,6 +13,7 @@ export async function handleModifier(cmd: ParsedCommand, _db: PrismaClient): Pro
       '3 — Niveau d\'études\n' +
       '4 — Type de contrat\n\n' +
       'Réponds *1*, *2*, *3* ou *4*.',
+    cmd.country,
   );
   await setState(cmd.userId, { step: 'MODIFIER_CHOICE', data: {} });
 }

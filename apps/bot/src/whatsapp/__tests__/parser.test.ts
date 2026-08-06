@@ -1,8 +1,15 @@
 import { parseIncoming } from '../parser';
 
-function textPayload(from: string, body: string) {
+function textPayload(from: string, body: string, phoneNumberId?: string) {
   return {
-    entry: [{ changes: [{ value: { messages: [{ type: 'text', from, id: 'wamid.test', text: { body } }] } }] }],
+    entry: [{
+      changes: [{
+        value: {
+          ...(phoneNumberId ? { metadata: { phone_number_id: phoneNumberId } } : {}),
+          messages: [{ type: 'text', from, id: 'wamid.test', text: { body } }],
+        },
+      }],
+    }],
   };
 }
 
@@ -44,6 +51,44 @@ describe('parseIncoming — messages texte', () => {
     const result = parseIncoming(textPayload(PHONE, '  stop  '));
     expect(result?.command).toBe('STOP');
     expect(result?.raw).toBe('  stop  ');
+  });
+});
+
+describe('parseIncoming — résolution du pays depuis metadata.phone_number_id', () => {
+  const ENV_KEYS = ['WHATSAPP_PHONE_NUMBER_ID_BF', 'WHATSAPP_ACCESS_TOKEN_BF'];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) saved[key] = process.env[key];
+    process.env.WHATSAPP_PHONE_NUMBER_ID_BF = 'bf-id';
+    process.env.WHATSAPP_ACCESS_TOKEN_BF = 'bf-token';
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  it('phone_number_id connu → country résolu', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { parseIncoming: parseWithFreshConfig } = require('../parser');
+    const result = parseWithFreshConfig(textPayload(PHONE, 'offres', 'bf-id'));
+    expect(result?.country).toBe('BF');
+  });
+
+  it('phone_number_id inconnu → country undefined', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { parseIncoming: parseWithFreshConfig } = require('../parser');
+    const result = parseWithFreshConfig(textPayload(PHONE, 'offres', 'some-other-id'));
+    expect(result?.country).toBeUndefined();
+  });
+
+  it('metadata absente → country undefined, pas de crash', () => {
+    const result = parseIncoming(textPayload(PHONE, 'offres'));
+    expect(result?.country).toBeUndefined();
   });
 });
 

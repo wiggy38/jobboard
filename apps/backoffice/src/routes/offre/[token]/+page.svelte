@@ -1,10 +1,62 @@
 <script lang="ts">
+	import { page } from '$app/state'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
 
 	const offer = $derived(data.offer)
 	const error = $derived(data.error)
+
+	const BOT_PHONE = '22645010707'
+	const BOT_WA_LINK = `https://wa.me/${BOT_PHONE}?text=${encodeURIComponent('OFFRES')}`
+
+	let shareCopied = $state(false)
+
+	function trackSourceClick() {
+		fetch(`${data.apiBase}/api/offre/${data.jobId}/click?t=${data.jwt}`, {
+			method: 'POST',
+			keepalive: true,
+		}).catch(() => {})
+	}
+
+	function trackShare() {
+		fetch(`${data.apiBase}/api/offre/${data.jobId}/share?t=${data.jwt}`, {
+			method: 'POST',
+			keepalive: true,
+		}).catch(() => {})
+	}
+
+	const shareMessage = $derived(
+		offer
+			? `${offer.title} — ${offer.organization} (${offer.city})\n${page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 45 01 07 07 : ${BOT_WA_LINK}`
+			: ''
+	)
+
+	async function shareOffer() {
+		if (!offer) return
+		const shareData = {
+			title: `${offer.title} — ${offer.organization}`,
+			text: shareMessage,
+		}
+		if (navigator.share) {
+			try {
+				await navigator.share(shareData)
+				trackShare()
+			} catch {
+				// annulé par l'utilisateur — rien à faire
+			}
+			return
+		}
+		try {
+			await navigator.clipboard.writeText(shareMessage)
+			shareCopied = true
+			trackShare()
+			setTimeout(() => { shareCopied = false }, 2000)
+		} catch {
+			window.open(waShareUrl, '_blank', 'noopener,noreferrer')
+			trackShare()
+		}
+	}
 
 	const CONTRACT_LABELS: Record<string, string> = {
 		CDI: 'CDI', CDD: 'CDD', STAGE: 'Stage', ALTERNANCE: 'Alternance',
@@ -20,15 +72,26 @@
 	const isVerified = $derived(offer != null && offer.sourceTrustScore > 0.8)
 
 	const waShareUrl = $derived(
-		offer
-			? `https://wa.me/?text=${encodeURIComponent(`${offer.title} — ${offer.organization}`)}`
-			: '#'
+		offer ? `https://wa.me/?text=${encodeURIComponent(shareMessage)}` : '#'
 	)
 
 	const requirements = $derived(
 		offer?.requirements
 			? offer.requirements.split('\n').filter(Boolean)
 			: []
+	)
+
+	const sourceOrigin = $derived.by(() => {
+		if (!offer?.sourceUrl) return null
+		try {
+			return new URL(offer.sourceUrl).origin
+		} catch {
+			return null
+		}
+	})
+
+	const sourceHostname = $derived(
+		sourceOrigin ? new URL(sourceOrigin).hostname.replace(/^www\./, '') : null
 	)
 </script>
 
@@ -52,7 +115,7 @@
 			<img src="/logo.png" alt="Tumaa" class="brand-logo" />
 		</a>
 		<a
-			href="https://wa.me/+22600000000?text=OFFRES"
+			href={BOT_WA_LINK}
 			class="wa-back"
 			target="_blank"
 			rel="noopener noreferrer"
@@ -61,17 +124,29 @@
 		</a>
 	</header>
 
+	{#if offer}
+		<div class="share-friend-bar">
+			<button type="button" class="share-friend-btn" onclick={shareOffer}>
+				{shareCopied ? '✓ Lien copié' : '📤 Envoyer Tumaa à un ami'}
+			</button>
+		</div>
+	{/if}
+
 	<div class="container">
 		{#if error}
 			<div class="error-state">
 				<p class="error-icon">⚠️</p>
 				<h1>Offre introuvable</h1>
 				<p>{error}</p>
-				<a href="https://wa.me/+22600000000?text=OFFRES" target="_blank" rel="noopener noreferrer" class="cta-btn">
+				<a href={BOT_WA_LINK} target="_blank" rel="noopener noreferrer" class="cta-btn">
 					Voir d'autres offres sur WhatsApp
 				</a>
 			</div>
 		{:else if offer}
+			<div class="promo-zone promo-zone-top">
+				<span class="promo-zone-label">Partenaire</span>
+			</div>
+
 			<article class="offer">
 
 				<!-- TAGS -->
@@ -115,32 +190,57 @@
 								: '—'}
 						</span>
 					</div>
+					<div class="meta-item">
+						<span class="meta-label">Date limite</span>
+						<span>
+							{offer.deadline
+								? new Date(offer.deadline).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+								: '—'}
+						</span>
+					</div>
 				</div>
 
 				<!-- CORPS -->
 				{#if offer.description}
 					<section class="section">
-						<h2>Description du poste</h2>
+						<h2>Aperçu du poste</h2>
 						<p class="body-text">{offer.description}</p>
+						{#if offer.sourceUrl}
+							<p class="source-hint">Description complète sur le site source ↓</p>
+						{/if}
 					</section>
 				{/if}
 
 				<!-- SOURCE -->
 				{#if offer.sourceUrl}
 					<section class="section source-cta">
-						<a
-							href={offer.sourceUrl}
-							class="cta-btn cta-primary"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Voir l'offre complète sur le site source →
-						</a>
-						{#if offer.sourceName}
-							<p class="source-hint">Publiée par {offer.sourceName}</p>
+						<div class="cta-row">
+							<a
+								href={offer.sourceUrl}
+								class="cta-btn cta-primary"
+								target="_blank"
+								rel="noopener noreferrer"
+								onclick={trackSourceClick}
+							>
+								Cliquer pour voir l'offre complète
+							</a>
+							<button type="button" class="cta-btn cta-share" onclick={shareOffer}>
+								{shareCopied ? '✓ Lien copié' : '📤 Partager avec un ami'}
+							</button>
+						</div>
+						{#if sourceHostname}
+							<p class="source-hint">
+								Publiée par
+								<a href={sourceOrigin} target="_blank" rel="noopener noreferrer">{sourceHostname}</a>
+							</p>
 						{/if}
 					</section>
 				{/if}
+
+				<!-- PARTENAIRE -->
+				<div class="promo-zone promo-zone-inline">
+					<span class="promo-zone-label">Partenaire</span>
+				</div>
 
 				<!-- EXIGENCES -->
 				{#if requirements.length > 0}
@@ -150,33 +250,6 @@
 							{#each requirements as req}
 								<li>{req}</li>
 							{/each}
-						</ul>
-					</section>
-				{/if}
-
-				<!-- CONTACTS — toujours visibles, quel que soit le plan -->
-				{#if offer.contactEmail || offer.contactPhone || offer.contactAddress}
-					<section class="section contacts-unlocked">
-						<h2>Coordonnées de contact</h2>
-						<ul class="contact-list">
-							{#if offer.contactEmail}
-								<li>
-									<span class="contact-label">Email</span>
-									<a href="mailto:{offer.contactEmail}">{offer.contactEmail}</a>
-								</li>
-							{/if}
-							{#if offer.contactPhone}
-								<li>
-									<span class="contact-label">Téléphone</span>
-									<a href="tel:{offer.contactPhone}">{offer.contactPhone}</a>
-								</li>
-							{/if}
-							{#if offer.contactAddress}
-								<li>
-									<span class="contact-label">Adresse</span>
-									<span>{offer.contactAddress}</span>
-								</li>
-							{/if}
 						</ul>
 					</section>
 				{/if}
@@ -191,6 +264,7 @@
 						class="share-btn"
 						target="_blank"
 						rel="noopener noreferrer"
+						onclick={trackShare}
 					>
 						📤 Partager sur WhatsApp
 					</a>
@@ -198,6 +272,20 @@
 			</article>
 		{/if}
 	</div>
+
+	<footer class="site-footer">
+		<div class="site-footer-inner">
+			<a href="/" class="site-footer-brand">
+				<img src="/logo.png" alt="Tumaa" class="site-footer-logo" />
+			</a>
+			<nav class="site-footer-links">
+				<a href="https://tumaa.bf/cgu.html" target="_blank" rel="noopener noreferrer">CGU</a>
+				<span class="site-footer-sep">·</span>
+				<a href="https://tumaa.bf/mentions-legales.html" target="_blank" rel="noopener noreferrer">Mentions légales</a>
+			</nav>
+			<p class="site-footer-copy">© {new Date().getFullYear()} Tumaa — Burkina Faso</p>
+		</div>
+	</footer>
 </div>
 
 <style>
@@ -205,7 +293,8 @@
 
 	/* TOPBAR */
 	.topbar {
-		background: var(--color-green, #1a7c4a);
+		background: #fff;
+		border-bottom: 1px solid var(--color-border, #e5e7e5);
 		padding: 0.875rem 1.5rem;
 		display: flex;
 		justify-content: space-between;
@@ -223,11 +312,35 @@
 	}
 	.wa-back {
 		font-size: 0.85rem;
-		color: rgba(255,255,255,0.88);
+		color: var(--color-green-dark, #0f5730);
 		text-decoration: none;
 		font-weight: 500;
 	}
-	.wa-back:hover { color: #fff; }
+	.wa-back:hover { color: var(--color-green, #1a7c4a); }
+
+	/* SHARE FRIEND BAR */
+	.share-friend-bar {
+		display: flex;
+		justify-content: center;
+		padding: 0.75rem 1rem;
+		background: var(--color-green-light, #e8f5ee);
+		border-bottom: 1px solid var(--color-border, #e5e7e5);
+	}
+	.share-friend-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		background: var(--color-green, #1a7c4a);
+		color: #fff;
+		border: none;
+		padding: 0.55rem 1.25rem;
+		border-radius: 20px;
+		font-size: 0.85rem;
+		font-weight: 700;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.share-friend-btn:hover { background: var(--color-green-dark, #0f5730); }
 
 	/* LAYOUT */
 	.container {
@@ -292,7 +405,7 @@
 	/* META GRID */
 	.meta-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 1rem;
 		padding: 1rem 1.5rem;
 		border-bottom: 1px solid var(--color-border, #e5e7e5);
@@ -358,25 +471,25 @@
 		background: var(--color-bg-subtle, #f5f7f5);
 	}
 	.source-hint { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
-
-	/* CONTACTS */
-	.contact-list {
-		list-style: none;
-		padding: 0;
-		margin: 0 0 1.25rem;
+	.source-hint a {
+		color: var(--color-green-dark, #0f5730);
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.source-hint a:hover { text-decoration: underline; }
+	.cta-row {
 		display: flex;
-		flex-direction: column;
+		flex-wrap: wrap;
+		justify-content: center;
 		gap: 0.6rem;
 	}
-	.contact-list li { display: flex; gap: 0.75rem; align-items: baseline; font-size: 0.9rem; }
-	.contact-label {
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--color-text-muted, #6b7280);
-		min-width: 70px;
+	.cta-share {
+		background: var(--color-bg, #fff);
+		color: var(--color-green, #1a7c4a);
+		border: 1px solid var(--color-green, #1a7c4a);
+		cursor: pointer;
 	}
+	.cta-share:hover { background: var(--color-green-light, #e8f5ee); }
 
 	/* CTAs */
 	.cta-btn {
@@ -391,6 +504,8 @@
 	.cta-primary {
 		background: var(--color-green, #1a7c4a);
 		color: #fff;
+		font-size: 1.05rem;
+		padding: 0.85rem 1.75rem;
 	}
 	.cta-primary:hover { background: var(--color-green-dark, #0f5730); }
 
@@ -415,6 +530,76 @@
 		border-radius: 6px;
 	}
 	.share-btn:hover { background: #d0ecda; }
+
+	/* PROMO ZONES */
+	.promo-zone {
+		max-width: 760px;
+		margin: 0 auto 1rem;
+		padding: 1.25rem 1rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: repeating-linear-gradient(
+			45deg,
+			var(--color-bg-subtle, #f5f7f5),
+			var(--color-bg-subtle, #f5f7f5) 10px,
+			#eceeec 10px,
+			#eceeec 20px
+		);
+		border: 1px dashed var(--color-border, #d7dbd7);
+		border-radius: 10px;
+		min-height: 90px;
+	}
+	.promo-zone-top { margin-top: 2rem; }
+	.promo-zone-inline { margin: 0 -1.5rem; max-width: none; border-radius: 0; border-left: none; border-right: none; }
+	.promo-zone-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--color-text-muted, #6b7280);
+	}
+
+	/* SITE FOOTER */
+	.site-footer {
+		margin-top: 2.5rem;
+		padding: 2rem 1.5rem 2.5rem;
+		background: #fff;
+		border-top: 1px solid var(--color-border, #e5e7e5);
+	}
+	.site-footer-inner {
+		max-width: 760px;
+		margin: 0 auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.6rem;
+		text-align: center;
+	}
+	.site-footer-logo {
+		height: 28px;
+		width: auto;
+		object-fit: contain;
+		border-radius: 6px;
+		opacity: 0.9;
+	}
+	.site-footer-links {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.82rem;
+	}
+	.site-footer-links a {
+		color: var(--color-green-dark, #0f5730);
+		text-decoration: none;
+		font-weight: 500;
+	}
+	.site-footer-links a:hover { color: var(--color-green, #1a7c4a); text-decoration: underline; }
+	.site-footer-sep { color: var(--color-text-muted, #6b7280); }
+	.site-footer-copy {
+		font-size: 0.75rem;
+		color: var(--color-text-muted, #6b7280);
+	}
 
 	/* ERROR */
 	.error-state {

@@ -1,3 +1,10 @@
+// PayDunya ne distingue pas test/live par une URL différente : c'est le jeu de
+// clés (PAYDUNYA-*-KEY) configuré côté serveur qui détermine l'environnement.
+// SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE (voir apps/api/src/routes/admin/settings.ts)
+// est donc pour l'instant un simple indicateur affiché/édité en backoffice
+// (avec confirmation avant bascule en 'live') — il ne modifie pas encore cet
+// appel. Câbler un vrai bandeau sandbox nécessiterait de vérifier dans la doc
+// PayDunya si un jeu de clés test distinct doit être chargé dynamiquement ici.
 const PAYDUNYA_BASE_URL = 'https://app.paydunya.com/api/v1'
 
 function paydunyaHeaders() {

@@ -90,4 +90,6 @@ export type ParsedCommand = {
   userId: string;   // E.164 phone number of the sender
   command: string;  // normalized uppercase command string
   raw: string;      // original unmodified text from the webhook
+  country?: string; // pays du numéro Tumaa qui a reçu le message (résolu depuis
+                     // metadata.phone_number_id) — undefined si numéro générique/inconnu
 };

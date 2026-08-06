@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
 import { sendText } from '../../services/whatsapp';
-import { applyPlanLimits } from '@tumaa/shared';
+import { applyPlanLimits } from '../../lib/planLimits';
 
 export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
   const user = await db.user.findUnique({
@@ -10,7 +10,7 @@ export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise
   });
 
   if (!user) {
-    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer.');
+    await sendText(cmd.userId, 'Écris *OFFRES* pour commencer.', cmd.country);
     return;
   }
 
@@ -19,12 +19,13 @@ export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise
       cmd.userId,
       '⚠️ Tu as déjà utilisé ton essai gratuit.\n\n' +
         'Réponds *PREMIUM* pour t\'abonner et garder l\'accès complet.',
+      cmd.country,
     );
     return;
   }
 
   if (user.plan !== 'FREEMIUM') {
-    await sendText(cmd.userId, '✅ Tu es déjà abonné Premium. Profite bien de Tumaa !');
+    await sendText(cmd.userId, '✅ Tu es déjà abonné Premium. Profite bien de Tumaa !', cmd.country);
     return;
   }
 
@@ -48,5 +49,6 @@ export async function handleEssai(cmd: ParsedCommand, db: PrismaClient): Promise
       'Tu as maintenant accès à tous les contacts et détails des offres.\n\n' +
       'Réponds *OFFRES* pour en profiter maintenant.\n\n' +
       `Ton essai expire le ${trialEnd.toLocaleDateString('fr-FR')}.`,
+    cmd.country,
   );
 }

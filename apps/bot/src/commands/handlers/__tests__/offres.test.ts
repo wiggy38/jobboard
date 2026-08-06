@@ -11,7 +11,7 @@ jest.mock('../../../session/pagination', () => ({
   resetOffset: jest.fn().mockResolvedValue(undefined),
   setOffset: jest.fn().mockResolvedValue(undefined),
   getOffset: jest.fn().mockResolvedValue(0),
-  PULL_BATCH_SIZE: 10,
+  getPullBatchSize: jest.fn().mockResolvedValue(10),
 }));
 
 jest.mock('../../../session/window', () => ({
@@ -113,7 +113,7 @@ describe('handleOffres — onboarding nouvel utilisateur', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(FREEMIUM_USER);
     await handleOffres(cmd(), makeDb());
-    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('Bienvenue'));
+    expect(sendText).toHaveBeenCalledWith(USER, expect.stringContaining('Bienvenue'), undefined);
   });
 
   it('getUserWithProfile appelé une 2e fois après onboarding pour récupérer le profil créé', async () => {
@@ -163,7 +163,7 @@ describe('handleOffres — pagination', () => {
 describe('handleOffres — livraison', () => {
   it('aucune offre active → sendMessage formatNoMoreOffers, pas de deliverJobsBatch', async () => {
     await handleOffres(cmd(), makeDb([]));
-    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }));
+    expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }), undefined);
     expect(deliverJobsBatch).not.toHaveBeenCalled();
   });
 
@@ -175,6 +175,7 @@ describe('handleOffres — livraison', () => {
       expect.any(Array),
       'FREEMIUM',
       expect.any(Function),
+      undefined,
     );
   });
 

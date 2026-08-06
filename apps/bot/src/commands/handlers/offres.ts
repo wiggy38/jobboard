@@ -2,14 +2,14 @@ import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
 import { getUserWithProfile, upsertUser, recordPullEvent, recordPullDelivery } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
-import { getOffset, setOffset, resetOffset, PULL_BATCH_SIZE } from '../../session/pagination';
+import { getOffset, setOffset, resetOffset, getPullBatchSize } from '../../session/pagination';
 import { openWindow } from '../../session/window';
 import { deliverJobsBatch } from '../../messages/delivery';
 import { sendMessage } from '../../whatsapp/client';
 import { sendText } from '../../services/whatsapp';
 import { formatNoMoreOffers } from '../../messages/formatter';
 
-async function handleOnboarding(phone: string): Promise<void> {
+async function handleOnboarding(phone: string, country?: string): Promise<void> {
   await upsertUser(phone);
   await sendText(
     phone,
@@ -18,6 +18,7 @@ async function handleOnboarding(phone: string): Promise<void> {
       'Je cherche les meilleures offres d\'emploi au Burkina Faso pour toi.\n\n' +
       'Voici tes premières offres :\n' +
       '_(Réponds *MODIFIER* pour affiner ta recherche par ville ou secteur)_',
+    country,
   );
 }
 
@@ -25,7 +26,7 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
   let user = await getUserWithProfile(cmd.userId);
 
   if (!user) {
-    await handleOnboarding(cmd.userId);
+    await handleOnboarding(cmd.userId, cmd.country);
     user = await getUserWithProfile(cmd.userId);
   }
 
@@ -37,13 +38,14 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
 
   await resetOffset(cmd.userId);
   const offset = 0;
-  const batch = sortedOffers.slice(offset, offset + PULL_BATCH_SIZE);
+  const batchSize = await getPullBatchSize();
+  const batch = sortedOffers.slice(offset, offset + batchSize);
 
   if (batch.length === 0) {
-    await sendMessage(cmd.userId, formatNoMoreOffers());
+    await sendMessage(cmd.userId, formatNoMoreOffers(), cmd.country);
   } else {
-    await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage);
-    await setOffset(cmd.userId, offset + PULL_BATCH_SIZE);
+    await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country);
+    await setOffset(cmd.userId, offset + batchSize);
   }
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[offres] recordPullEvent:', err));

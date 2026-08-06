@@ -1,51 +1,35 @@
-import type { FastifyRequest, FastifyReply } from 'fastify'
-import crypto from 'crypto'
+import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify'
+
+export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR'
+
+export interface AdminJwtPayload {
+  sub: string
+  email: string
+  role: AdminRole
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    admin?: AdminJwtPayload
+  }
+}
 
 export async function adminAuth(request: FastifyRequest, reply: FastifyReply) {
-  const auth = request.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return reply.status(401).send({ error: 'Unauthorized' })
-  }
-
-  const token = auth.slice(7)
-
-  // Accept ADMIN_SECRET directly (used by the web app session cookie)
-  const adminSecret = process.env.ADMIN_SECRET
-  if (adminSecret && token === adminSecret) {
-    ;(request as any).admin = true
-    return
-  }
-
-  const parts = token.split('.')
-  if (parts.length !== 3) {
-    return reply.status(401).send({ error: 'Unauthorized' })
-  }
-
-  const [headerB64, payloadB64, signature] = parts
-  const secret = process.env.ADMIN_JWT_SECRET ?? 'change_me_in_production'
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(`${headerB64}.${payloadB64}`)
-    .digest('base64url')
-
-  if (expected !== signature) {
-    return reply.status(401).send({ error: 'Unauthorized' })
-  }
-
-  let payload: { role?: string; exp?: number }
   try {
-    payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'))
+    const payload = await request.jwtVerify<AdminJwtPayload>()
+    if (!payload.role || !payload.sub) {
+      return reply.status(401).send({ error: 'Unauthorized' })
+    }
+    request.admin = payload
   } catch {
     return reply.status(401).send({ error: 'Unauthorized' })
   }
+}
 
-  if (payload.role !== 'admin') {
-    return reply.status(401).send({ error: 'Unauthorized' })
+export function requireRole(...roles: AdminRole[]): preHandlerHookHandler {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.admin || !roles.includes(request.admin.role)) {
+      return reply.status(403).send({ error: 'Forbidden' })
+    }
   }
-
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-    return reply.status(401).send({ error: 'Token expired' })
-  }
-
-  ;(request as any).admin = true
 }

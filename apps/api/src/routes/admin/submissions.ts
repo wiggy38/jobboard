@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify'
 import crypto from 'crypto'
 import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from '../../lib/prisma'
-import { adminAuth } from '../../middleware/adminAuth'
+import { adminAuth, requireRole } from '../../middleware/adminAuth'
+
+const guard = [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')]
 
 function sha256(input: string) {
   return crypto.createHash('sha256').update(input).digest('hex')
@@ -25,7 +27,7 @@ async function getOrCreateInternalSource(type: 'SCOUT' | 'B2B_DIRECT') {
 
 export async function submissionRoutes(fastify: FastifyInstance) {
   // GET /admin/submissions
-  fastify.get('/admin/submissions', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/submissions', { preHandler: guard }, async (request, reply) => {
     const q = request.query as {
       status?: string
       source?: string
@@ -65,7 +67,7 @@ export async function submissionRoutes(fastify: FastifyInstance) {
   })
 
   // GET /admin/submissions/:id
-  fastify.get('/admin/submissions/:id', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.get('/admin/submissions/:id', { preHandler: guard }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const submission = await prisma.jobSubmission.findUnique({
@@ -84,7 +86,7 @@ export async function submissionRoutes(fastify: FastifyInstance) {
   // POST /admin/submissions/:id/validate
   fastify.post(
     '/admin/submissions/:id/validate',
-    { preHandler: adminAuth },
+    { preHandler: guard },
     async (request, reply) => {
       const { id } = request.params as { id: string }
       const body = (request.body as Record<string, any>) ?? {}
@@ -180,7 +182,7 @@ export async function submissionRoutes(fastify: FastifyInstance) {
   // POST /admin/submissions/:id/reject
   fastify.post(
     '/admin/submissions/:id/reject',
-    { preHandler: adminAuth },
+    { preHandler: guard },
     async (request, reply) => {
       const { id } = request.params as { id: string }
       const body = request.body as { rejectionReason?: string }
@@ -205,7 +207,7 @@ export async function submissionRoutes(fastify: FastifyInstance) {
   )
 
   // PATCH /admin/submissions/:id
-  fastify.patch('/admin/submissions/:id', { preHandler: adminAuth }, async (request, reply) => {
+  fastify.patch('/admin/submissions/:id', { preHandler: guard }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = (request.body as Record<string, any>) ?? {}
 

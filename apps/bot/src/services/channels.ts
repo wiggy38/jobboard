@@ -17,7 +17,7 @@ export async function joinNationalChannel(
   country: string,
 ): Promise<void> {
   const channel = NATIONAL_CHANNELS[country] ?? NATIONAL_CHANNELS.BF;
-  const inviteLink = getChannelInviteLink(country) ?? getChannelInviteLink('BF');
+  const inviteLink = (await getChannelInviteLink(country)) ?? (await getChannelInviteLink('BF'));
 
   await db.channelJoin.upsert({
     where: { userId_country: { userId, country } },
@@ -27,7 +27,7 @@ export async function joinNationalChannel(
 
   if (!inviteLink) {
     console.error(`[Channels] Aucun lien d'invitation configuré pour ${channel} (CHANNEL_INVITE_LINK_${country})`);
-    await sendText(phone, `⚠️ Le canal ${channel} n'est pas encore disponible. Réessaie plus tard.`);
+    await sendText(phone, `⚠️ Le canal ${channel} n'est pas encore disponible. Réessaie plus tard.`, country);
     return;
   }
 
@@ -37,9 +37,10 @@ export async function joinNationalChannel(
       `👉 Clique pour rejoindre ${channel} et recevoir un teaser des offres chaque matin à 08:00.`,
       `Rejoindre ${channel}`,
       inviteLink,
+      country,
     );
   } catch (err) {
     console.error(`[Channels] Échec envoi du lien d'invitation ${channel}:`, err);
-    await sendText(phone, `Rejoins manuellement ${channel} : ${inviteLink}`).catch(() => {});
+    await sendText(phone, `Rejoins manuellement ${channel} : ${inviteLink}`, country).catch(() => {});
   }
 }

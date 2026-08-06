@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
-import type { AdminJobOfferDetail, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedPullActivity, PaginatedPullHistory, PaginatedUsers, Scout, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
+import type { SettingKey, SettingValueMap } from '@tumaa/shared';
+import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedTracking, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -30,15 +31,20 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 }
 
 export const adminApi = {
-	getStats: () => apiFetch<AdminStats>('/admin/stats'),
-	getScrapers: () => apiFetch<ScraperStatus[]>('/admin/scrapers'),
-	getTemplateUsage: () => apiFetch<TemplateUsage[]>('/admin/templates/usage'),
+	getStats: (country?: string) =>
+		apiFetch<AdminStats>(`/admin/stats${country ? `?country=${encodeURIComponent(country)}` : ''}`),
+	getScrapers: (country?: string) =>
+		apiFetch<ScraperStatus[]>(`/admin/scrapers${country ? `?country=${encodeURIComponent(country)}` : ''}`),
+	getTemplateUsage: (country?: string) =>
+		apiFetch<TemplateUsage[]>(`/admin/templates/usage${country ? `?country=${encodeURIComponent(country)}` : ''}`),
 	getTemplateLogs: () => apiFetch<TemplateLog[]>('/admin/templates/logs'),
 	getOffers: (page = 1, filters: Record<string, string> = {}) => {
 		const params = new URLSearchParams({ page: String(page), ...filters });
 		return apiFetch<PaginatedOffers>(`/admin/offers?${params}`);
 	},
 	getOffer: (id: string) => apiFetch<AdminJobOfferDetail>(`/admin/offers/${id}`),
+	getOfferInteractions: (id: string, page = 1, perPage = 20) =>
+		apiFetch<PaginatedOfferInteractions>(`/admin/offers/${id}/interactions?page=${page}&perPage=${perPage}`),
 	updateOfferStatus: (id: string, status: string) =>
 		apiFetch<{ ok: boolean }>(`/admin/offers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 	updateOffer: (id: string, data: Partial<AdminJobOfferDetail & { deadline: string | null }>) =>
@@ -53,6 +59,7 @@ export const adminApi = {
 	runScraper: (id: string) => apiFetch<{ jobId: string }>(`/admin/scrapers/${id}/run`, { method: 'POST' }),
 	pollJob: (jobId: string) => apiFetch<JobPollResult>(`/admin/jobs/${encodeURIComponent(jobId)}`),
 	disableScraper: (id: string) => apiFetch<void>(`/admin/scrapers/${id}/disable`, { method: 'POST' }),
+	getScraperRuns: (id: string, limit = 50) => apiFetch<ScraperRunHistory>(`/admin/scrapers/${id}/runs?limit=${limit}`),
 	syncAll: () => apiFetch<SyncAllResult>('/admin/scrapers/sync', { method: 'POST' }),
 	healthCheck: () => apiFetch<HealthCheckResult>('/admin/scrapers/health', { method: 'POST' }),
 	getScouts: () => apiFetch<{ data: Scout[]; total: number }>('/admin/scouts').then(r => r.data),
@@ -74,6 +81,22 @@ export const adminApi = {
 		apiFetch<PaginatedPullHistory>(`/admin/users/${id}/pull-history?page=${page}`),
 	extendSubscription: (id: string, days: number) =>
 		apiFetch<{ ok: boolean; planEndAt: string }>(`/admin/users/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ days }) }),
+	getTracking: (page = 1, filters: Record<string, string> = {}) => {
+		const params = new URLSearchParams({ page: String(page), ...filters });
+		return apiFetch<PaginatedTracking>(`/admin/tracking?${params}`);
+	},
+	getMe: () => apiFetch<{ id: string; email: string; name: string; role: AdminAccountRole }>('/admin/auth/me'),
+	listAdminAccounts: () => apiFetch<AdminAccount[]>('/admin/admin-users'),
+	createAdminAccount: (data: { email: string; name: string; password: string; role: AdminAccountRole }) =>
+		apiFetch<AdminAccount>('/admin/admin-users', { method: 'POST', body: JSON.stringify(data) }),
+	updateAdminAccount: (id: string, data: { name?: string; role?: AdminAccountRole; active?: boolean; password?: string }) =>
+		apiFetch<AdminAccount>(`/admin/admin-users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+	getSettings: () => apiFetch<SettingValueMap>('/admin/settings'),
+	updateSetting: <K extends SettingKey>(key: K, value: SettingValueMap[K]) =>
+		apiFetch<{ ok: boolean; warning?: string }>(`/admin/settings/${encodeURIComponent(key)}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ value }),
+		}),
 };
 
 export const employerApi = {

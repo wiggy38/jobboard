@@ -15,4 +15,12 @@ export async function referenceRoutes(fastify: FastifyInstance) {
 
     return reply.send({ levels, sectors, citiesByCountry })
   })
+
+  // Limites de plan effectives (défaut PLAN_LIMITS, ou surcharge backoffice
+  // via SETTING_KEYS.PLAN_LIMITS) — consommées publiquement par /subscribe
+  // (apps/web) pour ne jamais afficher des chiffres obsolètes.
+  fastify.get('/api/reference/plan-limits', async (_request, reply) => {
+    const limits = await getSetting(SETTING_KEYS.PLAN_LIMITS)
+    return reply.send({ limits })
+  })
 }

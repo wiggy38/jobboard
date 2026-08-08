@@ -29,7 +29,7 @@ export async function handleSuite(cmd: ParsedCommand, db: PrismaClient): Promise
   await setOffset(cmd.userId, offset + batchSize);
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[suite] recordPullEvent:', err));
-  recordPullDelivery(user.id, 'SUITE', batch.map((o) => o.id)).catch((err) =>
+  recordPullDelivery(user.id, 'SUITE', batch.map((o) => o.id), userPlan).catch((err) =>
     console.warn('[suite] recordPullDelivery:', err),
   );
   await openWindow(cmd.userId);

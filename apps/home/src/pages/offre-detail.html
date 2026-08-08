@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Détail de l'offre — Tumaa</title>
+<meta name="description" content="Détail d'une offre d'emploi suivie par Tumaa.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_BF">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="512x512" href="images/favicon-512.png">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+{{> header}}
+
+<div class="promo-slot container" data-promo-slot>
+<span class="promo-label">Publicité</span>
+</div>
+
+<main id="top">
+<section class="section container offer-page">
+<div class="blob blob-1" aria-hidden="true"></div>
+<div class="blob blob-2" aria-hidden="true"></div>
+<a href="offres.html" class="back-link">← Retour aux offres</a>
+
+<div class="offer-detail" data-offer-detail>
+
+<div class="offer-badges" data-offer-badges></div>
+<div class="offer-expiry" data-offer-expiry></div>
+<h1 class="offer-title" data-offer-title></h1>
+<div class="offer-source" data-offer-source></div>
+
+<div class="offer-meta-grid">
+<div class="offer-meta-item"><span class="offer-meta-label">Ville</span><span data-offer-city></span></div>
+<div class="offer-meta-item"><span class="offer-meta-label">Niveau</span><span data-offer-level></span></div>
+<div class="offer-meta-item"><span class="offer-meta-label">Publication</span><span data-offer-published></span></div>
+<div class="offer-meta-item"><span class="offer-meta-label">Date limite</span><span data-offer-deadline></span></div>
+</div>
+
+<h2 class="offer-section-title">Aperçu du poste</h2>
+<p class="offer-preview" data-offer-preview></p>
+<p class="offer-note">Description complète sur le site source ↓</p>
+
+<div class="offer-actions">
+<a class="btn btn-primary btn-sm" data-offer-external target="_blank" rel="noopener">Voir l'offre complète</a>
+<button class="btn btn-secondary btn-sm" data-offer-share-friend type="button">📤 Partager</button>
+</div>
+
+<p class="offer-published-by">Publiée par <span data-offer-publisher></span></p>
+
+<div class="offer-source-card">
+<div><span class="offer-source-tag">Partenaire</span><span class="offer-source-name">Source : <span data-offer-source-name></span></span></div>
+<a class="btn btn-primary btn-sm" data-offer-share-wa target="_blank" rel="noopener">📤 Partager sur WhatsApp</a>
+</div>
+
+</div>
+</section>
+
+<div class="promo-slot container" data-promo-slot>
+<span class="promo-label">Publicité</span>
+</div>
+
+</main>
+
+{{> footer}}
+
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+<script src="js/offre-detail.js"></script>
+</body>
+</html>

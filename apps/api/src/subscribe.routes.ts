@@ -182,6 +182,35 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
+  // Pays inféré du profil (indicatif téléphonique, voir
+  // apps/bot/src/commands/handlers/onboarding.ts) — utilisé par
+  // /subscribe/profile pour proposer la bonne liste de villes. N'a aucun lien
+  // avec les pays de recherche ELITE (User.countries, voir
+  // /api/subscribe/countries plus bas) : Freemium/Premium/Elite restent
+  // mono-pays sur cette étape.
+  fastify.get<{
+    Querystring: { t?: string }
+  }>('/api/subscribe/country', async (request, reply) => {
+    const { t } = request.query ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifySubscribeToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } })
+    if (!user || !user.profile) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    return reply.send({ ok: true, country: user.profile.country })
+  })
+
   // Rejoint le canal WhatsApp national de l'abonné — déterminé uniquement
   // depuis l'indicatif de son numéro, jamais depuis les pays de recherche
   // ELITE (qui n'ont aucun lien avec les canaux). Idempotent : un seul

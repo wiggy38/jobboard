@@ -6,14 +6,31 @@
 
 	const offer = $derived(data.offer)
 	const error = $derived(data.error)
+	const accessLevel = $derived(data.accessLevel)
+	const hasDirectSourceAccess = $derived(accessLevel === 'FULL')
+
+	// Présent uniquement si on arrive via un short link (/s/{code}) — code de
+	// parrainage de l'abonné qui a partagé l'offre, à faire voyager jusqu'à
+	// l'inscription WhatsApp du destinataire (voir apps/bot/src/whatsapp/parser.ts).
+	const ref = $derived(page.url.searchParams.get('ref'))
 
 	const BOT_PHONE = '22645010707'
-	const BOT_WA_LINK = `https://wa.me/${BOT_PHONE}?text=${encodeURIComponent('OFFRES')}`
+	const BOT_WA_LINK = $derived(
+		`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent(ref ? `OFFRES REF-${ref}` : 'OFFRES')}`
+	)
 
 	let shareCopied = $state(false)
+	let shortUrl = $state<string | null>(null)
 
 	function trackSourceClick() {
 		fetch(`${data.apiBase}/api/offre/${data.jobId}/click?t=${data.jwt}`, {
+			method: 'POST',
+			keepalive: true,
+		}).catch(() => {})
+	}
+
+	function trackLockedClick() {
+		fetch(`${data.apiBase}/api/offre/${data.jobId}/click-locked?t=${data.jwt}`, {
 			method: 'POST',
 			keepalive: true,
 		}).catch(() => {})
@@ -26,14 +43,39 @@
 		}).catch(() => {})
 	}
 
+	async function ensureShortUrl(): Promise<string> {
+		if (shortUrl) return shortUrl
+		try {
+			const res = await fetch(`${data.apiBase}/api/offre/${data.jobId}/shortlink?t=${data.jwt}`, {
+				method: 'POST',
+			})
+			if (res.ok) {
+				const body: { shortUrl: string } = await res.json()
+				shortUrl = body.shortUrl
+				return shortUrl
+			}
+		} catch {
+			// réseau indisponible — on retombe sur l'URL complète
+		}
+		return page.url.href
+	}
+
+	// Prépare le short link dès que l'offre est chargée, pour que le lien
+	// "Partager sur WhatsApp" du footer (un <a href>, pas un clic asynchrone)
+	// pointe déjà vers l'URL courte au moment où l'utilisateur clique dessus.
+	$effect(() => {
+		if (offer) ensureShortUrl()
+	})
+
 	const shareMessage = $derived(
 		offer
-			? `${offer.title} — ${offer.organization} (${offer.city})\n${page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 45 01 07 07 : ${BOT_WA_LINK}`
+			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 45 01 07 07 : ${BOT_WA_LINK}`
 			: ''
 	)
 
 	async function shareOffer() {
 		if (!offer) return
+		await ensureShortUrl()
 		const shareData = {
 			title: `${offer.title} — ${offer.organization}`,
 			text: shareMessage,
@@ -212,7 +254,7 @@
 				{/if}
 
 				<!-- SOURCE -->
-				{#if offer.sourceUrl}
+				{#if hasDirectSourceAccess && offer.sourceUrl}
 					<section class="section source-cta">
 						<div class="cta-row">
 							<a
@@ -234,6 +276,32 @@
 								<a href={sourceOrigin} target="_blank" rel="noopener noreferrer">{sourceHostname}</a>
 							</p>
 						{/if}
+					</section>
+				{:else}
+					<section class="section source-cta">
+						<div class="cta-row">
+							<a
+								href="https://tumaa.bf/offres.html"
+								class="cta-btn cta-primary"
+								target="_blank"
+								rel="noopener noreferrer"
+								onclick={trackLockedClick}
+							>
+								Voir toutes les offres
+							</a>
+							<button type="button" class="cta-btn cta-share" onclick={shareOffer}>
+								{shareCopied ? '✓ Lien copié' : '📤 Partager avec un ami'}
+							</button>
+						</div>
+						<p class="source-hint">
+							Passe en
+							<a
+								href={`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent('PREMIUM')}`}
+								target="_blank"
+								rel="noopener noreferrer"
+							>Premium</a>
+							pour accéder directement à l'annonce complète.
+						</p>
 					</section>
 				{/if}
 

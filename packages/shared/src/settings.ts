@@ -36,7 +36,56 @@ export interface ScraperScheduleEntry {
   name: string
   scraperKey: string
   pattern: string
+  // Code ISO du pays desservi par ce scraper (apps/scraper/src/sources/**/*.ts
+  // — voir convention multi-pays dans .claude/CLAUDE.md). Optionnel pour la
+  // rétro-compatibilité avec des lignes `Setting` déjà en base ; les entrées
+  // sans `country` sont traitées comme 'BF' côté backoffice.
+  country?: string
 }
+
+export interface ScraperRegistryEntry {
+  key: string
+  country: string
+}
+
+// Miroir des clés du registre apps/scraper/src/sources/index.ts (Map<string,
+// BaseScraper>) et du pays statique de chaque scraper — sert à peupler le
+// sélecteur "Ajouter un scraper" de /admin/parametres sans laisser un admin
+// taper une scraperKey libre (risque de typo = job silencieusement inerte,
+// scheduler.ts ignore les clés inconnues du registre). À tenir synchronisé
+// manuellement si un scraper est ajouté/retiré du registre.
+export const SCRAPER_REGISTRY: ScraperRegistryEntry[] = [
+  { key: 'lefaso', country: 'BF' },
+  { key: 'reliefweb', country: 'BF' },
+  { key: 'anpe-bf', country: 'BF' },
+  { key: 'emploiburkina', country: 'BF' },
+  { key: 'criburkina', country: 'BF' },
+  { key: 'emploi-lefaso', country: 'BF' },
+  { key: 'bfemploi', country: 'BF' },
+  { key: 'icipe', country: 'BF' },
+  { key: 'professionnallink', country: 'BF' },
+  { key: 'afriqueemplois', country: 'BF' },
+  { key: 'goafricaonline', country: 'BF' },
+  { key: 'linkedin', country: 'BF' },
+  { key: 'sidwaya', country: 'BF' },
+  { key: 'faso7', country: 'BF' },
+  { key: 'talentsplusafrique', country: 'BF' },
+  { key: 'offresdemplois-bj', country: 'BJ' },
+  { key: 'careerjet-bj', country: 'BJ' },
+  { key: 'gouvbj', country: 'BJ' },
+  { key: 'afriqueemplois-bj', country: 'BJ' },
+  { key: 'emploibougebenin', country: 'BJ' },
+  { key: 'jobbenin', country: 'BJ' },
+  { key: 'anpe-bj', country: 'BJ' },
+  { key: 'unjobs', country: 'BJ' },
+  { key: 'novojob', country: 'BJ' },
+  { key: 'bjemploi', country: 'BJ' },
+  { key: 'africarrieres', country: 'BJ' },
+  { key: 'wabajob', country: 'BJ' },
+  { key: 'finexconsulting', country: 'BJ' },
+  { key: 'coinafrique', country: 'BJ' },
+  { key: 'emploiaubenin', country: 'BJ' },
+]
 
 export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM'
 
@@ -70,20 +119,20 @@ export interface SettingValueMap {
 // (deux vagues 12h/22h, décalées de 5 min) — sert de valeur de repli tant
 // qu'aucun admin n'a modifié la programmation depuis le backoffice.
 const DEFAULT_SCRAPER_SCHEDULE: ScraperScheduleEntry[] = [
-  { name: 'lefaso-daily', scraperKey: 'lefaso', pattern: '0 12 * * *' },
-  { name: 'reliefweb-daily', scraperKey: 'reliefweb', pattern: '5 12 * * *' },
-  { name: 'anpe-daily', scraperKey: 'anpe-bf', pattern: '10 12 * * *' },
-  { name: 'bfemploi-daily', scraperKey: 'bfemploi', pattern: '15 12 * * *' },
-  { name: 'icipe-daily', scraperKey: 'icipe', pattern: '20 12 * * *' },
-  { name: 'professionnallink-daily', scraperKey: 'professionnallink', pattern: '25 12 * * *' },
-  { name: 'afriqueemplois-daily', scraperKey: 'afriqueemplois', pattern: '30 12 * * *' },
-  { name: 'emploiburkina-daily', scraperKey: 'emploiburkina', pattern: '0 22 * * *' },
-  { name: 'criburkina-daily', scraperKey: 'criburkina', pattern: '5 22 * * *' },
-  { name: 'emploi-lefaso-daily', scraperKey: 'emploi-lefaso', pattern: '10 22 * * *' },
-  { name: 'goafricaonline-daily', scraperKey: 'goafricaonline', pattern: '15 22 * * *' },
-  { name: 'linkedin-daily', scraperKey: 'linkedin', pattern: '20 22 * * *' },
-  { name: 'sidwaya-daily', scraperKey: 'sidwaya', pattern: '25 22 * * *' },
-  { name: 'faso7-daily', scraperKey: 'faso7', pattern: '30 22 * * *' },
+  { name: 'lefaso-daily', scraperKey: 'lefaso', pattern: '0 12 * * *', country: 'BF' },
+  { name: 'reliefweb-daily', scraperKey: 'reliefweb', pattern: '5 12 * * *', country: 'BF' },
+  { name: 'anpe-daily', scraperKey: 'anpe-bf', pattern: '10 12 * * *', country: 'BF' },
+  { name: 'bfemploi-daily', scraperKey: 'bfemploi', pattern: '15 12 * * *', country: 'BF' },
+  { name: 'icipe-daily', scraperKey: 'icipe', pattern: '20 12 * * *', country: 'BF' },
+  { name: 'professionnallink-daily', scraperKey: 'professionnallink', pattern: '25 12 * * *', country: 'BF' },
+  { name: 'afriqueemplois-daily', scraperKey: 'afriqueemplois', pattern: '30 12 * * *', country: 'BF' },
+  { name: 'emploiburkina-daily', scraperKey: 'emploiburkina', pattern: '0 22 * * *', country: 'BF' },
+  { name: 'criburkina-daily', scraperKey: 'criburkina', pattern: '5 22 * * *', country: 'BF' },
+  { name: 'emploi-lefaso-daily', scraperKey: 'emploi-lefaso', pattern: '10 22 * * *', country: 'BF' },
+  { name: 'goafricaonline-daily', scraperKey: 'goafricaonline', pattern: '15 22 * * *', country: 'BF' },
+  { name: 'linkedin-daily', scraperKey: 'linkedin', pattern: '20 22 * * *', country: 'BF' },
+  { name: 'sidwaya-daily', scraperKey: 'sidwaya', pattern: '25 22 * * *', country: 'BF' },
+  { name: 'faso7-daily', scraperKey: 'faso7', pattern: '30 22 * * *', country: 'BF' },
 ]
 
 // Pays desservis par un canal WhatsApp national (voir .claude/CLAUDE.md) —

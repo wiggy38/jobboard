@@ -159,20 +159,31 @@ export async function userRoutes(fastify: FastifyInstance) {
   // avec pour chacun la liste précise des offres envoyées.
   fastify.get('/admin/users/:id/pull-history', { preHandler: adminAuth }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const q = request.query as { page?: string; limit?: string }
+    const q = request.query as { page?: string; limit?: string; from?: string; to?: string }
 
     const page = Math.max(1, Number(q.page ?? '1'))
     const limit = Math.min(50, Math.max(1, Number(q.limit ?? '20')))
     const skip = (page - 1) * limit
 
+    const createdAt: { gte?: Date; lte?: Date } = {}
+    if (q.from) createdAt.gte = new Date(`${q.from}T00:00:00.000Z`)
+    if (q.to) createdAt.lte = new Date(`${q.to}T23:59:59.999Z`)
+
+    const where = { userId: id, ...(q.from || q.to ? { createdAt } : {}) }
+
     const [total, deliveries] = await Promise.all([
-      prisma.pullDelivery.count({ where: { userId: id } }),
+      prisma.pullDelivery.count({ where }),
       prisma.pullDelivery.findMany({
-        where: { userId: id },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
-        include: {
+        select: {
+          id: true,
+          command: true,
+          offersCount: true,
+          createdAt: true,
+          planAtPull: true,
           offers: {
             select: {
               id: true,
@@ -182,6 +193,7 @@ export async function userRoutes(fastify: FastifyInstance) {
               sector: true,
               contractType: true,
               status: true,
+              source: { select: { type: true } },
             },
           },
         },
@@ -191,24 +203,89 @@ export async function userRoutes(fastify: FastifyInstance) {
     const jobIds = [...new Set(deliveries.flatMap((d) => d.offers.map((o) => o.id)))]
     const interactions = jobIds.length
       ? await prisma.jobInteraction.findMany({
-          where: { userId: id, jobId: { in: jobIds }, action: { in: ['SEEN', 'CLICKED_SOURCE'] } },
+          where: { userId: id, jobId: { in: jobIds }, action: { in: ['SEEN', 'CLICKED_SOURCE', 'SHARED'] } },
           select: { jobId: true, action: true, createdAt: true },
         })
       : []
     const seenAt = new Map(interactions.filter((i) => i.action === 'SEEN').map((i) => [i.jobId, i.createdAt.toISOString()]))
     const clickedAt = new Map(interactions.filter((i) => i.action === 'CLICKED_SOURCE').map((i) => [i.jobId, i.createdAt.toISOString()]))
+    const sharedAt = new Map(interactions.filter((i) => i.action === 'SHARED').map((i) => [i.jobId, i.createdAt.toISOString()]))
 
     return reply.send({
-      data: deliveries.map((d) => ({
-        id: d.id,
-        command: d.command,
-        offersCount: d.offersCount,
-        createdAt: d.createdAt.toISOString(),
-        offers: d.offers.map((o) => ({
-          ...o,
-          seenAt: seenAt.get(o.id) ?? null,
-          sourceClickedAt: clickedAt.get(o.id) ?? null,
-        })),
+      data: deliveries.map((d) => {
+        const effectivePlan = d.planAtPull ?? 'PREMIUM'
+        return {
+          id: d.id,
+          command: d.command,
+          offersCount: d.offersCount,
+          createdAt: d.createdAt.toISOString(),
+          offers: d.offers.map(({ source, ...o }) => ({
+            ...o,
+            seenAt: seenAt.get(o.id) ?? null,
+            sourceClickedAt: clickedAt.get(o.id) ?? null,
+            sharedAt: sharedAt.get(o.id) ?? null,
+            unlocked: source.type === 'B2B_DIRECT' || effectivePlan !== 'FREEMIUM',
+          })),
+        }
+      }),
+      total,
+      page,
+      perPage: limit,
+      totalPages: Math.ceil(total / limit),
+    })
+  })
+
+  // GET /admin/users/:id/referrals
+  // Liste paginée des utilisateurs inscrits via le code de parrainage de cet
+  // abonné (User.referredById) — pour chacun, indique si le profil est
+  // renseigné (villes + secteurs non vides) et l'éventuel plan souscrit
+  // (dernier paiement SUCCESS). Pas de mécanique de récompense pour l'instant.
+  fastify.get('/admin/users/:id/referrals', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const q = request.query as { page?: string; limit?: string }
+
+    const page = Math.max(1, Number(q.page ?? '1'))
+    const limit = Math.min(50, Math.max(1, Number(q.limit ?? '20')))
+    const skip = (page - 1) * limit
+
+    const where = { referredById: id }
+
+    const [total, referrals] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          phone: true,
+          displayName: true,
+          plan: true,
+          status: true,
+          createdAt: true,
+          profile: { select: { cities: true, sectors: true } },
+          payments: {
+            where: { status: 'SUCCESS' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { planPurchased: true, createdAt: true },
+          },
+        },
+      }),
+    ])
+
+    return reply.send({
+      data: referrals.map((u) => ({
+        id: u.id,
+        phone: u.phone,
+        displayName: u.displayName,
+        plan: u.plan,
+        status: u.status,
+        createdAt: u.createdAt.toISOString(),
+        profileCompleted: !!u.profile && u.profile.cities.length > 0 && u.profile.sectors.length > 0,
+        subscribedPlan: u.payments[0]?.planPurchased ?? null,
+        subscribedAt: u.payments[0]?.createdAt.toISOString() ?? null,
       })),
       total,
       page,

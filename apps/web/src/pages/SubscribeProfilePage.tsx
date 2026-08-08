@@ -20,6 +20,7 @@ import {
   saveSubscribeCountries,
   joinHomeChannel,
   fetchReferenceOptions,
+  fetchSubscribeCountry,
   type SubscribeChannel,
   type ReferenceOption,
 } from '../lib/api'
@@ -177,16 +178,20 @@ export default function SubscribeProfilePage() {
 
   // Référentiels édités en backoffice — CITY_OPTIONS/SECTOR_OPTIONS/LEVEL_OPTIONS
   // de @tumaa/shared servent d'état initial (pas de flash vide le temps du
-  // fetch), remplacés dès que /api/reference/options répond. Villes : BF
-  // uniquement pour l'instant (app mono-pays côté abonnement), comme avant.
-  const [cityOptions, setCityOptions] = useState<ReferenceOption[]>(CITY_OPTIONS)
+  // fetch), remplacés dès que /api/reference/options répond. Villes :
+  // filtrées sur le pays du profil (indicatif téléphonique à l'onboarding,
+  // voir /api/subscribe/country) — mono-pays pour Freemium/Premium/Elite sur
+  // cette étape, distinct des pays de recherche ELITE choisis plus loin.
+  const [citiesByCountry, setCitiesByCountry] = useState<Record<string, ReferenceOption[]> | null>(null)
+  const [country, setCountry] = useState('BF')
   const [sectorOptions, setSectorOptions] = useState<ReferenceOption[]>(SECTOR_OPTIONS)
   const [levelOptions, setLevelOptions] = useState<ReferenceOption[]>(LEVEL_OPTIONS)
+  const cityOptions = citiesByCountry?.[country] ?? CITY_OPTIONS
 
   useEffect(() => {
     fetchReferenceOptions()
       .then((opts) => {
-        setCityOptions(opts.citiesByCountry.BF ?? CITY_OPTIONS)
+        setCitiesByCountry(opts.citiesByCountry)
         setSectorOptions(opts.sectors)
         setLevelOptions(opts.levels)
       })
@@ -194,6 +199,15 @@ export default function SubscribeProfilePage() {
         // pas bloquant : on garde les valeurs par défaut de @tumaa/shared
       })
   }, [])
+
+  useEffect(() => {
+    if (!token) return
+    fetchSubscribeCountry(token)
+      .then(setCountry)
+      .catch(() => {
+        // pas bloquant : on garde BF par défaut
+      })
+  }, [token])
 
   useEffect(() => {
     if (plan !== 'ELITE' || !token) return

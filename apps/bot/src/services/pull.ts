@@ -1,13 +1,24 @@
+import { UserPlan } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { planLimitsForCreate } from '../lib/planLimits';
 
-export async function upsertUser(phone: string): Promise<{
+export async function upsertUser(phone: string, referralCode?: string): Promise<{
   id: string;
   plan: string;
   status: string;
   trialUsed: boolean;
 }> {
   const freemiumLimits = await planLimitsForCreate('FREEMIUM');
+
+  // Résolution du parrain (forward-only : ne s'applique qu'à la création d'un
+  // nouvel utilisateur, jamais à une mise à jour d'un compte existant — pas de
+  // récompense pour l'instant, référentiel seulement).
+  let referredById: string | undefined;
+  if (referralCode) {
+    const referrer = await prisma.user.findUnique({ where: { referralCode }, select: { id: true } });
+    if (referrer) referredById = referrer.id;
+  }
+
   const user = await prisma.user.upsert({
     where: { phone },
     create: {
@@ -17,6 +28,7 @@ export async function upsertUser(phone: string): Promise<{
       trialUsed: false,
       referralCode: crypto.randomUUID().slice(0, 8).toUpperCase(),
       referralCredits: 0,
+      ...(referredById ? { referredById } : {}),
       profile: {
         create: {
           cities: [],
@@ -57,6 +69,7 @@ export async function recordPullDelivery(
   userId: string,
   command: 'OFFRES' | 'SUITE',
   offerIds: string[],
+  plan: UserPlan,
 ): Promise<void> {
   await prisma.pullDelivery.create({
     data: {
@@ -64,6 +77,7 @@ export async function recordPullDelivery(
       command,
       offersCount: offerIds.length,
       offers: { connect: offerIds.map((id) => ({ id })) },
+      planAtPull: plan,
     },
   });
 }

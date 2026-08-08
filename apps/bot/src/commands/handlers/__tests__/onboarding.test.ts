@@ -35,9 +35,15 @@ const { resetOffset } = require('../../../session/pagination');
 const { generateSubscribeToken, buildSubscribeUrl } = require('../../../services/tokenService');
 
 const USER = '+22670000001';
-const cmd = (command: string, raw = command) => ({ userId: USER, command, raw });
-const db = () =>
-  ({ user: { upsert: jest.fn().mockResolvedValue({ id: 'user-1' }) } } as any);
+const cmd = (command: string, raw = command, referralCode?: string) =>
+  ({ userId: USER, command, raw, referralCode });
+const db = (findUniqueResult: { id: string } | null = null) =>
+  ({
+    user: {
+      upsert: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      findUnique: jest.fn().mockResolvedValue(findUniqueResult),
+    },
+  } as any);
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -91,5 +97,36 @@ describe('startOnboarding', () => {
       buildSubscribeUrl('mock-token'),
       undefined,
     );
+  });
+});
+
+describe('startOnboarding — parrainage (referredById, forward-only)', () => {
+  it('code de parrainage valide → referredById renseigné à la création', async () => {
+    const mockDb = db({ id: 'referrer-1' });
+    await startOnboarding(cmd('', '', 'REF-ABC12345'), mockDb);
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith({
+      where: { referralCode: 'REF-ABC12345' },
+      select: { id: true },
+    });
+    expect(mockDb.user.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ referredById: 'referrer-1' }),
+      }),
+    );
+  });
+
+  it('code de parrainage inconnu → pas de referredById, pas de crash', async () => {
+    const mockDb = db(null);
+    await startOnboarding(cmd('', '', 'REF-UNKNOWN1'), mockDb);
+    const createArg = mockDb.user.upsert.mock.calls[0][0].create;
+    expect(createArg).not.toHaveProperty('referredById');
+  });
+
+  it('pas de code de parrainage → aucun appel findUnique, pas de referredById', async () => {
+    const mockDb = db();
+    await startOnboarding(cmd(''), mockDb);
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    const createArg = mockDb.user.upsert.mock.calls[0][0].create;
+    expect(createArg).not.toHaveProperty('referredById');
   });
 });

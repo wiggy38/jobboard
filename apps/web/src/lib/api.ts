@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { PlanLimits, UserPlan } from '@tumaa/shared'
 
 export async function trackSubscribeClick(token: string, plan?: 'PREMIUM' | 'ELITE'): Promise<void> {
   try {
@@ -58,6 +59,13 @@ export interface SaveCountriesResponse {
   countries: string[]
 }
 
+export async function fetchSubscribeCountry(token: string): Promise<string> {
+  const { data } = await axios.get<{ ok: true; country: string }>('/api/subscribe/country', {
+    params: { t: token },
+  })
+  return data.country
+}
+
 export async function fetchSubscribeCountries(token: string): Promise<string[]> {
   const { data } = await axios.get<{ ok: true; countries: string[] }>('/api/subscribe/countries', {
     params: { t: token },
@@ -112,6 +120,13 @@ export interface ReferenceOptions {
 export async function fetchReferenceOptions(): Promise<ReferenceOptions> {
   const { data } = await axios.get<ReferenceOptions>('/api/reference/options')
   return data
+}
+
+export async function fetchPlanLimits(): Promise<Record<UserPlan, PlanLimits>> {
+  const { data } = await axios.get<{ limits: Record<UserPlan, PlanLimits> }>(
+    '/api/reference/plan-limits'
+  )
+  return data.limits
 }
 
 export interface SubscribeProfileData {

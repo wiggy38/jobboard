@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import type { SettingKey, SettingValueMap } from '@tumaa/shared';
-import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedTracking, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
+import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminKpis, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedReferrals, PaginatedTracking, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -33,6 +33,14 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 export const adminApi = {
 	getStats: (country?: string) =>
 		apiFetch<AdminStats>(`/admin/stats${country ? `?country=${encodeURIComponent(country)}` : ''}`),
+	getKpis: (params: { from?: string; to?: string; country?: string } = {}) => {
+		const query = new URLSearchParams();
+		if (params.from) query.set('from', params.from);
+		if (params.to) query.set('to', params.to);
+		if (params.country) query.set('country', params.country);
+		const qs = query.toString();
+		return apiFetch<AdminKpis>(`/admin/kpis${qs ? `?${qs}` : ''}`);
+	},
 	getScrapers: (country?: string) =>
 		apiFetch<ScraperStatus[]>(`/admin/scrapers${country ? `?country=${encodeURIComponent(country)}` : ''}`),
 	getTemplateUsage: (country?: string) =>
@@ -77,8 +85,12 @@ export const adminApi = {
 		const params = new URLSearchParams({ page: String(page), ...filters });
 		return apiFetch<PaginatedPullActivity>(`/admin/users/pull-activity?${params}`);
 	},
-	getUserPullHistory: (id: string, page = 1) =>
-		apiFetch<PaginatedPullHistory>(`/admin/users/${id}/pull-history?page=${page}`),
+	getUserPullHistory: (id: string, page = 1, filters: Record<string, string> = {}) => {
+		const params = new URLSearchParams({ page: String(page), ...filters });
+		return apiFetch<PaginatedPullHistory>(`/admin/users/${id}/pull-history?${params}`);
+	},
+	getUserReferrals: (id: string, page = 1) =>
+		apiFetch<PaginatedReferrals>(`/admin/users/${id}/referrals?page=${page}`),
 	extendSubscription: (id: string, days: number) =>
 		apiFetch<{ ok: boolean; planEndAt: string }>(`/admin/users/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ days }) }),
 	getTracking: (page = 1, filters: Record<string, string> = {}) => {

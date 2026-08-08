@@ -92,4 +92,7 @@ export type ParsedCommand = {
   raw: string;      // original unmodified text from the webhook
   country?: string; // pays du numéro Tumaa qui a reçu le message (résolu depuis
                      // metadata.phone_number_id) — undefined si numéro générique/inconnu
+  referralCode?: string; // code de parrainage détecté en suffixe ("OFFRES REF-XXXX"),
+                          // transmis depuis le lien wa.me généré sur la page offre
+                          // partagée via short link — voir apps/bot/src/whatsapp/parser.ts
 };

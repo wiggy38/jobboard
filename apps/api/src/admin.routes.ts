@@ -214,6 +214,107 @@ export async function adminRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // ── KPI journaliers : inscription, profil complété, offres consultées,
+  // clic offre verrouillée, conversion Premium, partage ──────────────────
+  fastify.get('/admin/kpis', { preHandler: adminAuth }, async (request, reply) => {
+    const q = request.query as { from?: string; to?: string }
+    const country = parseCountry(request.query)
+
+    const now = new Date()
+    const defaultFrom = new Date(now)
+    defaultFrom.setDate(defaultFrom.getDate() - 30)
+
+    const fromDate = new Date((q.from ?? defaultFrom.toISOString().slice(0, 10)) + 'T00:00:00.000Z')
+    const toDate = new Date((q.to ?? now.toISOString().slice(0, 10)) + 'T23:59:59.999Z')
+
+    const countryFilter = country ? Prisma.sql`AND ${country} = ANY(u."countries")` : Prisma.empty
+
+    const [signups, profileCompleted, offersViewed, lockedClicks, premiumConversions, shares] =
+      await Promise.all([
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(u."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "User" u
+          WHERE u."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(u."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(p."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "Profile" p
+          JOIN "User" u ON u.id = p."userId"
+          WHERE p."createdAt" BETWEEN ${fromDate} AND ${toDate}
+            AND cardinality(p.cities) > 0 AND cardinality(p.sectors) > 0
+          ${countryFilter}
+          GROUP BY DATE(p."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "JobInteraction" ji
+          JOIN "User" u ON u.id = ji."userId"
+          WHERE ji.action = 'SEEN' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(ji."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "JobInteraction" ji
+          JOIN "User" u ON u.id = ji."userId"
+          WHERE ji.action = 'CLICKED_LOCKED' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(ji."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(pay."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "Payment" pay
+          JOIN "User" u ON u.id = pay."userId"
+          WHERE pay.status = 'SUCCESS' AND pay."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(pay."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "JobInteraction" ji
+          JOIN "User" u ON u.id = ji."userId"
+          WHERE ji.action = 'SHARED' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(ji."createdAt")
+          ORDER BY date ASC
+        `,
+      ])
+
+    const toSeries = (rows: { date: string; count: bigint }[]) =>
+      rows.map((r) => ({ date: String(r.date), count: Number(r.count) }))
+    const sumSeries = (rows: { date: string; count: bigint }[]) =>
+      rows.reduce((acc, r) => acc + Number(r.count), 0)
+
+    const series = {
+      signups: toSeries(signups),
+      profileCompleted: toSeries(profileCompleted),
+      offersViewed: toSeries(offersViewed),
+      lockedClicks: toSeries(lockedClicks),
+      premiumConversions: toSeries(premiumConversions),
+      shares: toSeries(shares),
+    }
+
+    return reply.send({
+      period: { from: fromDate.toISOString(), to: toDate.toISOString() },
+      series,
+      totals: {
+        signups: sumSeries(signups),
+        profileCompleted: sumSeries(profileCompleted),
+        offersViewed: sumSeries(offersViewed),
+        lockedClicks: sumSeries(lockedClicks),
+        premiumConversions: sumSeries(premiumConversions),
+        shares: sumSeries(shares),
+      },
+    })
+  })
+
   // ── Templates : usage du mois par type ─────────────────────────────────
   fastify.get('/admin/templates/usage', { preHandler: adminAuth }, async (request, reply) => {
     const country = parseCountry(request.query)
@@ -242,6 +343,32 @@ export async function adminRoutes(fastify: FastifyInstance) {
         type,
         used: usedByType.get(type as TemplateType) ?? 0,
         cap: activeUsers * PER_USER_CAP[type],
+      }))
+    )
+  })
+
+  // ── Templates : historique des envois ──────────────────────────────────
+  fastify.get('/admin/templates/logs', { preHandler: adminAuth }, async (request, reply) => {
+    const country = parseCountry(request.query)
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        isPaid: true,
+        templateType: { not: null },
+        ...(country ? { user: { countries: { has: country } } } : {}),
+      },
+      orderBy: { sentAt: 'desc' },
+      take: 100,
+      include: { user: { select: { phone: true } } },
+    })
+
+    return reply.send(
+      notifications.map((n) => ({
+        id: n.id,
+        phoneNumber: n.user.phone,
+        type: n.templateType,
+        sentAt: n.sentAt.toISOString(),
+        status: n.status,
       }))
     )
   })

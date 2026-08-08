@@ -17,10 +17,10 @@ export interface PlanLimits {
 // dans packages/db pour la synchronisation vers Profile.
 export const PLAN_LIMITS: Record<UserPlan, PlanLimits> = {
   FREEMIUM: {
-    maxCities: 1,
-    maxSectors: 1,
+    maxCities: 3,
+    maxSectors: 3,
     maxLevels: 1,
-    maxContractGroups: 1,
+    maxContractGroups: 3,
     maxCountries: 1,
     keywordAlertsEnabled: false,
   },
@@ -36,7 +36,7 @@ export const PLAN_LIMITS: Record<UserPlan, PlanLimits> = {
     maxCities: UNLIMITED,
     maxSectors: UNLIMITED,
     maxLevels: UNLIMITED,
-    maxContractGroups: UNLIMITED,
+    maxContractGroups: 3,
     maxCountries: 3,
     keywordAlertsEnabled: true,
   },

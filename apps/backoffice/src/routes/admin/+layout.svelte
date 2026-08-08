@@ -153,6 +153,7 @@
 		{ href: '/admin/abonnes', label: 'Abonnés', exact: false },
 		{ href: '/admin/activite', label: 'Activité pull', exact: false },
 		{ href: '/admin/tracking', label: 'Tracking clics', exact: false },
+		{ href: '/admin/kpis', label: 'KPI', exact: false },
 		{ href: '/admin/scrapers', label: 'Scrapers', exact: false },
 		{ href: '/admin/templates', label: 'Templates', exact: false },
 		{ href: '/admin/employeurs', label: 'Employeurs', exact: false },

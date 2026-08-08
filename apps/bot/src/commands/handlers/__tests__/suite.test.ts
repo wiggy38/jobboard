@@ -233,6 +233,7 @@ describe('handleSuite — recordPullDelivery (historique détaillé)', () => {
       FREEMIUM_USER.id,
       'SUITE',
       ['o0', 'o1', 'o2', 'o3', 'o4', 'o5'],
+      'FREEMIUM',
     );
   });
 });

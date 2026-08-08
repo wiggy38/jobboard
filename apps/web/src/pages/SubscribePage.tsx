@@ -1,57 +1,85 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { PLAN_LIMITS, isUnlimited, type PlanLimits, type UserPlan } from '@tumaa/shared'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
-import { initiateSubscribePayment, simulateSubscribePayment, trackSubscribeClick } from '../lib/api'
+import { fetchPlanLimits, initiateSubscribePayment, simulateSubscribePayment, trackSubscribeClick } from '../lib/api'
 
 const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
 
-const PREMIUM_FEATURES = [
-  'Rechercher dans 3 villes',
-  'Rechercher dans 3 secteurs d\'activités',
-  'Rechercher jusqu\'à 3 types de contrat',
-  'Alertes par mots-clés',
-]
+function freemiumSummary(limits: PlanLimits): string {
+  const cities = isUnlimited(limits.maxCities) ? 'villes illimitées' : `${limits.maxCities} villes`
+  const sectors = isUnlimited(limits.maxSectors) ? 'secteurs illimités' : `${limits.maxSectors} secteurs`
+  const levels = isUnlimited(limits.maxLevels) ? "niveaux d'étude illimités" : `${limits.maxLevels} niveau d'étude`
+  return `${cities}, ${sectors}, ${levels}, ${limits.maxContractGroups} types de contrat`
+}
 
-const ELITE_FEATURES = [
-  'Tout du Premium',
-  "Jusqu'à 3 pays de recherche",
-]
+function premiumFeatures(limits: PlanLimits): string[] {
+  const cities = isUnlimited(limits.maxCities) ? 'un nombre illimité de villes' : `${limits.maxCities} villes`
+  const sectors = isUnlimited(limits.maxSectors)
+    ? "un nombre illimité de secteurs d'activités"
+    : `${limits.maxSectors} secteurs d'activités`
+  return [
+    `Rechercher dans ${cities}`,
+    `Rechercher dans ${sectors}`,
+    `Rechercher jusqu'à ${limits.maxContractGroups} types de contrat`,
+    'Alertes par mots-clés',
+    "Lien direct vers l'offre complète",
+  ]
+}
 
-const FAQ_ITEMS = [
-  {
-    question: 'Comment se passe le paiement ?',
-    answer:
-      'En cliquant sur "S\'abonner", tu es redirigé vers PayDunya pour payer par Orange Money, Moov Money, Coris Money ou carte bancaire. Une fois le paiement confirmé, ton abonnement est activé automatiquement.',
-  },
-  {
-    question: "Qu'est-ce que l'essai gratuit de 48h ?",
-    answer:
-      'Tape ESSAI sur WhatsApp pour débloquer les fonctionnalités Premium pendant 48h, sans paiement. À la fin de l\'essai, tu repasses automatiquement en Freemium sauf si tu t\'abonnes.',
-  },
-  {
-    question: 'Quelle est la différence entre PREMIUM et ELITE ?',
-    answer:
-      "PREMIUM couvre 3 villes et 3 secteurs dans ton pays. ELITE ajoute une recherche illimitée en villes/secteurs et te permet de choisir jusqu'à 3 pays de recherche.",
-  },
-  {
-    question: 'Comment choisir mes pays en ELITE ?',
-    answer:
-      "Une fois abonné ELITE, tape PAYS sur WhatsApp pour sélectionner jusqu'à 3 pays. Tu es automatiquement ajouté aux canaux d'emploi correspondants.",
-  },
-  {
-    question: 'Mon paiement est resté en attente, que faire ?',
-    answer:
-      "Tape VÉRIFIER sur WhatsApp pour resynchroniser ton paiement avec PayDunya. Si le paiement date de plus de 24h et reste bloqué, contacte le support depuis WhatsApp.",
-  },
-  {
-    question: 'Puis-je annuler mon abonnement ?',
-    answer:
-      "Oui, à tout moment en tapant STOP sur WhatsApp. Tu conserves l'accès jusqu'à la fin de la période déjà payée, puis tu repasses en Freemium.",
-  },
-]
+function eliteFeatures(limits: PlanLimits): string[] {
+  return [...premiumFeatures(limits), `Jusqu'à ${limits.maxCountries} pays de recherche`]
+}
 
-function FreemiumCard({ token, botPhone }: { token: string | null; botPhone: string }) {
+function buildFaqItems(premium: PlanLimits, elite: PlanLimits) {
+  return [
+    {
+      question: 'Comment se passe le paiement ?',
+      answer:
+        'En cliquant sur "S\'abonner", tu es redirigé vers PayDunya pour payer par Orange Money, Moov Money, Coris Money ou carte bancaire. Une fois le paiement confirmé, ton abonnement est activé automatiquement.',
+    },
+    {
+      question: 'Quelle est la différence entre Freemium et Premium ?',
+      answer:
+        `Freemium et Premium couvrent les mêmes ${premium.maxCities} villes et ${premium.maxSectors} secteurs. La différence : Premium débloque le lien direct vers l'annonce complète sur le site source, alors qu'en Freemium tu es redirigé vers la liste des offres.`,
+    },
+    {
+      question: 'Quelle est la différence entre PREMIUM et ELITE ?',
+      answer:
+        `PREMIUM couvre ${premium.maxCities} villes et ${premium.maxSectors} secteurs dans ton pays. ELITE ajoute ${
+          isUnlimited(elite.maxCities) && isUnlimited(elite.maxSectors)
+            ? 'une recherche illimitée en villes/secteurs'
+            : `${elite.maxCities} villes et ${elite.maxSectors} secteurs`
+        } et te permet de choisir jusqu'à ${elite.maxCountries} pays de recherche.`,
+    },
+    {
+      question: 'Comment choisir mes pays en ELITE ?',
+      answer:
+        `Une fois abonné ELITE, tape PAYS sur WhatsApp pour sélectionner jusqu'à ${elite.maxCountries} pays. Tu es automatiquement ajouté aux canaux d'emploi correspondants.`,
+    },
+    {
+      question: 'Mon paiement est resté en attente, que faire ?',
+      answer:
+        "Tape VÉRIFIER sur WhatsApp pour resynchroniser ton paiement avec PayDunya. Si le paiement date de plus de 24h et reste bloqué, contacte le support depuis WhatsApp.",
+    },
+    {
+      question: 'Puis-je annuler mon abonnement ?',
+      answer:
+        "Oui, à tout moment en tapant STOP sur WhatsApp. Tu conserves l'accès jusqu'à la fin de la période déjà payée, puis tu repasses en Freemium.",
+    },
+  ]
+}
+
+function FreemiumCard({
+  token,
+  botPhone,
+  limits,
+}: {
+  token: string | null
+  botPhone: string
+  limits: PlanLimits
+}) {
   const navigate = useNavigate()
 
   if (!token) {
@@ -75,7 +103,7 @@ function FreemiumCard({ token, botPhone }: { token: string | null; botPhone: str
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
       <span className="text-2xl">🆓</span>
       <h2 className="text-base font-bold text-slate-900 mt-1 mb-2">Continuer gratuitement</h2>
-      <p className="text-sm text-slate-600 mb-4">1 ville, 1 secteur, 1 niveau d'étude, 1 type de contrat</p>
+      <p className="text-sm text-slate-600 mb-4">{freemiumSummary(limits)}</p>
       <button
         type="button"
         onClick={() => navigate(`/profile?t=${token}&plan=FREEMIUM`)}
@@ -114,10 +142,19 @@ export default function SubscribePage() {
   const [simulateError, setSimulateError] = useState<string | null>(null)
   const [paying, setPaying] = useState<'PREMIUM' | 'ELITE' | null>(null)
   const [payError, setPayError] = useState<string | null>(null)
+  const [planLimits, setPlanLimits] = useState<Record<UserPlan, PlanLimits>>(PLAN_LIMITS)
 
   useEffect(() => {
     if (token) trackSubscribeClick(token)
   }, [token])
+
+  useEffect(() => {
+    fetchPlanLimits()
+      .then(setPlanLimits)
+      .catch(() => {
+        // garde les valeurs par défaut PLAN_LIMITS en cas d'échec réseau
+      })
+  }, [])
 
   const handlePlanClick = (plan: 'PREMIUM' | 'ELITE') => {
     if (token) trackSubscribeClick(token, plan)
@@ -169,6 +206,8 @@ export default function SubscribePage() {
       </div>
 
       <div className="space-y-6">
+        <FreemiumCard token={token} botPhone={botPhone} limits={planLimits.FREEMIUM} />
+
         <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
           <div className="text-center mb-4">
             <span className="text-2xl">📱</span>
@@ -178,7 +217,7 @@ export default function SubscribePage() {
             </p>
           </div>
           <ul className="space-y-2 mb-6">
-            {PREMIUM_FEATURES.map((feature) => (
+            {premiumFeatures(planLimits.PREMIUM).map((feature) => (
               <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
                 <span className="text-green-600">✔️</span>
                 {feature}
@@ -227,7 +266,7 @@ export default function SubscribePage() {
             </p>
           </div>
           <ul className="space-y-2 mb-6">
-            {ELITE_FEATURES.map((feature) => (
+            {eliteFeatures(planLimits.ELITE).map((feature) => (
               <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
                 <span className="text-green-600">✔️</span>
                 {feature}
@@ -263,8 +302,6 @@ export default function SubscribePage() {
             </button>
           )}
         </div>
-
-        <FreemiumCard token={token} botPhone={botPhone} />
       </div>
 
       {payError && (
@@ -281,7 +318,7 @@ export default function SubscribePage() {
       <div className="mt-10">
         <h2 className="text-base font-bold text-slate-900 mb-2">Questions fréquentes</h2>
         <div>
-          {FAQ_ITEMS.map((item) => (
+          {buildFaqItems(planLimits.PREMIUM, planLimits.ELITE).map((item) => (
             <FaqItem key={item.question} question={item.question} answer={item.answer} />
           ))}
         </div>

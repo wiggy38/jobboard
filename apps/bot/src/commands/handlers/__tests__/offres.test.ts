@@ -226,11 +226,11 @@ describe('handleOffres — recordPullEvent (boucle pull gratuite)', () => {
 describe('handleOffres — recordPullDelivery (historique détaillé)', () => {
   it('enregistre la commande OFFRES avec les ids des offres livrées', async () => {
     await handleOffres(cmd(), makeDb([makeOffer('o1')]));
-    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', ['o1']);
+    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', ['o1'], 'FREEMIUM');
   });
 
   it('enregistre une liste vide quand aucune offre ne correspond au profil', async () => {
     await handleOffres(cmd(), makeDb([]));
-    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', []);
+    expect(recordPullDelivery).toHaveBeenCalledWith(FREEMIUM_USER.id, 'OFFRES', [], 'FREEMIUM');
   });
 });

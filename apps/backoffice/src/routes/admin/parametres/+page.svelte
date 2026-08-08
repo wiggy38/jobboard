@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types.js';
 	import { adminApi } from '$lib/api.js';
-	import { SETTING_KEYS, UNLIMITED, type UserPlan, type ProfileOption } from '@tumaa/shared';
+	import { SETTING_KEYS, SCRAPER_REGISTRY, UNLIMITED, type UserPlan, type ProfileOption } from '@tumaa/shared';
 
 	let { data }: { data: PageData } = $props();
 
@@ -34,7 +34,33 @@
 	// ── État local par section (clonage profond depuis data.settings) ──────
 	let alertThreshold = $state(data.settings[SETTING_KEYS.SCRAPER_ALERT_THRESHOLD]);
 	let retryAttempts = $state(data.settings[SETTING_KEYS.SCRAPER_RETRY_ATTEMPTS]);
-	let schedule = $state(structuredClone(data.settings[SETTING_KEYS.SCRAPER_SCHEDULE]));
+	// Les entrées enregistrées avant l'ajout du champ `country` n'en ont pas —
+	// on les traite comme BF (comportement historique, un seul pays desservi).
+	let schedule = $state(
+		structuredClone(data.settings[SETTING_KEYS.SCRAPER_SCHEDULE]).map((j) => ({ ...j, country: j.country ?? 'BF' }))
+	);
+	const SCRAPER_COUNTRIES = ['BF', 'BJ', 'TG', 'CI', 'SN'];
+	let activeScraperCountry = $state(SCRAPER_COUNTRIES.find((c) => schedule.some((j) => j.country === c)) ?? 'BF');
+	const visibleSchedule = $derived(schedule.filter((j) => j.country === activeScraperCountry));
+	// Scrapers du registre pour le pays actif pas encore programmés — évite de
+	// laisser l'admin taper une scraperKey libre (typo = job silencieusement
+	// ignoré par apps/scraper/src/scheduler.ts).
+	const addableScrapers = $derived(
+		SCRAPER_REGISTRY.filter((r) => r.country === activeScraperCountry && !schedule.some((j) => j.scraperKey === r.key))
+	);
+	let scraperToAdd = $state('');
+	$effect(() => {
+		if (!addableScrapers.some((r) => r.key === scraperToAdd)) {
+			scraperToAdd = addableScrapers[0]?.key ?? '';
+		}
+	});
+	function addScheduleEntry() {
+		if (!scraperToAdd) return;
+		schedule = [
+			...schedule,
+			{ name: `${scraperToAdd}-daily`, scraperKey: scraperToAdd, pattern: '0 12 * * *', country: activeScraperCountry },
+		];
+	}
 
 	let templateCaps = $state(structuredClone(data.settings[SETTING_KEYS.TEMPLATE_CAPS]));
 
@@ -169,27 +195,56 @@
 			</button>
 		</div>
 
-		<h3 class="subheading">Programmation (cron)</h3>
+		<h3 class="subheading">Programmation (cron) — par pays</h3>
+		<div class="tabs">
+			{#each SCRAPER_COUNTRIES as country}
+				<button class="tab" class:tab-active={activeScraperCountry === country} onclick={() => (activeScraperCountry = country)}>
+					{COUNTRY_LABEL[country] ?? country}
+					<span class="tab-count">{schedule.filter((j) => j.country === country).length}</span>
+				</button>
+			{/each}
+		</div>
 		<div class="table-wrap">
 			<table>
-				<thead><tr><th>Scraper</th><th>Pattern cron</th></tr></thead>
+				<thead><tr><th>Nom du job</th><th>Scraper</th><th>Pattern cron</th><th></th></tr></thead>
 				<tbody>
-					{#each schedule as job, i}
+					{#each visibleSchedule as job}
 						<tr>
+							<td class="mono">{job.name}</td>
 							<td class="mono">{job.scraperKey}</td>
 							<td><input type="text" class="cron-input" bind:value={job.pattern} /></td>
+							<td><button class="btn-remove" onclick={() => (schedule = schedule.filter((j) => j !== job))} aria-label="Supprimer">✕</button></td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
+			{#if visibleSchedule.length === 0}
+				<p class="empty-hint">Aucun scraper programmé pour ce pays.</p>
+			{/if}
 		</div>
-		<button
-			class="btn-primary"
-			disabled={status.schedule === 'saving'}
-			onclick={() => saveSection('schedule', SETTING_KEYS.SCRAPER_SCHEDULE, schedule)}
-		>
-			Enregistrer la programmation
-		</button>
+		<div class="list-actions">
+			{#if addableScrapers.length > 0}
+				<div class="add-scraper-row">
+					<select bind:value={scraperToAdd} aria-label="Scraper à ajouter">
+						{#each addableScrapers as r}
+							<option value={r.key}>{r.key}</option>
+						{/each}
+					</select>
+					<button class="btn-secondary" onclick={addScheduleEntry}>
+						+ Ajouter ({COUNTRY_LABEL[activeScraperCountry] ?? activeScraperCountry})
+					</button>
+				</div>
+			{:else}
+				<p class="hint">Tous les scrapers connus pour ce pays sont déjà programmés.</p>
+			{/if}
+			<button
+				class="btn-primary"
+				disabled={status.schedule === 'saving'}
+				onclick={() => saveSection('schedule', SETTING_KEYS.SCRAPER_SCHEDULE, schedule)}
+			>
+				Enregistrer la programmation
+			</button>
+		</div>
 		{#if status.schedule === 'saved'}<span class="status-ok">✓ Appliqué à la queue</span>{/if}
 		{#if status.schedule === 'error'}<span class="status-error">{errorMsg.schedule}</span>{/if}
 		{#if errorMsg.schedule && status.schedule === 'saved'}<p class="hint-warning">{errorMsg.schedule}</p>{/if}
@@ -629,7 +684,8 @@
 	}
 	.btn-remove:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 
-	.list-actions { display: flex; justify-content: space-between; gap: 1rem; }
+	.list-actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+	.add-scraper-row { display: flex; gap: 0.5rem; align-items: center; }
 	.empty-hint { font-size: 0.82rem; color: var(--color-text-muted); margin: 0; }
 
 	.tabs { display: flex; gap: 0.4rem; border-bottom: 1px solid var(--color-border); overflow-x: auto; }

@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from './lib/prisma'
 
+const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
+
+function generateShortCode(): string {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+}
+
 type TokenVerifyResult =
   | { ok: true; userId: string | null }
   | { ok: false; error: string; message: string }
@@ -19,10 +25,52 @@ function verifyOfferToken(fastify: FastifyInstance, jobId: string, token: string
 }
 
 export async function offreRoutes(fastify: FastifyInstance) {
+  // Liste publique des offres actives — alimente apps/home (page /offres,
+  // filtres pays/secteur en client-side). Aucune donnée sensible (contacts,
+  // description complète) : uniquement les champs affichés sur une card.
+  fastify.get('/api/offres', async (_request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
+
+    const now = Date.now()
+    const newThreshold = new Date(now - 5 * 24 * 60 * 60 * 1000)
+    const urgentThreshold = new Date(now + 7 * 24 * 60 * 60 * 1000)
+
+    const jobs = await prisma.jobOffer.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: [{ isFeatured: 'desc' }, { isSponsored: 'desc' }, { publishedAt: 'desc' }],
+      take: 200,
+      select: {
+        id: true,
+        title: true,
+        city: true,
+        sector: true,
+        country: true,
+        contractType: true,
+        deadline: true,
+        createdAt: true,
+      },
+    })
+
+    return reply.send({
+      offres: jobs.map((job) => ({
+        id: job.id,
+        title: job.title,
+        city: job.city,
+        sector: job.sector,
+        country: job.country,
+        contractType: job.contractType,
+        deadline: job.deadline?.toISOString() ?? null,
+        isNew: job.createdAt >= newThreshold,
+        isUrgent: job.deadline ? job.deadline <= urgentThreshold : false,
+      })),
+    })
+  })
+
   fastify.get<{
     Params: { jobId: string }
     Querystring: { t?: string }
   }>('/api/offre/:jobId', async (request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
     const { jobId } = request.params
     const token = request.query.t ?? null
 
@@ -55,14 +103,20 @@ export async function offreRoutes(fastify: FastifyInstance) {
       })
     }
 
-    // ÉTAPE 4 — Contacts et source visibles pour tous les plans (y compris
-    // FREEMIUM) : le contenu affiché est une ébauche, la source sert de
-    // redirection vers l'annonce complète — plus un levier de conversion.
+    // ÉTAPE 4 — Contacts toujours visibles pour tous les plans (y compris
+    // FREEMIUM, cf. règle 1 CLAUDE.md). Le lien direct vers la source, lui,
+    // est réservé à PREMIUM/ELITE sur cette page web tokenisée (règle 2) —
+    // en WhatsApp le comportement est inchangé.
     if (userId) {
       await prisma.jobInteraction
         .create({ data: { userId, jobId: job.id, action: 'SEEN' } })
         .catch(() => {})
     }
+
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } })
+      : null
+    const hasDirectSourceAccess = user ? user.plan !== 'FREEMIUM' : false
 
     // ÉTAPE 5 — Construire la réponse
     return reply.send({
@@ -82,11 +136,11 @@ export async function offreRoutes(fastify: FastifyInstance) {
         contactPhone: job.contactPhone,
         contactAddress: job.contactAddress,
         applicationUrl: job.applicationUrl,
-        sourceUrl: job.sourceUrl,
+        sourceUrl: hasDirectSourceAccess ? job.sourceUrl : null,
         sourceName: job.source.name,
         sourceTrustScore: job.source.trustScore,
       },
-      accessLevel: 'FULL',
+      accessLevel: hasDirectSourceAccess ? 'FULL' : 'FREEMIUM',
     })
   })
 
@@ -115,6 +169,30 @@ export async function offreRoutes(fastify: FastifyInstance) {
     return reply.status(204).send()
   })
 
+  // Tracking du clic sur "Voir toutes les offres" par un utilisateur FREEMIUM
+  // sans accès direct à la source (branche verrouillée de la page offre
+  // tokenisée) — appelé en fire-and-forget (keepalive) par le frontend.
+  fastify.post<{
+    Params: { jobId: string }
+    Querystring: { t?: string }
+  }>('/api/offre/:jobId/click-locked', async (request, reply) => {
+    const { jobId } = request.params
+    const token = request.query.t ?? null
+
+    const verified = verifyOfferToken(fastify, jobId, token)
+    if (!verified.ok) {
+      return reply.status(401).send({ error: verified.error, message: verified.message })
+    }
+
+    if (verified.userId) {
+      await prisma.jobInteraction
+        .create({ data: { userId: verified.userId, jobId, action: 'CLICKED_LOCKED' } })
+        .catch(() => {})
+    }
+
+    return reply.status(204).send()
+  })
+
   // Tracking du partage (bouton "Partager avec un ami" / partage WhatsApp
   // côté page offre tokenisée) — appelé en fire-and-forget (keepalive) par le
   // frontend au moment du partage.
@@ -137,5 +215,69 @@ export async function offreRoutes(fastify: FastifyInstance) {
     }
 
     return reply.status(204).send()
+  })
+
+  // Génère (ou réutilise) un short link pour une offre partagée par un abonné —
+  // remplace l'URL complète dans le message de partage (voir shareOffer() côté
+  // apps/backoffice/src/routes/offre/[token]/+page.svelte). Un seul short link
+  // par (offre, parraineur), réutilisé si l'abonné partage plusieurs fois.
+  fastify.post<{
+    Params: { jobId: string }
+    Querystring: { t?: string }
+  }>('/api/offre/:jobId/shortlink', async (request, reply) => {
+    const { jobId } = request.params
+    const token = request.query.t ?? null
+
+    const verified = verifyOfferToken(fastify, jobId, token)
+    if (!verified.ok) {
+      return reply.status(401).send({ error: verified.error, message: verified.message })
+    }
+    if (!verified.userId) {
+      return reply.status(401).send({ error: 'ANONYMOUS', message: 'Lien de partage requiert un abonné identifié' })
+    }
+    const referrerId = verified.userId
+
+    const existing = await prisma.shortLink.findUnique({
+      where: { jobId_referrerId: { jobId, referrerId } },
+    })
+    if (existing) {
+      return reply.send({ code: existing.code, shortUrl: `${WEB_BASE_URL}/s/${existing.code}` })
+    }
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = generateShortCode()
+      try {
+        await prisma.shortLink.create({ data: { code, jobId, referrerId } })
+        return reply.send({ code, shortUrl: `${WEB_BASE_URL}/s/${code}` })
+      } catch (err: any) {
+        if (err?.code === 'P2002') continue // collision de code — retry
+        throw err
+      }
+    }
+    return reply.status(500).send({ error: 'SHORTLINK_FAILED', message: 'Impossible de générer un short link' })
+  })
+
+  // Résolution publique d'un short link — appelée serveur-à-serveur par le
+  // redirecteur /s/[code] du backoffice, jamais directement par un navigateur.
+  fastify.get<{ Params: { code: string } }>('/api/shortlinks/:code', async (request, reply) => {
+    const { code } = request.params
+
+    const link = await prisma.shortLink.findUnique({
+      where: { code },
+      include: { referrer: { select: { referralCode: true } } },
+    })
+    if (!link) {
+      return reply.status(404).send({ error: 'SHORTLINK_NOT_FOUND', message: 'Lien introuvable' })
+    }
+
+    prisma.shortLink
+      .update({ where: { code }, data: { clickCount: { increment: 1 }, lastClickedAt: new Date() } })
+      .catch(() => {})
+
+    const token = fastify.jwt.sign({ userId: link.referrerId, offerId: link.jobId }, { expiresIn: '7d' })
+
+    return reply.send({
+      path: `/offre/${link.jobId}?t=${token}&ref=${link.referrer.referralCode}`,
+    })
   })
 }

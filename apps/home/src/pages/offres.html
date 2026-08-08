@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offres d'emploi par pays — Tumaa</title>
+<meta name="description" content="Parcours les offres d'emploi collectées par Tumaa au Burkina Faso, en Côte d'Ivoire, au Bénin, au Sénégal et au Togo.">
+<meta property="og:title" content="Offres d'emploi par pays — Tumaa">
+<meta property="og:description" content="Toutes les offres d'emploi suivies par Tumaa, filtrées par pays.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_BF">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="512x512" href="images/favicon-512.png">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+{{> header}}
+
+<main id="top">
+
+<section class="jobs-hero">
+<div class="container">
+<h1>Offres d'emploi, pays par pays</h1>
+<p class="center" style="margin:0 auto">Un aperçu des annonces suivies par Tumaa. Pour recevoir les tiennes en filtré, tape OFFRES sur WhatsApp.</p>
+<div class="country-tabs" data-country-tabs>
+<button class="country-tab is-active" data-country="all">🌍 Tous</button>
+<button class="country-tab" data-country="bf">🇧🇫 Burkina Faso</button>
+<button class="country-tab" data-country="ci">🇨🇮 Côte d'Ivoire</button>
+<button class="country-tab" data-country="bj">🇧🇯 Bénin</button>
+<button class="country-tab" data-country="sn">🇸🇳 Sénégal</button>
+<button class="country-tab" data-country="tg">🇹🇬 Togo</button>
+</div>
+</div>
+</section>
+
+<section class="section container">
+<div class="jobs-toolbar">
+<span class="jobs-count" data-jobs-count></span>
+<div class="sector-dropdown" data-sector-dropdown>
+<button class="sector-dropdown-btn" data-sector-btn type="button" aria-haspopup="listbox" aria-expanded="false">
+<span data-sector-label>Tous les secteurs</span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+</button>
+<ul class="sector-dropdown-list" data-sector-list role="listbox">
+<li role="option" data-value="all" class="is-selected">🔎 Tous les secteurs</li>
+</ul>
+</div>
+</div>
+
+<div class="jobs-grid" data-jobs-grid></div>
+
+<nav class="jobs-pagination" data-jobs-pagination aria-label="Pagination des offres"></nav>
+
+<p class="job-empty" data-jobs-empty>Aucune offre pour ce filtre. Tape OFFRES sur WhatsApp pour être alerté dès qu'une nouvelle annonce arrive.</p>
+
+<div class="final-cta" style="margin-top:40px">
+<h2>Les bonnes opportunités arrivent directement sur WhatsApp</h2>
+<p>Configure tes préférences et reçois des offres sélectionnées pour toi.</p>
+<a class="btn btn-primary" data-wa data-wa-text="OFFRES" href="#">Commencer à recevoir mes offres d'emploi</a>
+</div>
+
+</section>
+
+</main>
+
+{{> footer}}
+
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+<script src="js/jobs.js"></script>
+</body>
+</html>

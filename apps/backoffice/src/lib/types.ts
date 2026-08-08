@@ -86,6 +86,30 @@ export interface AdminStats {
   tpqHistory: { date: string; count: number }[];
 }
 
+export interface KpiSeries {
+  signups: { date: string; count: number }[];
+  profileCompleted: { date: string; count: number }[];
+  offersViewed: { date: string; count: number }[];
+  lockedClicks: { date: string; count: number }[];
+  premiumConversions: { date: string; count: number }[];
+  shares: { date: string; count: number }[];
+}
+
+export interface KpiTotals {
+  signups: number;
+  profileCompleted: number;
+  offersViewed: number;
+  lockedClicks: number;
+  premiumConversions: number;
+  shares: number;
+}
+
+export interface AdminKpis {
+  period: { from: string; to: string };
+  series: KpiSeries;
+  totals: KpiTotals;
+}
+
 export type TemplateDeliveryStatus = 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
 
 export interface ScraperStatus {
@@ -326,6 +350,8 @@ export interface PullDeliveryOffer {
   status: JobOfferStatus;
   seenAt: string | null;
   sourceClickedAt: string | null;
+  sharedAt: string | null;
+  unlocked: boolean;
 }
 
 export interface PullDelivery {
@@ -338,6 +364,26 @@ export interface PullDelivery {
 
 export interface PaginatedPullHistory {
   data: PullDelivery[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+}
+
+export interface AdminUserReferral {
+  id: string;
+  phone: string;
+  displayName: string | null;
+  plan: UserPlan;
+  status: UserStatus;
+  createdAt: string;
+  profileCompleted: boolean;
+  subscribedPlan: UserPlan | null;
+  subscribedAt: string | null;
+}
+
+export interface PaginatedReferrals {
+  data: AdminUserReferral[];
   total: number;
   page: number;
   perPage: number;
@@ -362,7 +408,7 @@ export interface TokenizedOffer extends JobOffer {
   contactPhone: string | null;
   contactAddress: string | null;
   requirements: string | null;
-  sourceUrl: string;
+  sourceUrl: string | null;
   sourceName: string | null;
   sourceTrustScore: number;
 }

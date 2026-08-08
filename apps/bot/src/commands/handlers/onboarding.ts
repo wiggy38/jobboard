@@ -24,6 +24,15 @@ export async function startOnboarding(cmd: ParsedCommand, db: PrismaClient): Pro
   const country = getCountryFromPhone(cmd.userId);
   const freemiumLimits = await planLimitsForCreate('FREEMIUM');
 
+  // Forward-only : le code de parrainage (suffixe "REF-XXXX" détecté par le
+  // parser, voir apps/bot/src/whatsapp/parser.ts) ne s'applique qu'à la
+  // création — pas de récompense pour l'instant, référentiel seulement.
+  let referredById: string | undefined;
+  if (cmd.referralCode) {
+    const referrer = await db.user.findUnique({ where: { referralCode: cmd.referralCode }, select: { id: true } });
+    if (referrer) referredById = referrer.id;
+  }
+
   const user = await db.user.upsert({
     where: { phone: cmd.userId },
     create: {
@@ -31,6 +40,7 @@ export async function startOnboarding(cmd: ParsedCommand, db: PrismaClient): Pro
       plan: 'FREEMIUM',
       status: 'ACTIVE',
       countries: [country],
+      ...(referredById ? { referredById } : {}),
       profile: {
         create: {
           cities: [],

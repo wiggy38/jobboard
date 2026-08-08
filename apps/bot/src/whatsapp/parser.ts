@@ -1,6 +1,16 @@
 import type { ParsedCommand } from './types';
 import { getCountryFromPhoneNumberId } from './config';
 
+// Détecte un suffixe "REF-XXXXXXXX" (code de parrainage embarqué dans le lien
+// wa.me pré-rempli sur la page offre — voir shortlink flow, apps/api/src/offre.routes.ts
+// et apps/backoffice/src/routes/offre/[token]/+page.svelte) et le sépare de la
+// commande proprement dite. N'affecte pas les commandes sans suffixe.
+function splitReferral(raw: string): { command: string; referralCode?: string } {
+  const trimmed = raw.trim().toUpperCase();
+  const match = trimmed.match(/^(\S+)\s+REF-([A-Z0-9]{6,12})$/);
+  return match ? { command: match[1], referralCode: match[2] } : { command: trimmed };
+}
+
 export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
   const value = (webhookBody as any)?.entry?.[0]?.changes?.[0]?.value;
   const msg = value?.messages?.[0];
@@ -11,7 +21,7 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
 
   if (msg.type === 'text' && typeof msg.text?.body === 'string') {
     const raw: string = msg.text.body;
-    return { userId, command: raw.trim().toUpperCase(), raw, country };
+    return { userId, ...splitReferral(raw), raw, country };
   }
 
   if (
@@ -20,7 +30,7 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
     typeof msg.interactive.button_reply?.id === 'string'
   ) {
     const raw: string = msg.interactive.button_reply.id;
-    return { userId, command: raw.trim().toUpperCase(), raw, country };
+    return { userId, ...splitReferral(raw), raw, country };
   }
 
   if (
@@ -29,7 +39,7 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
     typeof msg.interactive.list_reply?.id === 'string'
   ) {
     const raw: string = msg.interactive.list_reply.id;
-    return { userId, command: raw.trim().toUpperCase(), raw, country };
+    return { userId, ...splitReferral(raw), raw, country };
   }
 
   // delivery status, reaction, or unsupported type — ignore

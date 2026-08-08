@@ -54,6 +54,31 @@ describe('parseIncoming — messages texte', () => {
   });
 });
 
+describe('parseIncoming — suffixe de parrainage "REF-XXXX"', () => {
+  it('OFFRES REF-ABC12345 → command OFFRES + referralCode ABC12345', () => {
+    const result = parseIncoming(textPayload(PHONE, 'OFFRES REF-ABC12345'));
+    expect(result?.command).toBe('OFFRES');
+    expect(result?.referralCode).toBe('ABC12345');
+  });
+
+  it('minuscules et espaces multiples tolérés', () => {
+    const result = parseIncoming(textPayload(PHONE, '  offres   ref-xyz98765  '));
+    expect(result?.command).toBe('OFFRES');
+    expect(result?.referralCode).toBe('XYZ98765');
+  });
+
+  it('commande sans suffixe → referralCode absent', () => {
+    const result = parseIncoming(textPayload(PHONE, 'OFFRES'));
+    expect(result?.referralCode).toBeUndefined();
+  });
+
+  it('commande à plusieurs mots sans motif REF- → pas de referralCode extrait', () => {
+    const result = parseIncoming(textPayload(PHONE, 'VOIR 3'));
+    expect(result?.command).toBe('VOIR 3');
+    expect(result?.referralCode).toBeUndefined();
+  });
+});
+
 describe('parseIncoming — résolution du pays depuis metadata.phone_number_id', () => {
   const ENV_KEYS = ['WHATSAPP_PHONE_NUMBER_ID_BF', 'WHATSAPP_ACCESS_TOKEN_BF'];
   const saved: Record<string, string | undefined> = {};

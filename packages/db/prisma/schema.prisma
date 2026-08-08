@@ -121,6 +121,7 @@ model User {
   jobInteractions     JobInteraction[]
   channelJoins        ChannelJoin[]
   subscribeClicks     SubscribeClick[]
+  shortLinks          ShortLink[]
 
   @@index([phone])
   @@index([plan, status])
@@ -251,6 +252,7 @@ model JobOffer {
   interactions  JobInteraction[]
   submission    JobSubmission?
   pullDeliveries PullDelivery[] @relation("PullDeliveryOffers")
+  shortLinks    ShortLink[]
 
   @@index([city, sector, status])
   @@index([deadline])
@@ -259,13 +261,33 @@ model JobOffer {
   @@index([status])
 }
 
+// Short link généré au partage d'une offre (bouton "Partager avec un ami" sur
+// /offre/[token]) — encode l'offre + le parraineur, permet d'envoyer un lien
+// court dans le message WhatsApp plutôt que l'URL complète, et sert de point
+// de passage pour transmettre le code de parrainage au destinataire (voir
+// GET /api/shortlinks/:code dans apps/api/src/offre.routes.ts).
+model ShortLink {
+  code          String    @id
+  jobId         String
+  job           JobOffer  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  referrerId    String
+  referrer      User      @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  clickCount    Int       @default(0)
+  lastClickedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([jobId, referrerId])
+  @@index([jobId])
+  @@index([referrerId])
+}
+
 model JobInteraction {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobId     String
   job       JobOffer @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  action    String   // SEEN | CLICKED_SOURCE | UNLOCKED | BOOKMARKED | REPORTED_FRAUD | SHARED
+  action    String   // SEEN | CLICKED_SOURCE | CLICKED_LOCKED | UNLOCKED | BOOKMARKED | REPORTED_FRAUD | SHARED
   createdAt DateTime @default(now())
 
   @@unique([userId, jobId, action])
@@ -372,6 +394,7 @@ model PullDelivery {
   command     String   // OFFRES | SUITE
   offersCount Int      @default(0)
   offers      JobOffer[] @relation("PullDeliveryOffers")
+  planAtPull  UserPlan?
 
   createdAt   DateTime @default(now())
 

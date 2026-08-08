@@ -9,8 +9,8 @@ import { sendMessage } from '../../whatsapp/client';
 import { sendText } from '../../services/whatsapp';
 import { formatNoMoreOffers } from '../../messages/formatter';
 
-async function handleOnboarding(phone: string, country?: string): Promise<void> {
-  await upsertUser(phone);
+async function handleOnboarding(phone: string, country?: string, referralCode?: string): Promise<void> {
+  await upsertUser(phone, referralCode);
   await sendText(
     phone,
     '👋 Bienvenue sur *Tumaa* !\n\n' +
@@ -26,7 +26,7 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
   let user = await getUserWithProfile(cmd.userId);
 
   if (!user) {
-    await handleOnboarding(cmd.userId, cmd.country);
+    await handleOnboarding(cmd.userId, cmd.country, cmd.referralCode);
     user = await getUserWithProfile(cmd.userId);
   }
 
@@ -49,7 +49,7 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
   }
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[offres] recordPullEvent:', err));
-  recordPullDelivery(user.id, 'OFFRES', batch.map((o) => o.id)).catch((err) =>
+  recordPullDelivery(user.id, 'OFFRES', batch.map((o) => o.id), userPlan).catch((err) =>
     console.warn('[offres] recordPullDelivery:', err),
   );
   await openWindow(cmd.userId);

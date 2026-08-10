@@ -59,6 +59,13 @@ export interface SaveCountriesResponse {
   countries: string[]
 }
 
+export async function fetchBotPhone(country?: string): Promise<string> {
+  const { data } = await axios.get<{ number: string }>('/api/public/whatsapp-number', {
+    params: country ? { country } : undefined,
+  })
+  return data.number
+}
+
 export async function fetchSubscribeCountry(token: string): Promise<string> {
   const { data } = await axios.get<{ ok: true; country: string }>('/api/subscribe/country', {
     params: { t: token },

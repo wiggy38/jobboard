@@ -1,19 +1,59 @@
 // ==== Config: numéro WhatsApp Tumaa ====
-// ⚠️ REMPLACER par le vrai numéro Tumaa au format international sans + (ex: 22670000000)
-const TUMAA_WHATSAPP_NUMBER = '22600000000';
+// Numéro par défaut utilisé tant que /api/public/whatsapp-number n'a pas répondu
+// (ou en cas d'échec réseau) — le numéro réel est géré depuis le backoffice
+// (Paramètres → "Numéro du bot").
+let TUMAA_WHATSAPP_NUMBER = '22600000000';
 
 function waLink(message) {
   return `https://wa.me/${TUMAA_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Fill all [data-wa] links from their data-wa-text
+// Formate un numéro brut (ex: "22645010707") en affichage lisible
+// "+226 45 01 07 07" — indicatif à 3 chiffres puis le reste groupé par 2.
+function formatWaNumberDisplay(raw) {
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits.length <= 3) return `+${digits}`;
+  const countryCode = digits.slice(0, 3);
+  const rest = digits.slice(3).match(/.{1,2}/g) || [];
+  return `+${countryCode} ${rest.join(' ')}`;
+}
+
+function fillWaLinks() {
   document.querySelectorAll('[data-wa]').forEach((el) => {
     const msg = el.getAttribute('data-wa-text') || 'OFFRES';
     el.setAttribute('href', waLink(msg));
     el.setAttribute('target', '_blank');
     el.setAttribute('rel', 'noopener');
   });
+}
+
+// Ne remplace le texte affiché que lorsqu'on a un vrai numéro venant de l'API
+// — le HTML statique garde le numéro connu tant que le fetch n'a pas répondu,
+// pour éviter un flash sur le numéro placeholder par défaut.
+function fillWaNumberDisplay() {
+  document.querySelectorAll('[data-wa-number-display]').forEach((el) => {
+    el.textContent = formatWaNumberDisplay(TUMAA_WHATSAPP_NUMBER);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Fill all [data-wa] links from their data-wa-text with the default number
+  // first (instant, no layout shift), then refresh once the configured
+  // number is fetched.
+  fillWaLinks();
+  const apiBase = window.TUMAA_API_BASE || '';
+  fetch(`${apiBase}/api/public/whatsapp-number`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.number) {
+        TUMAA_WHATSAPP_NUMBER = data.number;
+        fillWaLinks();
+        fillWaNumberDisplay();
+      }
+    })
+    .catch(() => {
+      // garde le numéro par défaut en cas d'échec réseau
+    });
 
   // Mobile menu toggle
   const menuToggle = document.querySelector('.menu-toggle');

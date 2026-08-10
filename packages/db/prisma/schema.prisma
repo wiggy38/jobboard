@@ -276,9 +276,25 @@ model ShortLink {
   lastClickedAt DateTime?
   createdAt     DateTime  @default(now())
 
+  clicks        ShortLinkClick[]
+
   @@unique([jobId, referrerId])
   @@index([jobId])
   @@index([referrerId])
+}
+
+// Un événement par clic sur un short link (voir GET /api/shortlinks/:code dans
+// apps/api/src/offre.routes.ts) — permet une série temporelle et un taux de
+// conversion clic→inscription dans le dashboard KPI, contrairement à
+// ShortLink.clickCount qui n'est qu'un compteur cumulatif sans horodatage.
+model ShortLinkClick {
+  id          String    @id @default(uuid())
+  shortLinkId String
+  shortLink   ShortLink @relation(fields: [shortLinkId], references: [code], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([shortLinkId])
+  @@index([createdAt])
 }
 
 model JobInteraction {

@@ -21,8 +21,9 @@ export const load: PageLoad = async ({ url }) => {
 	const to = url.searchParams.get('to') ?? defaultTo;
 	const country = url.searchParams.get('country') ?? '';
 
-	const emptySeries = { signups: [], profileCompleted: [], offersViewed: [], lockedClicks: [], premiumConversions: [], shares: [] };
-	const emptyTotals = { signups: 0, profileCompleted: 0, offersViewed: 0, lockedClicks: 0, premiumConversions: 0, shares: 0 };
+	const emptySeries = { signups: [], profileCompleted: [], offersViewed: [], lockedClicks: [], premiumConversions: [], shares: [], referralSignups: [], referralClicks: [] };
+	const emptyTotals = { signups: 0, profileCompleted: 0, offersViewed: 0, lockedClicks: 0, premiumConversions: 0, shares: 0, referralSignups: 0, referralClicks: 0 };
+	const emptyKFactor = { value: null as number | null, referralSignups: 0, existingUsersAtPeriodStart: 0, referralClicks: 0, clickToSignupRate: null as number | null };
 
 	try {
 		const res = await adminApi.getKpis({ from, to, country: country || undefined });
@@ -30,6 +31,7 @@ export const load: PageLoad = async ({ url }) => {
 			period: res.period,
 			series: res.series,
 			totals: res.totals,
+			kFactor: res.kFactor ?? emptyKFactor,
 			filters: { from, to, country },
 			error: null,
 		};
@@ -40,6 +42,7 @@ export const load: PageLoad = async ({ url }) => {
 			period: { from, to },
 			series: emptySeries,
 			totals: emptyTotals,
+			kFactor: emptyKFactor,
 			filters: { from, to, country },
 			error: msg,
 		};

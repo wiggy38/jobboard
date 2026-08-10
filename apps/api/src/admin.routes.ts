@@ -229,7 +229,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const countryFilter = country ? Prisma.sql`AND ${country} = ANY(u."countries")` : Prisma.empty
 
-    const [signups, profileCompleted, offersViewed, lockedClicks, premiumConversions, shares] =
+    const [
+      signups,
+      profileCompleted,
+      offersViewed,
+      lockedClicks,
+      premiumConversions,
+      shares,
+      referralSignups,
+      referralClicks,
+      existingUsersAtPeriodStart,
+    ] =
       await Promise.all([
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
           SELECT TO_CHAR(DATE(u."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
@@ -285,6 +295,30 @@ export async function adminRoutes(fastify: FastifyInstance) {
           GROUP BY DATE(ji."createdAt")
           ORDER BY date ASC
         `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(u."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "User" u
+          WHERE u."referredById" IS NOT NULL AND u."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(u."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+          SELECT TO_CHAR(DATE(slc."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          FROM "ShortLinkClick" slc
+          JOIN "ShortLink" sl ON sl.code = slc."shortLinkId"
+          JOIN "User" u ON u.id = sl."referrerId"
+          WHERE slc."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          ${countryFilter}
+          GROUP BY DATE(slc."createdAt")
+          ORDER BY date ASC
+        `,
+        prisma.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*) AS count
+          FROM "User" u
+          WHERE u."createdAt" < ${fromDate}
+          ${countryFilter}
+        `,
       ])
 
     const toSeries = (rows: { date: string; count: bigint }[]) =>
@@ -299,18 +333,38 @@ export async function adminRoutes(fastify: FastifyInstance) {
       lockedClicks: toSeries(lockedClicks),
       premiumConversions: toSeries(premiumConversions),
       shares: toSeries(shares),
+      referralSignups: toSeries(referralSignups),
+      referralClicks: toSeries(referralClicks),
     }
+
+    const totals = {
+      signups: sumSeries(signups),
+      profileCompleted: sumSeries(profileCompleted),
+      offersViewed: sumSeries(offersViewed),
+      lockedClicks: sumSeries(lockedClicks),
+      premiumConversions: sumSeries(premiumConversions),
+      shares: sumSeries(shares),
+      referralSignups: sumSeries(referralSignups),
+      referralClicks: sumSeries(referralClicks),
+    }
+
+    // K-factor simplifié : inscriptions via parrainage sur la période / base
+    // d'utilisateurs existants en début de période (proxy standard, faute
+    // d'un meilleur dénominateur "invitations envoyées"). clickToSignupRate
+    // ci-dessous complète ce proxy avec un vrai taux de conversion basé sur
+    // les clics effectifs des ShortLink (voir ShortLinkClick).
+    const existingUsersCount = Number(existingUsersAtPeriodStart[0]?.count ?? 0)
 
     return reply.send({
       period: { from: fromDate.toISOString(), to: toDate.toISOString() },
       series,
-      totals: {
-        signups: sumSeries(signups),
-        profileCompleted: sumSeries(profileCompleted),
-        offersViewed: sumSeries(offersViewed),
-        lockedClicks: sumSeries(lockedClicks),
-        premiumConversions: sumSeries(premiumConversions),
-        shares: sumSeries(shares),
+      totals,
+      kFactor: {
+        value: existingUsersCount > 0 ? totals.referralSignups / existingUsersCount : null,
+        referralSignups: totals.referralSignups,
+        existingUsersAtPeriodStart: existingUsersCount,
+        referralClicks: totals.referralClicks,
+        clickToSignupRate: totals.referralClicks > 0 ? totals.referralSignups / totals.referralClicks : null,
       },
     })
   })

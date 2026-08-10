@@ -41,7 +41,20 @@
 		{ key: 'offersViewed', label: 'Offres consultées' },
 		{ key: 'lockedClicks', label: 'Clics offre verrouillée' },
 		{ key: "shares", label: "Partages d'offre" },
+		{ key: 'referralClicks', label: 'Clics sur lien partagé' },
+		{ key: 'referralSignups', label: 'Inscriptions par parrainage' },
 	];
+
+	// Seuils K-factor validés métier — voir CLAUDE.md / discussion virale.
+	const kFactorTier = $derived.by(() => {
+		const v = data.kFactor.value;
+		if (v === null) return { label: 'Pas assez de données', className: 'kf-none' };
+		if (v >= 1) return { label: 'Boucle auto-entretenue', className: 'kf-loop' };
+		if (v >= 0.8) return { label: 'Très intéressant', className: 'kf-high' };
+		if (v >= 0.5) return { label: 'Intéressant', className: 'kf-mid' };
+		if (v >= 0.3) return { label: 'Correct', className: 'kf-low' };
+		return { label: 'Faible', className: 'kf-veryLow' };
+	});
 
 	// Palette catégorielle — 3 premiers slots de la palette de référence
 	// (seuls ceux-ci passent la validation all-pairs, cf. skill dataviz),
@@ -197,6 +210,32 @@
 				<button class="btn-reset" onclick={resetFilters}>Réinitialiser</button>
 			{/if}
 		</div>
+	</div>
+
+	<div class="kfactor-card">
+		<div class="kfactor-main">
+			<span class="kfactor-label">K-factor</span>
+			<span class="kfactor-value">{data.kFactor.value !== null ? data.kFactor.value.toFixed(2) : '—'}</span>
+			<span class="kfactor-badge {kFactorTier.className}">{kFactorTier.label}</span>
+		</div>
+		<p class="kfactor-detail">
+			{#if data.kFactor.value !== null}
+				{data.kFactor.referralSignups} inscription{data.kFactor.referralSignups > 1 ? 's' : ''} par
+				parrainage sur la période ÷ {data.kFactor.existingUsersAtPeriodStart} utilisateur{data.kFactor.existingUsersAtPeriodStart > 1 ? 's' : ''}
+				existant{data.kFactor.existingUsersAtPeriodStart > 1 ? 's' : ''} en début de période.
+			{:else}
+				Aucun utilisateur existant en début de période — pas assez d'historique pour calculer le K-factor.
+			{/if}
+		</p>
+		<p class="kfactor-detail">
+			{#if data.kFactor.clickToSignupRate !== null}
+				{data.kFactor.referralSignups} inscription{data.kFactor.referralSignups > 1 ? 's' : ''} ÷
+				{data.kFactor.referralClicks} clic{data.kFactor.referralClicks > 1 ? 's' : ''} sur lien partagé =
+				{(data.kFactor.clickToSignupRate * 100).toFixed(1)}% de conversion clic → inscription.
+			{:else}
+				Aucun clic sur un lien partagé sur la période — pas de taux de conversion calculable.
+			{/if}
+		</p>
 	</div>
 
 	<div class="funnel-card">
@@ -423,6 +462,58 @@
 		transition: background 0.15s;
 	}
 	.btn-reset:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+	.kfactor-card {
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		padding: 1.1rem 1.25rem;
+		margin-bottom: 0.9rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.kfactor-main {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.kfactor-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-muted);
+	}
+
+	.kfactor-value {
+		font-size: 1.8rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--color-text);
+	}
+
+	.kfactor-badge {
+		font-size: 0.75rem;
+		font-weight: 600;
+		padding: 0.2rem 0.55rem;
+		border-radius: var(--radius-md);
+	}
+
+	.kfactor-badge.kf-none { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+	.kfactor-badge.kf-veryLow { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+	.kfactor-badge.kf-low { background: #fef3c7; color: #92400e; }
+	.kfactor-badge.kf-mid { background: #dbeafe; color: #1e40af; }
+	.kfactor-badge.kf-high { background: var(--color-green-light, #d1f5e3); color: var(--color-green-mid, #2b9964); }
+	.kfactor-badge.kf-loop { background: var(--color-green, #2b9964); color: #fff; }
+
+	.kfactor-detail {
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
 
 	.funnel-card {
 		background: var(--color-bg);

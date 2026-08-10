@@ -26,6 +26,7 @@ export const SETTING_KEYS = {
   REFERENCE_SECTORS: 'reference.sectors',
   REFERENCE_CITIES_BY_COUNTRY: 'reference.citiesByCountry',
   CHANNEL_INVITE_LINKS: 'channels.inviteLinks',
+  WHATSAPP_BOT_NUMBERS: 'whatsapp.botNumbers',
   SCOUTS_CAPTURE_RATE: 'scouts.captureRate',
   PAYMENTS_PAYDUNYA_MODE: 'payments.paydunyaMode',
 } as const
@@ -111,6 +112,7 @@ export interface SettingValueMap {
   [SETTING_KEYS.REFERENCE_SECTORS]: ProfileOption[]
   [SETTING_KEYS.REFERENCE_CITIES_BY_COUNTRY]: Record<string, ProfileOption[]>
   [SETTING_KEYS.CHANNEL_INVITE_LINKS]: Record<string, string>
+  [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: Record<string, string>
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: number
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: PaydunyaMode
 }
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: SettingValueMap = {
     SUPPORTED_COUNTRIES.map((c) => [c, c === 'BF' ? CITY_OPTIONS : []])
   ),
   [SETTING_KEYS.CHANNEL_INVITE_LINKS]: {},
+  [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: { BF: '22645010707' },
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: 200,
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: 'live',
 }

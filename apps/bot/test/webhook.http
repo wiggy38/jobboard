@@ -94,7 +94,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.001",
     "text": { "body": "OFFRES" }
@@ -109,7 +109,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.002",
     "text": { "body": "VOIR 1" }
@@ -124,7 +124,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.003",
     "text": { "body": "aide" }
@@ -139,7 +139,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.004",
     "text": { "body": "STOP" }
@@ -171,7 +171,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "interactive",
     "id": "wamid.006",
     "interactive": {
@@ -193,7 +193,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.007",
     "text": { "body": "PAYER" }
@@ -209,7 +209,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "interactive",
     "id": "wamid.008",
     "interactive": {
@@ -232,7 +232,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.009",
     "text": { "body": "PREMIUM" }
@@ -247,7 +247,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.010",
     "text": { "body": "ESSAI" }
@@ -262,7 +262,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.011",
     "text": { "body": "PARRAINER" }
@@ -277,7 +277,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.012",
     "text": { "body": "STATS" }
@@ -292,7 +292,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.013",
     "text": { "body": "PAUSE" }
@@ -307,7 +307,7 @@ Content-Type: application/json
 
 {
   "entry": [{"changes": [{"value": {"messages": [{
-    "from": "+22670000001",
+    "from": "+22645010707",
     "type": "text",
     "id": "wamid.014",
     "text": { "body": "MODIFIER" }
@@ -318,15 +318,15 @@ Content-Type: application/json
 
 ### ── VÉRIFICATION REDIS (à exécuter dans redis-cli) ────────────────────────────
 ### Après requête 2 (OFFRES) :
-###   GET user:+22670000001:window       → doit retourner "1"
-###   GET session:+22670000001:offset    → doit retourner "5"
+###   GET user:+22645010707:window       → doit retourner "1"
+###   GET session:+22645010707:offset    → doit retourner "5"
 ###
 ### Après requête 7 (subscribe button) :
-###   GET session:+22670000001:state     → doit retourner {"step":"PREMIUM_CHOICE","data":{}}
+###   GET session:+22645010707:state     → doit retourner {"step":"PREMIUM_CHOICE","data":{}}
 ###
 ### Après requête 5 (STOP) :
-###   GET user:+22670000001:window       → doit retourner nil (TTL expiré ou supprimé)
+###   GET user:+22645010707:window       → doit retourner nil (TTL expiré ou supprimé)
 ###
 ### ── VÉRIFICATION DB (pgAdmin ou psql) ──────────────────────────────────────────
-### SELECT * FROM "PullEvent" WHERE "userId" = (SELECT id FROM "User" WHERE phone='+22670000001');
-### SELECT plan, status, "trialUsed" FROM "User" WHERE phone='+22670000001';
+### SELECT * FROM "PullEvent" WHERE "userId" = (SELECT id FROM "User" WHERE phone='+22645010707');
+### SELECT plan, status, "trialUsed" FROM "User" WHERE phone='+22645010707';

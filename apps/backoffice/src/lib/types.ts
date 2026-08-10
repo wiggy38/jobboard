@@ -93,6 +93,8 @@ export interface KpiSeries {
   lockedClicks: { date: string; count: number }[];
   premiumConversions: { date: string; count: number }[];
   shares: { date: string; count: number }[];
+  referralSignups: { date: string; count: number }[];
+  referralClicks: { date: string; count: number }[];
 }
 
 export interface KpiTotals {
@@ -102,12 +104,23 @@ export interface KpiTotals {
   lockedClicks: number;
   premiumConversions: number;
   shares: number;
+  referralSignups: number;
+  referralClicks: number;
+}
+
+export interface KpiKFactor {
+  value: number | null;
+  referralSignups: number;
+  existingUsersAtPeriodStart: number;
+  referralClicks: number;
+  clickToSignupRate: number | null;
 }
 
 export interface AdminKpis {
   period: { from: string; to: string };
   series: KpiSeries;
   totals: KpiTotals;
+  kFactor: KpiKFactor;
 }
 
 export type TemplateDeliveryStatus = 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';

@@ -1,10 +1,18 @@
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
+import { fetchBotPhone } from '../lib/api'
 
 export default function SubscribeSuccessPage() {
-  const botPhone = import.meta.env.VITE_BOT_PHONE ?? '22600000000'
+  const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22600000000')
   const [searchParams] = useSearchParams()
+
+  useEffect(() => {
+    fetchBotPhone().then(setBotPhone).catch(() => {
+      // garde la valeur par défaut en cas d'échec réseau
+    })
+  }, [])
   const planParam = searchParams.get('plan')
   const plan = planParam === 'ELITE' ? 'ELITE' : planParam === 'FREEMIUM' ? 'FREEMIUM' : 'PREMIUM'
   const title = plan === 'FREEMIUM' ? 'Profil FREEMIUM activé' : `Abonnement ${plan} activé`

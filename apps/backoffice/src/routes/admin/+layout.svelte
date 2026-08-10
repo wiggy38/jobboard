@@ -151,6 +151,7 @@
 		{ href: '/admin', label: 'Dashboard', exact: true },
 		{ href: '/admin/offres', label: 'Offres', exact: false },
 		{ href: '/admin/abonnes', label: 'Abonnés', exact: false },
+		{ href: '/admin/abonnes-sans-plan', label: 'Sans formule', exact: false },
 		{ href: '/admin/activite', label: 'Activité pull', exact: false },
 		{ href: '/admin/tracking', label: 'Tracking clics', exact: false },
 		{ href: '/admin/kpis', label: 'KPI', exact: false },

@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
+import { fetchBotPhone } from '../lib/api'
 
 const FEATURES = [
   '3 villes suivies',
@@ -12,8 +14,14 @@ const FEATURES = [
 
 export default function PremiumPage() {
   const [searchParams] = useSearchParams()
-  const botPhone = import.meta.env.VITE_BOT_PHONE ?? '22670000000'
+  const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22670000000')
   const offerId = searchParams.get('offerId')
+
+  useEffect(() => {
+    fetchBotPhone().then(setBotPhone).catch(() => {
+      // garde la valeur par défaut en cas d'échec réseau
+    })
+  }, [])
 
   const waText = offerId ? `PREMIUM ${offerId}` : 'PREMIUM'
 

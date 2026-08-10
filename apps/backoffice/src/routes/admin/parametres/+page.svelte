@@ -25,6 +25,7 @@
 		{ id: 'sectors', label: "Secteurs d'activité", icon: '🏢' },
 		{ id: 'cities', label: 'Villes par pays', icon: '📍' },
 		{ id: 'channels', label: 'Canaux & Scouts', icon: '📡' },
+		{ id: 'whatsappBotNumbers', label: 'Numéro du bot', icon: '☎️' },
 		{ id: 'scraperMisc', label: 'Scraper — divers', icon: '⚙️' },
 		{ id: 'payments', label: 'Paiements', icon: '💰' },
 	] as const;
@@ -76,6 +77,7 @@
 	let activeCityCountry = $state(Object.keys(citiesByCountry)[0] ?? 'BF');
 
 	let inviteLinks = $state<Record<string, string>>(structuredClone(data.settings[SETTING_KEYS.CHANNEL_INVITE_LINKS]));
+	let botNumbers = $state<Record<string, string>>(structuredClone(data.settings[SETTING_KEYS.WHATSAPP_BOT_NUMBERS]));
 	let captureRate = $state(data.settings[SETTING_KEYS.SCOUTS_CAPTURE_RATE]);
 
 	let reportEmailTo = $state(data.settings[SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO]);
@@ -483,6 +485,35 @@
 	</section>
 	{/if}
 
+	<!-- ── Numéro du bot WhatsApp ───────────────────────────────────── -->
+	{#if activeSection === 'whatsappBotNumbers'}
+	<section class="card">
+		<div class="card-header">
+			<h2>Numéro du bot WhatsApp</h2>
+		</div>
+		<p class="hint">Numéro affiché dans les liens wa.me sur le site vitrine et l'app d'abonnement (format international sans "+", ex. 22600000000).</p>
+		<div class="field-list">
+			{#each ['BF', 'BJ', 'TG', 'CI'] as country}
+				<div class="field-line">
+					<div class="field">
+						<label for={`bot-number-${country}`}>{COUNTRY_LABEL[country]}</label>
+						<input id={`bot-number-${country}`} type="text" placeholder="22600000000" bind:value={botNumbers[country]} />
+					</div>
+					<button
+						class="btn-primary"
+						disabled={status[`whatsappBotNumbers-${country}`] === 'saving'}
+						onclick={() => saveSection(`whatsappBotNumbers-${country}`, SETTING_KEYS.WHATSAPP_BOT_NUMBERS, botNumbers)}
+					>
+						Enregistrer
+					</button>
+					{#if status[`whatsappBotNumbers-${country}`] === 'saved'}<span class="status-ok">✓ Enregistré</span>{/if}
+					{#if status[`whatsappBotNumbers-${country}`] === 'error'}<span class="status-error">{errorMsg[`whatsappBotNumbers-${country}`]}</span>{/if}
+				</div>
+			{/each}
+		</div>
+	</section>
+	{/if}
+
 	<!-- ── Scraper — divers ─────────────────────────────────────────── -->
 	{#if activeSection === 'scraperMisc'}
 	<section class="card">
@@ -628,6 +659,10 @@
 
 	.field-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
 	.field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 160px; flex: 1; }
+
+	.field-list { display: flex; flex-direction: column; gap: 0.75rem; }
+	.field-line { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+	.field-line .field { max-width: 320px; }
 	.field label { font-size: 0.78rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 
 	input[type="text"], input[type="number"], input[type="email"], select {

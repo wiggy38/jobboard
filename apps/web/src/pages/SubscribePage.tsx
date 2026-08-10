@@ -3,7 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PLAN_LIMITS, isUnlimited, type PlanLimits, type UserPlan } from '@tumaa/shared'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
-import { fetchPlanLimits, initiateSubscribePayment, simulateSubscribePayment, trackSubscribeClick } from '../lib/api'
+import {
+  fetchBotPhone,
+  fetchPlanLimits,
+  fetchSubscribeCountry,
+  initiateSubscribePayment,
+  simulateSubscribePayment,
+  trackSubscribeClick,
+} from '../lib/api'
 
 const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
 
@@ -32,41 +39,42 @@ function eliteFeatures(limits: PlanLimits): string[] {
   return [...premiumFeatures(limits), `Jusqu'à ${limits.maxCountries} pays de recherche`]
 }
 
-function buildFaqItems(premium: PlanLimits, elite: PlanLimits) {
+function buildFaqItems(freemium: PlanLimits) {
   return [
     {
-      question: 'Comment se passe le paiement ?',
+      question: "C'est quoi Tumaa exactement ?",
       answer:
-        'En cliquant sur "S\'abonner", tu es redirigé vers PayDunya pour payer par Orange Money, Moov Money, Coris Money ou carte bancaire. Une fois le paiement confirmé, ton abonnement est activé automatiquement.',
+        "Tumaa rassemble chaque jour les offres d'emploi publiées en Afrique de l'Ouest (Bénin, Burkina Faso, Côte d'Ivoire) sur les sites d'annonces, ANPE, ONG, presse, et réseaux professionnels puis t'envoie celles qui correspondent à ton profil, directement sur WhatsApp. Plus besoin de visiter dix sites différents chaque matin.",
     },
     {
-      question: 'Quelle est la différence entre Freemium et Premium ?',
+      question: 'Pourquoi WhatsApp et pas une application ?',
       answer:
-        `Freemium et Premium couvrent les mêmes ${premium.maxCities} villes et ${premium.maxSectors} secteurs. La différence : Premium débloque le lien direct vers l'annonce complète sur le site source, alors qu'en Freemium tu es redirigé vers la liste des offres.`,
+        "Parce que tu as déjà WhatsApp. Rien à télécharger, rien qui prend de la place sur ton téléphone, et ça marche même avec une connexion faible. Tu reçois tes offres là où tu es déjà, tous les jours.",
     },
     {
-      question: 'Quelle est la différence entre PREMIUM et ELITE ?',
+      question: "D'où viennent les offres, et sont-elles fiables ?",
       answer:
-        `PREMIUM couvre ${premium.maxCities} villes et ${premium.maxSectors} secteurs dans ton pays. ELITE ajoute ${
-          isUnlimited(elite.maxCities) && isUnlimited(elite.maxSectors)
-            ? 'une recherche illimitée en villes/secteurs'
-            : `${elite.maxCities} villes et ${elite.maxSectors} secteurs`
-        } et te permet de choisir jusqu'à ${elite.maxCountries} pays de recherche.`,
+        "Des plateformes d'emploi publiques, des sites d'ONG et d'institutions, de la presse en ligne — et de notre réseau de scouts sur le terrain, qui remontent les offres affichées physiquement ou partagées dans des groupes, celles qu'on ne trouve peut-être nulle part ailleurs. Chaque offre affiche toujours sa source. Tumaa ne demandera jamais d'argent pour une candidature, et aucun employeur sérieux ne le fait non plus.",
     },
     {
-      question: 'Comment choisir mes pays en ELITE ?',
+      question: 'Tumaa recrute directement ?',
       answer:
-        `Une fois abonné ELITE, tape PAYS sur WhatsApp pour sélectionner jusqu'à ${elite.maxCountries} pays. Tu es automatiquement ajouté aux canaux d'emploi correspondants.`,
+        "Non. Tumaa ne recrute pas et ne se substitue ni à l'employeur, ni au site qui publie l'annonce. Nous rassemblons les offres et te mettons en relation avec l'employeur ou le site éditeur : chaque offre indique sa source ou son contact, et tu postules directement auprès de l'employeur, ou en suivant les instructions figurant sur le site d'origine.",
     },
     {
-      question: 'Mon paiement est resté en attente, que faire ?',
+      question: 'Je reçois mes offres automatiquement ou je dois demander ?',
       answer:
-        "Tape VÉRIFIER sur WhatsApp pour resynchroniser ton paiement avec PayDunya. Si le paiement date de plus de 24h et reste bloqué, contacte le support depuis WhatsApp.",
+        "C'est toi qui décides du moment. Envoie OFFRES quand tu veux consulter tes correspondances — le matin au réveil, dans le taxi, entre deux rendez-vous. Nous ne t'inondons pas de messages non sollicités. Et chaque matin à 8h, un aperçu des meilleures offres du jour est publié sur notre canal national.",
     },
     {
-      question: 'Puis-je annuler mon abonnement ?',
+      question: 'Le service est gratuit ?',
       answer:
-        "Oui, à tout moment en tapant STOP sur WhatsApp. Tu conserves l'accès jusqu'à la fin de la période déjà payée, puis tu repasses en Freemium.",
+        `Oui, l'offre Freemium est gratuite et sans limite de durée : ${freemiumSummary(freemium)}. Le Premium te donne accès au lien direct vers l'annonce d'origine et aux alertes par mots-clés — mensuel, sans engagement. Si tu arrêtes, tu repasses simplement en Freemium et gardes l'accès au service.`,
+    },
+    {
+      question: 'Il y a des offres pour les profils sans diplôme ?',
+      answer:
+        "Oui. Tumaa couvre tous les niveaux : manœuvres, chauffeurs, commerce, artisanat, aussi bien que cadres et postes ONG. Tu indiques ton niveau dans ton profil et nous filtrons les offres en conséquence.",
     },
   ]
 }
@@ -134,10 +142,11 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 }
 
 export default function SubscribePage() {
-  const botPhone = import.meta.env.VITE_BOT_PHONE ?? '22600000000'
+  const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22600000000')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const token = searchParams.get('t')
+  const hideFreemium = searchParams.get('hideFreemium') === '1'
   const [simulating, setSimulating] = useState<'PREMIUM' | 'ELITE' | null>(null)
   const [simulateError, setSimulateError] = useState<string | null>(null)
   const [paying, setPaying] = useState<'PREMIUM' | 'ELITE' | null>(null)
@@ -146,6 +155,16 @@ export default function SubscribePage() {
 
   useEffect(() => {
     if (token) trackSubscribeClick(token)
+  }, [token])
+
+  useEffect(() => {
+    const country = token ? fetchSubscribeCountry(token).catch(() => 'BF') : Promise.resolve('BF')
+    country
+      .then((c) => fetchBotPhone(c))
+      .then(setBotPhone)
+      .catch(() => {
+        // garde la valeur par défaut en cas d'échec réseau
+      })
   }, [token])
 
   useEffect(() => {
@@ -206,7 +225,9 @@ export default function SubscribePage() {
       </div>
 
       <div className="space-y-6">
-        <FreemiumCard token={token} botPhone={botPhone} limits={planLimits.FREEMIUM} />
+        {!hideFreemium && (
+          <FreemiumCard token={token} botPhone={botPhone} limits={planLimits.FREEMIUM} />
+        )}
 
         <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
           <div className="text-center mb-4">
@@ -318,7 +339,7 @@ export default function SubscribePage() {
       <div className="mt-10">
         <h2 className="text-base font-bold text-slate-900 mb-2">Questions fréquentes</h2>
         <div>
-          {buildFaqItems(planLimits.PREMIUM, planLimits.ELITE).map((item) => (
+          {buildFaqItems(planLimits.FREEMIUM).map((item) => (
             <FaqItem key={item.question} question={item.question} answer={item.answer} />
           ))}
         </div>

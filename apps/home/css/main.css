@@ -104,7 +104,7 @@ p{margin:0 0 12px}
 .grad-bl{background:linear-gradient(90deg,rgba(10,20,15,.85) 0%,rgba(10,20,15,.4) 55%,rgba(10,20,15,0) 100%)}
 .grad-br{background:linear-gradient(270deg,rgba(10,20,15,.85) 0%,rgba(10,20,15,.4) 55%,rgba(10,20,15,0) 100%)}
 .grad-tl{background:linear-gradient(135deg,rgba(10,20,15,.85) 0%,rgba(10,20,15,.35) 45%,rgba(10,20,15,0) 75%)}
-.cine-txt{position:absolute;max-width:460px;color:#fff;padding:0 20px}
+.cine-txt{position:absolute;max-width:560px;color:#fff;padding:0 20px}
 .cine-txt.pos-bl{left:0;bottom:56px;text-align:left}
 .cine-txt.pos-br{right:0;bottom:56px;text-align:right;margin-left:auto}
 .cine-txt.pos-tl{left:0;top:100px;text-align:left}
@@ -122,14 +122,14 @@ p{margin:0 0 12px}
 .cine-arrow.prev{left:12px}
 .cine-arrow.next{right:12px}
 .cine-arrow:hover{background:var(--green-light)}
-.cine-bar{position:absolute;left:20px;right:20px;bottom:20px;display:flex;gap:6px;z-index:3}
+.cine-bar{position:absolute;left:20px;right:20px;bottom:20px;display:none;gap:6px;z-index:3}
 .cine-bar span{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.3);position:relative;overflow:hidden}
 .cine-bar span i{position:absolute;inset:0;background:#fff;transform-origin:left;transform:scaleX(0)}
 .cine-bar span.done i{transform:scaleX(1);transition:none}
 .cine-bar span.active i{animation:cinefill 6s linear forwards}
 @keyframes cinefill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
-.mission-section{position:relative;overflow:hidden;background-image:linear-gradient(135deg,rgba(232,245,239,0.93) 0%,rgba(255,255,255,0.93) 60%),url('../images/photo-mission-watermark.jpg');background-size:auto,cover;background-position:center,center;background-attachment:scroll,fixed;background-repeat:no-repeat}
+.mission-section{position:relative;overflow:hidden;background-image:linear-gradient(135deg,rgba(232,245,239,0.75) 0%,rgba(255,255,255,0.75) 60%),url('../images/photo-mission-watermark.jpg');background-size:auto,cover;background-position:center,center;background-attachment:scroll,fixed;background-repeat:no-repeat}
 .mission-grid{position:relative;z-index:1;max-width:640px;margin:0 auto;text-align:center}
 .mission-text h2{font-size:26px}
 @media(min-width:760px){.mission-text h2{font-size:32px}}
@@ -183,7 +183,7 @@ p{margin:0 0 12px}
 .plan{background:#fff;border:2px solid var(--border);border-radius:var(--r-lg);padding:28px 24px;display:flex;flex-direction:column;gap:16px}
 .plan-featured{border-color:var(--green);box-shadow:var(--shadow);position:relative;background:linear-gradient(180deg,#fff 0%,var(--green-light) 130%)}
 .plan-badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:var(--yellow);color:var(--yellow-dark);font-size:12px;font-weight:800;padding:6px 14px;border-radius:999px;white-space:nowrap}
-.plan-name{font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+.plan-name{font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
 .plan-price{font-size:30px;font-weight:800}
 .plan-sub{font-size:14px;color:var(--text-muted);margin:0 0 12px}
 .plan-tagline{font-size:16px;font-weight:700;margin:2px 0 4px}

@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify'
+import { SETTING_KEYS } from '@tumaa/shared'
 import { prisma } from './lib/prisma'
+import { getSetting } from './lib/settings'
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
 
@@ -25,6 +27,19 @@ function verifyOfferToken(fastify: FastifyInstance, jobId: string, token: string
 }
 
 export async function offreRoutes(fastify: FastifyInstance) {
+  // Numéro WhatsApp du bot par pays, éditable en backoffice (Paramètres →
+  // "Numéro du bot") — alimente les liens wa.me sur apps/home et apps/web.
+  // Non authentifié : c'est un numéro affiché publiquement, pas un secret
+  // (à ne pas confondre avec phoneNumberId/accessToken Meta API, qui eux
+  // restent en env côté apps/bot).
+  fastify.get('/api/public/whatsapp-number', async (request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
+    const country = (request.query as { country?: string }).country?.toUpperCase()
+    const numbers = await getSetting(SETTING_KEYS.WHATSAPP_BOT_NUMBERS)
+    const number = (country && numbers[country]) || numbers.BF || ''
+    return { number }
+  })
+
   // Liste publique des offres actives — alimente apps/home (page /offres,
   // filtres pays/secteur en client-side). Aucune donnée sensible (contacts,
   // description complète) : uniquement les champs affichés sur une card.
@@ -118,12 +133,23 @@ export async function offreRoutes(fastify: FastifyInstance) {
       : null
     const hasDirectSourceAccess = user ? user.plan !== 'FREEMIUM' : false
 
+    // Subscribe-token dérivé de l'utilisateur déjà authentifié par le token
+    // offre (`?t=`) — permet aux CTA "voir la source"/"passer en Premium ou
+    // Elite" de la page offre d'ouvrir /subscribe avec le vrai flux de
+    // paiement PayDunya, attribué au bon userId (cf. generateSubscribeToken
+    // dans apps/bot/src/services/tokenService.ts et verifySubscribeToken dans
+    // apps/api/src/subscribe.routes.ts).
+    const subscribeToken = userId
+      ? fastify.jwt.sign({ userId, purpose: 'subscribe' }, { expiresIn: '24h' })
+      : null
+
     // ÉTAPE 5 — Construire la réponse
     return reply.send({
       job: {
         id: job.id,
         title: job.title,
         city: job.city,
+        country: job.country,
         sector: job.sector,
         contractType: job.contractType,
         deadline: job.deadline?.toISOString() ?? null,
@@ -141,6 +167,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
         sourceTrustScore: job.source.trustScore,
       },
       accessLevel: hasDirectSourceAccess ? 'FULL' : 'FREEMIUM',
+      subscribeToken,
     })
   })
 
@@ -273,6 +300,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     prisma.shortLink
       .update({ where: { code }, data: { clickCount: { increment: 1 }, lastClickedAt: new Date() } })
       .catch(() => {})
+    prisma.shortLinkClick.create({ data: { shortLinkId: code } }).catch(() => {})
 
     const token = fastify.jwt.sign({ userId: link.referrerId, offerId: link.jobId }, { expiresIn: '7d' })
 

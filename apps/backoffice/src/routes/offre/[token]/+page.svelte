@@ -14,6 +14,16 @@
 	// l'inscription WhatsApp du destinataire (voir apps/bot/src/whatsapp/parser.ts).
 	const ref = $derived(page.url.searchParams.get('ref'))
 
+	// Subscribe-token dérivé de l'utilisateur (voir apps/api/src/offre.routes.ts
+	// GET /api/offre/:jobId) — permet à /subscribe d'ouvrir le vrai flux de
+	// paiement PayDunya attribué au bon userId, plutôt que de retomber sur les
+	// liens wa.me. Absent (lien offre sans token / expiré) → fallback sans `t`.
+	const subscribeUrl = $derived(
+		data.subscribeToken
+			? `https://tumaa.bf/subscribe/?hideFreemium=1&t=${data.subscribeToken}`
+			: 'https://tumaa.bf/subscribe/?hideFreemium=1'
+	)
+
 	const BOT_PHONE = '22645010707'
 	const BOT_WA_LINK = $derived(
 		`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent(ref ? `OFFRES REF-${ref}` : 'OFFRES')}`
@@ -281,13 +291,13 @@
 					<section class="section source-cta">
 						<div class="cta-row">
 							<a
-								href="https://tumaa.bf/offres.html"
+								href={subscribeUrl}
 								class="cta-btn cta-primary"
 								target="_blank"
 								rel="noopener noreferrer"
 								onclick={trackLockedClick}
 							>
-								Voir toutes les offres
+								Débloquer l'accès à l'offre
 							</a>
 							<button type="button" class="cta-btn cta-share" onclick={shareOffer}>
 								{shareCopied ? '✓ Lien copié' : '📤 Partager avec un ami'}
@@ -296,10 +306,10 @@
 						<p class="source-hint">
 							Passe en
 							<a
-								href={`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent('PREMIUM')}`}
+								href={subscribeUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-							>Premium</a>
+							>Premium ou Elite</a>
 							pour accéder directement à l'annonce complète.
 						</p>
 					</section>

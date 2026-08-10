@@ -63,9 +63,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/click`, { method: 'POST', keepalive: true }).catch(() => {});
   });
 
-  const waNumber = '22600000000';
   const waMsg = `Regarde cette offre sur Tumaa : ${job.title} (${job.city}) — ${window.location.href}`;
-  document.querySelector('[data-offer-share-wa]').href = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMsg)}`;
+  const shareWaLink = document.querySelector('[data-offer-share-wa]');
+  fetch(`${apiBase}/api/public/whatsapp-number?country=${encodeURIComponent(job.country || 'BF')}`)
+    .then((res) => res.json())
+    .then((data) => {
+      shareWaLink.href = `https://wa.me/${data.number}?text=${encodeURIComponent(waMsg)}`;
+    })
+    .catch(() => {
+      shareWaLink.href = `https://wa.me/22600000000?text=${encodeURIComponent(waMsg)}`;
+    });
 
   document.querySelector('[data-offer-share-friend]').addEventListener('click', () => {
     fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/share`, { method: 'POST', keepalive: true }).catch(() => {});

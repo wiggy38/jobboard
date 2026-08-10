@@ -1,8 +1,16 @@
+import { useEffect, useState } from 'react'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
+import { fetchBotPhone } from '../lib/api'
 
 export default function ExpiredPage() {
-  const botPhone = import.meta.env.VITE_BOT_PHONE ?? '22600000000'
+  const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22600000000')
+
+  useEffect(() => {
+    fetchBotPhone().then(setBotPhone).catch(() => {
+      // garde la valeur par défaut en cas d'échec réseau
+    })
+  }, [])
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center">

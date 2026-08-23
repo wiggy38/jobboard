@@ -9,6 +9,10 @@
       "cache": false,
       "outputs": ["node_modules/.prisma/**", "node_modules/@prisma/client/**"]
     },
+    "@tumaa/backoffice#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["build/**"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,

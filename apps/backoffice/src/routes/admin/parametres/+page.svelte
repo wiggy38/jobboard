@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { PageData } from './$types.js';
 	import { adminApi } from '$lib/api.js';
-	import { SETTING_KEYS, SCRAPER_REGISTRY, UNLIMITED, type UserPlan, type ProfileOption } from '@tumaa/shared';
+	import * as tumaaShared from '@tumaa/shared';
+	import type { UserPlan, ProfileOption } from '@tumaa/shared';
+	const { SETTING_KEYS, SCRAPER_REGISTRY, UNLIMITED } = tumaaShared;
 
 	let { data }: { data: PageData } = $props();
 

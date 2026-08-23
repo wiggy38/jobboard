@@ -19,9 +19,9 @@ COPY --from=builder /app/apps/backoffice/build ./build
 COPY --from=builder /app/apps/backoffice/node_modules ./node_modules
 COPY --from=builder /app/apps/backoffice/package.json .
 
-EXPOSE 3002
+EXPOSE 80
 
-ENV PORT=3002
+ENV PORT=80
 ENV HOST=0.0.0.0
 
 CMD ["node", "build"]

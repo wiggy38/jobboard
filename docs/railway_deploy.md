@@ -22,9 +22,9 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-api` | `/` (racine repo) | `railway.api.json` | REST interne + dashboard admin. Applique les migrations Prisma au démarrage (`migrate:deploy`) — un seul service doit le faire, ne pas dupliquer sur bot/scraper |
 | `tumaa-bot` | `/` (racine repo) | `railway.bot.json` | Webhook WhatsApp, doit être joignable publiquement (générer un domaine Railway) |
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
-| `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | App React `/subscribe` (buildée dans le Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. `/` redirige vers `tumaajob.com` (`tumaa-home`). Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
+| `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | App React `/subscribe` (buildée dans le Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. `/` redirige vers `www.tumaajob.com` (`tumaa-home`). Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
 | `tumaa-web-app` | `/` (racine repo) | `railway.web-app.json` (`dockerfilePath: apps/backoffice/Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
-| `tumaa-home` | `/` (racine repo) | `railway.home.json` (`dockerfilePath: apps/home/Dockerfile`) | Site statique autonome (`apps/home`, HTML/CSS/JS sans dépendance au workspace pnpm) — build via `node build.mjs` (assemble `src/pages/` + `src/partials/`) puis servi par `nginx:alpine`. Service Railway dédié, indépendant de `tumaa-web-nginx`. Domaine custom `tumaajob.com` (`www.tumaajob.com` → redirect 301 vers `tumaajob.com`, géré dans [nginx.conf](../apps/home/nginx.conf)) |
+| `tumaa-home` | `/` (racine repo) | `railway.home.json` (`dockerfilePath: apps/home/Dockerfile`) | Site statique autonome (`apps/home`, HTML/CSS/JS sans dépendance au workspace pnpm) — build via `node build.mjs` (assemble `src/pages/` + `src/partials/`) puis servi par `nginx:alpine`. Service Railway dédié, indépendant de `tumaa-web-nginx`. Domaine canonique `www.tumaajob.com` (custom domain Railway, [nginx.conf](../apps/home/nginx.conf)). L'apex `tumaajob.com` **ne peut pas** être un CNAME Railway — le registrar (LWS) a un MX sur `@` et un nom ne peut pas cumuler CNAME + autre type d'enregistrement (règle DNS) — il redirige donc vers `www.tumaajob.com` via la fonction de redirection de domaine du registrar, pas via Railway |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la
@@ -127,7 +127,13 @@ jamais dans `.env.example`, qui ne doit contenir que des placeholders.
    et `API_UPSTREAM` pointant vers le domaine privé de `tumaa-api`
 6. Générer un domaine public pour `tumaa-web-nginx` (et `tumaa-bot` pour le
    webhook Meta) ; brancher le domaine custom `tumaa.bf` si applicable
-7. Déployer `tumaa-home`, brancher le domaine custom `tumaajob.com` (+
-   `www.tumaajob.com`) dans Settings → Networking → Custom Domain — Railway
-   fournit un CNAME cible à pointer chez le registrar/DNS pour les deux
-   enregistrements
+7. Déployer `tumaa-home`, brancher le domaine custom `www.tumaajob.com` dans
+   Settings → Networking → Custom Domain — Railway fournit un CNAME cible à
+   pointer chez le registrar/DNS (`huml3mow.up.railway.app` au moment de la
+   rédaction, revérifier dans le dashboard). Pour l'apex `tumaajob.com` : ne
+   **pas** essayer d'ajouter un CNAME Railway dessus si un MX (ou tout autre
+   enregistrement) existe déjà sur `@` chez le registrar — un nom DNS ne peut
+   pas cumuler CNAME et un autre type d'enregistrement. Configurer à la place
+   une redirection de domaine côté registrar (`tumaajob.com` → `https://www.tumaajob.com`),
+   ou un ALIAS/ANAME si le registrar le supporte (LWS, utilisé en prod ici, ne
+   le supporte pas)

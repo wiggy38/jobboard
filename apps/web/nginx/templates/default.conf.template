@@ -7,9 +7,11 @@ server {
     gzip_types text/plain text/css application/javascript application/json;
     gzip_min_length 1024;
 
-    # Landing page déplacée vers apps/home (service tumaa-home, tumaajob.com)
+    # Landing page déplacée vers apps/home (service tumaa-home, www.tumaajob.com — domaine
+    # canonique : l'apex tumaajob.com ne peut pas pointer en CNAME vers Railway à cause du MX
+    # existant chez le registrar, donc il redirige vers www côté DNS/registrar)
     location = / {
-        return 301 https://tumaajob.com;
+        return 301 https://www.tumaajob.com;
     }
 
     # SvelteKit app (admin + B2B + liens tokenisés)

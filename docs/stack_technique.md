@@ -17,7 +17,7 @@ apps/
   scraper/      @tumaa/scraper    — 1 fichier = 1 source, pipeline Playwright + Claude Haiku
   web/          @tumaa/web        — app React /subscribe (Vite)
   backoffice/   @tumaa/backoffice — admin/employer/offres, liens tokenisés /offre/ (SvelteKit)
-  home/         (site statique)   — landing publique tumaajob.com, HTML/CSS/JS sans dépendance workspace
+  home/         (site statique)   — landing publique www.tumaajob.com, HTML/CSS/JS sans dépendance workspace
 packages/
   db/           @tumaa/db         — schéma Prisma, migrations, seed
   matching/     @tumaa/matching   — scoring offres/profils, pur TS sans dépendances runtime
@@ -53,9 +53,9 @@ packages/
 - `axios` pour les appels API, `@tumaa/shared` pour les types/options partagés
 - Lint : oxlint
 - Build React servi dans un conteneur nginx (voir `docs/railway_deploy.md`) ; `/` redirige vers
-  `tumaajob.com` (`apps/home`)
+  `www.tumaajob.com` (`apps/home`)
 
-### apps/home — Landing publique (tumaajob.com)
+### apps/home — Landing publique (www.tumaajob.com)
 - Site statique autonome, HTML/CSS/JS sans dépendance au workspace pnpm
 - Build via `node build.mjs` (assemble `src/pages/` + `src/partials/`), servi par `nginx:alpine`
 - Service Railway dédié (`tumaa-home`), indépendant de `tumaa-web-nginx`
@@ -90,7 +90,9 @@ packages/
   - `tumaa-api`, `tumaa-bot`, `tumaa-scraper` : builder RAILPACK, root à la racine du repo
   - `tumaa-web-nginx` : builder DOCKERFILE, sert l'app React `/subscribe` et fait reverse proxy
     vers `tumaa-web-app` et `tumaa-api`
-  - `tumaa-home` : builder DOCKERFILE, sert la landing statique (`apps/home`) sur `tumaajob.com`
+  - `tumaa-home` : builder DOCKERFILE, sert la landing statique (`apps/home`) sur
+    `www.tumaajob.com` (domaine canonique — l'apex `tumaajob.com` redirige vers ce sous-domaine
+    via le registrar, pas via Railway, à cause du MX existant sur `@`)
   - `tumaa-web-app` (backoffice SvelteKit) : builder DOCKERFILE, pas de domaine public
 - **IA** : Claude Haiku (`@anthropic-ai/sdk`) pour l'extraction sémantique des offres scrapées
 - **Paiement** : PayDunya (Checkout Invoice API) — Orange Money / Moov Money / carte bancaire,

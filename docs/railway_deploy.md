@@ -23,14 +23,19 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-bot` | `/` (racine repo) | `railway.bot.json` | Webhook WhatsApp, doit être joignable publiquement (générer un domaine Railway) |
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
 | `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | Landing statique + app React `/subscribe` (buildée dans le même Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
-| `tumaa-web-app` | `apps/backoffice` | `railway.web-app.json` (`dockerfilePath: Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
+| `tumaa-web-app` | `/` (racine repo) | `railway.web-app.json` (`dockerfilePath: apps/backoffice/Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la
 racine du repo car `pnpm turbo run build --filter=...` a besoin du workspace complet.
-`tumaa-web-app` utilise le builder DOCKERFILE avec Root Directory sur `apps/backoffice`
-(pas de dépendance `workspace:*`, contexte de build isolé suffisant). `tumaa-web-nginx`
-utilise aussi le builder DOCKERFILE mais avec Root Directory à la racine du repo : son
+`tumaa-web-app` utilise le builder DOCKERFILE avec Root Directory à la racine du repo
+(comme `tumaa-web-nginx` ci-dessous) : `@tumaa/backoffice` dépend de `@tumaa/shared` en
+`workspace:*`, donc a besoin du monorepo complet — un Root Directory sur `apps/backoffice`
+seul fait échouer `pnpm install` (`ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`, le workspace
+n'existe pas dans ce sous-répertoire). Son Dockerfile
+(`apps/backoffice/Dockerfile`) build via `pnpm turbo run build --filter=...@tumaa/backoffice`
+depuis la racine, comme `tumaa-web-nginx`. `tumaa-web-nginx`
+utilise aussi le builder DOCKERFILE avec Root Directory à la racine du repo : son
 Dockerfile (`apps/web/nginx/Dockerfile`) build l'app React `@tumaa/web` dans un premier
 stage via `pnpm turbo run build --filter=...@tumaa/web` (elle dépend de `@tumaa/shared`
 en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`, la
@@ -60,7 +65,7 @@ Patterns recommandés (à saisir un par ligne dans le dashboard) :
 | `tumaa-bot` | `apps/bot/**`, `packages/db/**`, `packages/shared/**`, `packages/matching/**`, `railway.bot.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
 | `tumaa-scraper` | `apps/scraper/**`, `packages/db/**`, `packages/shared/**`, `railway.scraper.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
 | `tumaa-web-nginx` | `apps/web/**`, `packages/shared/**`, `railway.web-nginx.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
-| `tumaa-web-app` | `apps/backoffice/**`, `railway.web-app.json` (pas de dépendance `workspace:*`, pas besoin des packages partagés) |
+| `tumaa-web-app` | `apps/backoffice/**`, `packages/shared/**`, `railway.web-app.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
 
 Après toute modification d'un `railway.*.json` ou d'un package partagé sans
 changement dans le répertoire de l'app elle-même, **déclencher un redeploy

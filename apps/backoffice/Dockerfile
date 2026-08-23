@@ -4,11 +4,9 @@ RUN corepack enable
 
 WORKDIR /app
 
-COPY package.json .
-RUN pnpm install
-
 COPY . .
-RUN pnpm run build
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo run build --filter=...@tumaa/backoffice
 
 # ─── Runtime ─────────────────────────────────────────────────
 FROM node:22-alpine AS runner
@@ -17,9 +15,9 @@ RUN corepack enable
 
 WORKDIR /app
 
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json .
+COPY --from=builder /app/apps/backoffice/build ./build
+COPY --from=builder /app/apps/backoffice/node_modules ./node_modules
+COPY --from=builder /app/apps/backoffice/package.json .
 
 EXPOSE 3000
 

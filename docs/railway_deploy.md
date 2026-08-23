@@ -36,6 +36,36 @@ stage via `pnpm turbo run build --filter=...@tumaa/web` (elle dépend de `@tumaa
 en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`, la
 landing statique et le template Nginx dans un second stage `nginx:alpine`.
 
+## Watch Paths (Settings → Source → Watch Paths)
+
+Réglage dashboard uniquement, absent des `railway.*.json` — à vérifier/corriger
+manuellement par service. Par défaut Railway ne surveille que le Root Directory
+du service (ex. `/apps/api/**` pour `tumaa-api`), ce qui **rate tout changement
+dans les dépendances du monorepo** : `packages/db/**` (schéma Prisma),
+`packages/shared/**`, `packages/matching/**`, ou même le `railway.*.json` du
+service lui-même à la racine. Un commit qui ne touche que ces chemins ne
+déclenche alors **aucun redeploy automatique**, même si le build en dépend
+directement (`pnpm turbo run build --filter=...@tumaa/x` compile ces packages
+avant l'app).
+
+Vécu le 2026-08-23 : le fix du filter direction turbo (commit `60c9367`) n'a
+modifié que `railway.api.json`/`railway.bot.json`/`railway.scraper.json` (racine)
+— aucun des trois services ne l'a auto-déployé, il a fallu un redeploy manuel.
+
+Patterns recommandés (à saisir un par ligne dans le dashboard) :
+
+| Service | Watch Paths |
+|---|---|
+| `tumaa-api` | `apps/api/**`, `packages/db/**`, `packages/shared/**`, `railway.api.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
+| `tumaa-bot` | `apps/bot/**`, `packages/db/**`, `packages/shared/**`, `packages/matching/**`, `railway.bot.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
+| `tumaa-scraper` | `apps/scraper/**`, `packages/db/**`, `packages/shared/**`, `railway.scraper.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
+| `tumaa-web-nginx` | `apps/web/**`, `packages/shared/**`, `railway.web-nginx.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
+| `tumaa-web-app` | `apps/backoffice/**`, `railway.web-app.json` (pas de dépendance `workspace:*`, pas besoin des packages partagés) |
+
+Après toute modification d'un `railway.*.json` ou d'un package partagé sans
+changement dans le répertoire de l'app elle-même, **déclencher un redeploy
+manuel** pour le(s) service(s) concerné(s) plutôt que de compter sur l'auto-deploy.
+
 ## Réseau interne — nginx → SvelteKit / API
 
 `tumaa-web-nginx` proxy vers `tumaa-web-app` (routes `/app/`, `/offre/`) via

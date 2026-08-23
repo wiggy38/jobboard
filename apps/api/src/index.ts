@@ -17,6 +17,7 @@ import path from 'path'
 
 const app = Fastify({ logger: true })
 
+
 app.register(fjwt, {
   secret: process.env.TOKEN_SECRET ?? 'changeme',
 })

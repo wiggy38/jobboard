@@ -11,7 +11,7 @@
 	let { children }: { children: Snippet } = $props();
 
 	if (browser && !isEmployerAuthenticated()) {
-		goto('/employer/login');
+		goto('/login');
 	}
 
 	let employer = $state<Employer | null>(null);

@@ -10,9 +10,6 @@ RUN pnpm turbo run build --filter=...@tumaa/web
 
 FROM nginx:alpine
 
-# Landing page statique
-COPY apps/web/landing /usr/share/nginx/html/landing
-
 # App React (flow /subscribe), buildée par le stage précédent
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html/subscribe
 

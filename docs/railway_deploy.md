@@ -22,9 +22,9 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-api` | `/` (racine repo) | `railway.api.json` | REST interne + dashboard admin. Applique les migrations Prisma au démarrage (`migrate:deploy`) — un seul service doit le faire, ne pas dupliquer sur bot/scraper |
 | `tumaa-bot` | `/` (racine repo) | `railway.bot.json` | Webhook WhatsApp, doit être joignable publiquement (générer un domaine Railway) |
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
-| `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | Landing statique + app React `/subscribe` (buildée dans le même Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
+| `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | App React `/subscribe` (buildée dans le Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. `/` redirige vers `tumaajob.com` (`tumaa-home`). Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
 | `tumaa-web-app` | `/` (racine repo) | `railway.web-app.json` (`dockerfilePath: apps/backoffice/Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
-| `tumaa-home` | `/` (racine repo) | `railway.home.json` (`dockerfilePath: apps/home/Dockerfile`) | Site statique autonome (`apps/home`, HTML/CSS/JS sans dépendance au workspace pnpm) — build via `node build.mjs` (assemble `src/pages/` + `src/partials/`) puis servi par `nginx:alpine`. Service Railway dédié, indépendant de `tumaa-web-nginx`/`apps/web/landing`. Domaine custom `tumaajob.com` (`www.tumaajob.com` → redirect 301 vers `tumaajob.com`, géré dans [nginx.conf](../apps/home/nginx.conf)) |
+| `tumaa-home` | `/` (racine repo) | `railway.home.json` (`dockerfilePath: apps/home/Dockerfile`) | Site statique autonome (`apps/home`, HTML/CSS/JS sans dépendance au workspace pnpm) — build via `node build.mjs` (assemble `src/pages/` + `src/partials/`) puis servi par `nginx:alpine`. Service Railway dédié, indépendant de `tumaa-web-nginx`. Domaine custom `tumaajob.com` (`www.tumaajob.com` → redirect 301 vers `tumaajob.com`, géré dans [nginx.conf](../apps/home/nginx.conf)) |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la
@@ -39,8 +39,8 @@ depuis la racine, comme `tumaa-web-nginx`. `tumaa-web-nginx`
 utilise aussi le builder DOCKERFILE avec Root Directory à la racine du repo : son
 Dockerfile (`apps/web/nginx/Dockerfile`) build l'app React `@tumaa/web` dans un premier
 stage via `pnpm turbo run build --filter=...@tumaa/web` (elle dépend de `@tumaa/shared`
-en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`, la
-landing statique et le template Nginx dans un second stage `nginx:alpine`.
+en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`
+et le template Nginx dans un second stage `nginx:alpine`.
 
 ## Watch Paths (Settings → Source → Watch Paths)
 
@@ -92,8 +92,8 @@ dans le dashboard). Le réseau privé Railway route ces domaines sans sortir sur
 Internet.
 
 L'app React `/subscribe` est buildée avec `base: '/subscribe/'` (Vite) et
-`BrowserRouter basename="/subscribe"` (React Router) pour cohabiter avec la
-landing statique et le proxy SvelteKit sur le même domaine — voir
+`BrowserRouter basename="/subscribe"` (React Router) pour cohabiter avec le
+proxy SvelteKit sur le même domaine — voir
 [vite.config.ts](../apps/web/vite.config.ts) et [main.tsx](../apps/web/src/main.tsx).
 
 ## Variables d'environnement par service

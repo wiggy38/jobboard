@@ -7,17 +7,9 @@ server {
     gzip_types text/plain text/css application/javascript application/json;
     gzip_min_length 1024;
 
-    # Landing page statique
-    location / {
-        root /usr/share/nginx/html/landing;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-
-        # Cache assets statiques
-        location ~* \.(css|js|png|jpg|svg|ico|woff2?)$ {
-            expires 30d;
-            add_header Cache-Control "public, immutable";
-        }
+    # Landing page déplacée vers apps/home (service tumaa-home, tumaajob.com)
+    location = / {
+        return 301 https://tumaajob.com;
     }
 
     # SvelteKit app (admin + B2B + liens tokenisés)

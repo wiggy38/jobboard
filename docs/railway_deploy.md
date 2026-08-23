@@ -32,7 +32,7 @@ racine du repo car `pnpm turbo run build --filter=...` a besoin du workspace com
 (pas de dépendance `workspace:*`, contexte de build isolé suffisant). `tumaa-web-nginx`
 utilise aussi le builder DOCKERFILE mais avec Root Directory à la racine du repo : son
 Dockerfile (`apps/web/nginx/Dockerfile`) build l'app React `@tumaa/web` dans un premier
-stage via `pnpm turbo run build --filter=@tumaa/web...` (elle dépend de `@tumaa/shared`
+stage via `pnpm turbo run build --filter=...@tumaa/web` (elle dépend de `@tumaa/shared`
 en `workspace:*`, donc a besoin du monorepo complet), puis copie `apps/web/dist`, la
 landing statique et le template Nginx dans un second stage `nginx:alpine`.
 

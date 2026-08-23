@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm turbo run build --filter=@tumaa/web...
+RUN pnpm turbo run build --filter=...@tumaa/web
 
 FROM nginx:alpine
 

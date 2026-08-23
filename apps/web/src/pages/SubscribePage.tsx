@@ -6,13 +6,37 @@ import MetaTags from '../components/MetaTags'
 import {
   fetchBotPhone,
   fetchPlanLimits,
+  fetchPlanPricing,
   fetchSubscribeCountry,
   initiateSubscribePayment,
   simulateSubscribePayment,
   trackSubscribeClick,
+  type PlanPricing,
 } from '../lib/api'
 
 const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
+
+const DEFAULT_PLAN_PRICING: Record<'PREMIUM' | 'ELITE', PlanPricing> = {
+  PREMIUM: { barredPrice: 650, price: 650 },
+  ELITE: { barredPrice: 1250, price: 1250 },
+}
+
+function formatFcfa(amount: number): string {
+  return new Intl.NumberFormat('fr-FR').format(amount)
+}
+
+function PriceTag({ pricing }: { pricing: PlanPricing }) {
+  return (
+    <p className="text-2xl font-extrabold text-green-700 mt-1">
+      {pricing.barredPrice > pricing.price && (
+        <span className="text-base font-semibold text-slate-400 line-through mr-2">
+          {formatFcfa(pricing.barredPrice)}
+        </span>
+      )}
+      {formatFcfa(pricing.price)} <span className="text-sm font-medium text-slate-500">FCFA/mois</span>
+    </p>
+  )
+}
 
 function freemiumSummary(limits: PlanLimits): string {
   const cities = isUnlimited(limits.maxCities) ? 'villes illimitées' : `${limits.maxCities} villes`
@@ -152,6 +176,7 @@ export default function SubscribePage() {
   const [paying, setPaying] = useState<'PREMIUM' | 'ELITE' | null>(null)
   const [payError, setPayError] = useState<string | null>(null)
   const [planLimits, setPlanLimits] = useState<Record<UserPlan, PlanLimits>>(PLAN_LIMITS)
+  const [planPricing, setPlanPricing] = useState<Record<'PREMIUM' | 'ELITE', PlanPricing>>(DEFAULT_PLAN_PRICING)
 
   useEffect(() => {
     if (token) trackSubscribeClick(token)
@@ -172,6 +197,14 @@ export default function SubscribePage() {
       .then(setPlanLimits)
       .catch(() => {
         // garde les valeurs par défaut PLAN_LIMITS en cas d'échec réseau
+      })
+  }, [])
+
+  useEffect(() => {
+    fetchPlanPricing()
+      .then(setPlanPricing)
+      .catch(() => {
+        // garde les valeurs par défaut DEFAULT_PLAN_PRICING en cas d'échec réseau
       })
   }, [])
 
@@ -233,9 +266,7 @@ export default function SubscribePage() {
           <div className="text-center mb-4">
             <span className="text-2xl">📱</span>
             <h2 className="text-base font-bold text-slate-900 mt-1">PREMIUM</h2>
-            <p className="text-2xl font-extrabold text-green-700 mt-1">
-              650 <span className="text-sm font-medium text-slate-500">FCFA/mois</span>
-            </p>
+            <PriceTag pricing={planPricing.PREMIUM} />
           </div>
           <ul className="space-y-2 mb-6">
             {premiumFeatures(planLimits.PREMIUM).map((feature) => (
@@ -252,7 +283,7 @@ export default function SubscribePage() {
               disabled={paying !== null}
               className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200 disabled:opacity-50"
             >
-              {paying === 'PREMIUM' ? 'Redirection vers le paiement…' : "S'abonner · 650 FCFA/mois"}
+              {paying === 'PREMIUM' ? 'Redirection vers le paiement…' : `S'abonner · ${formatFcfa(planPricing.PREMIUM.price)} FCFA/mois`}
             </button>
           ) : (
             <a
@@ -260,7 +291,7 @@ export default function SubscribePage() {
               onClick={() => handlePlanClick('PREMIUM')}
               className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
             >
-              S&apos;abonner · 650 FCFA/mois
+              S&apos;abonner · {formatFcfa(planPricing.PREMIUM.price)} FCFA/mois
             </a>
           )}
           {SIMULATION_ENABLED && token && (
@@ -282,9 +313,7 @@ export default function SubscribePage() {
           <div className="text-center mb-4">
             <span className="text-2xl">👑</span>
             <h2 className="text-base font-bold text-slate-900 mt-1">ELITE</h2>
-            <p className="text-2xl font-extrabold text-green-700 mt-1">
-              1 250 <span className="text-sm font-medium text-slate-500">FCFA/mois</span>
-            </p>
+            <PriceTag pricing={planPricing.ELITE} />
           </div>
           <ul className="space-y-2 mb-6">
             {eliteFeatures(planLimits.ELITE).map((feature) => (
@@ -301,7 +330,7 @@ export default function SubscribePage() {
               disabled={paying !== null}
               className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200 disabled:opacity-50"
             >
-              {paying === 'ELITE' ? 'Redirection vers le paiement…' : "S'abonner · 1 250 FCFA/mois"}
+              {paying === 'ELITE' ? 'Redirection vers le paiement…' : `S'abonner · ${formatFcfa(planPricing.ELITE.price)} FCFA/mois`}
             </button>
           ) : (
             <a
@@ -309,7 +338,7 @@ export default function SubscribePage() {
               onClick={() => handlePlanClick('ELITE')}
               className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
             >
-              S&apos;abonner · 1 250 FCFA/mois
+              S&apos;abonner · {formatFcfa(planPricing.ELITE.price)} FCFA/mois
             </a>
           )}
           {SIMULATION_ENABLED && token && (

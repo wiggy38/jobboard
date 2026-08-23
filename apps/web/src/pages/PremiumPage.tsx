@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
-import { fetchBotPhone } from '../lib/api'
+import { fetchBotPhone, fetchPlanPricing, type PlanPricing } from '../lib/api'
 
 const FEATURES = [
   '3 villes suivies',
@@ -12,9 +12,16 @@ const FEATURES = [
   'Historique des offres sur 30 jours',
 ]
 
+const DEFAULT_PREMIUM_PRICING: PlanPricing = { barredPrice: 650, price: 650 }
+
+function formatFcfa(amount: number): string {
+  return new Intl.NumberFormat('fr-FR').format(amount)
+}
+
 export default function PremiumPage() {
   const [searchParams] = useSearchParams()
   const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22670000000')
+  const [pricing, setPricing] = useState<PlanPricing>(DEFAULT_PREMIUM_PRICING)
   const offerId = searchParams.get('offerId')
 
   useEffect(() => {
@@ -23,13 +30,21 @@ export default function PremiumPage() {
     })
   }, [])
 
+  useEffect(() => {
+    fetchPlanPricing()
+      .then((p) => setPricing(p.PREMIUM))
+      .catch(() => {
+        // garde la valeur par défaut DEFAULT_PREMIUM_PRICING en cas d'échec réseau
+      })
+  }, [])
+
   const waText = offerId ? `PREMIUM ${offerId}` : 'PREMIUM'
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 bg-white min-h-screen">
       <MetaTags
         title="Abonnement Premium — Tumaa"
-        description="650 FCFA/mois : 3 villes, 3 secteurs, 3 types de contrat, alertes mots-clés et historique 30 jours."
+        description={`${formatFcfa(pricing.price)} FCFA/mois : 3 villes, 3 secteurs, 3 types de contrat, alertes mots-clés et historique 30 jours.`}
         url={window.location.href}
       />
       <div className="flex justify-center mb-8">
@@ -44,7 +59,10 @@ export default function PremiumPage() {
       </div>
 
       <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center mb-6">
-        <p className="text-3xl font-extrabold text-green-700">650 FCFA</p>
+        {pricing.barredPrice > pricing.price && (
+          <p className="text-base font-semibold text-slate-400 line-through">{formatFcfa(pricing.barredPrice)} FCFA</p>
+        )}
+        <p className="text-3xl font-extrabold text-green-700">{formatFcfa(pricing.price)} FCFA</p>
         <p className="text-sm text-slate-600">/ mois</p>
       </div>
 
@@ -61,7 +79,7 @@ export default function PremiumPage() {
         href={`https://wa.me/${botPhone}?text=${encodeURIComponent(waText)}`}
         className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
       >
-        S&apos;abonner – 650 FCFA/mois
+        S&apos;abonner – {formatFcfa(pricing.price)} FCFA/mois
       </a>
       <p className="text-xs text-slate-400 text-center mt-4">
         Paiement via PayDunya (Orange Money, Moov Money, carte bancaire), directement sur WhatsApp.

@@ -136,6 +136,18 @@ export async function fetchPlanLimits(): Promise<Record<UserPlan, PlanLimits>> {
   return data.limits
 }
 
+export interface PlanPricing {
+  barredPrice: number
+  price: number
+}
+
+export async function fetchPlanPricing(): Promise<Record<'PREMIUM' | 'ELITE', PlanPricing>> {
+  const { data } = await axios.get<{ pricing: Record<'PREMIUM' | 'ELITE', PlanPricing> }>(
+    '/api/reference/plan-pricing'
+  )
+  return data.pricing
+}
+
 export interface SubscribeProfileData {
   cities: string[]
   sectors: string[]

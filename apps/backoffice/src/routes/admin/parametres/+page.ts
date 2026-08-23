@@ -7,8 +7,11 @@ export const ssr = false;
 
 export const load: PageLoad = async () => {
 	try {
-		const settings = await adminApi.getSettings();
-		return { settings };
+		const [settings, referenceUsage] = await Promise.all([
+			adminApi.getSettings(),
+			adminApi.getReferenceUsage(),
+		]);
+		return { settings, referenceUsage };
 	} catch (e) {
 		// Session expirée (cookie présent mais JWT invalide/expiré côté serveur)
 		// ou rôle insuffisant (accès direct par URL sans passer par le lien de

@@ -7,8 +7,8 @@ import {
   SECTOR_OPTIONS,
   LEVEL_OPTIONS,
   CONTRACT_GROUPS,
-  ELITE_MAX_COUNTRIES,
   type ContractGroupId,
+  type PlanLimits,
   type UserPlan,
 } from '@tumaa/shared'
 import Logo from '../components/Logo'
@@ -21,6 +21,7 @@ import {
   joinHomeChannel,
   fetchReferenceOptions,
   fetchSubscribeCountry,
+  fetchPlanLimits,
   type SubscribeChannel,
   type ReferenceOption,
 } from '../lib/api'
@@ -188,6 +189,12 @@ export default function SubscribeProfilePage() {
   const [levelOptions, setLevelOptions] = useState<ReferenceOption[]>(LEVEL_OPTIONS)
   const cityOptions = citiesByCountry?.[country] ?? CITY_OPTIONS
 
+  // Limites de plan éditées en backoffice (/parametres) — PLAN_LIMITS de
+  // @tumaa/shared sert d'état initial (pas de flash le temps du fetch),
+  // remplacé dès que /api/reference/plan-limits répond. Voir SubscribePage.tsx
+  // pour le même pattern.
+  const [planLimits, setPlanLimits] = useState<Record<UserPlan, PlanLimits>>(PLAN_LIMITS)
+
   useEffect(() => {
     fetchReferenceOptions()
       .then((opts) => {
@@ -197,6 +204,14 @@ export default function SubscribeProfilePage() {
       })
       .catch(() => {
         // pas bloquant : on garde les valeurs par défaut de @tumaa/shared
+      })
+  }, [])
+
+  useEffect(() => {
+    fetchPlanLimits()
+      .then(setPlanLimits)
+      .catch(() => {
+        // pas bloquant : on garde les valeurs par défaut PLAN_LIMITS
       })
   }, [])
 
@@ -231,7 +246,7 @@ export default function SubscribeProfilePage() {
     )
   }
 
-  const limits = PLAN_LIMITS[plan]
+  const limits = planLimits[plan]
   const STEPS: Step[] = plan === 'ELITE' ? [...BASE_STEPS, 'country'] : BASE_STEPS
   const totalSteps = STEPS.length
   const step = STEPS[stepIndex]
@@ -382,8 +397,8 @@ export default function SubscribeProfilePage() {
           subtitle="Choisis les pays où tu recherches de l'emploi (au moins un pays)."
           options={COUNTRY_OPTIONS}
           selected={countries}
-          max={ELITE_MAX_COUNTRIES}
-          onToggle={(v) => toggle(countries, setCountries, v, ELITE_MAX_COUNTRIES)}
+          max={limits.maxCountries}
+          onToggle={(v) => toggle(countries, setCountries, v, limits.maxCountries)}
           onNext={goNext}
           nextLabel="Terminer"
           {...commonProps}

@@ -21,6 +21,8 @@
 		{ id: 'templates', label: 'Templates payants', icon: '💬' },
 		{ id: 'pull', label: 'Pull WhatsApp', icon: '📲' },
 		{ id: 'plans', label: "Formules d'abonnement", icon: '💳' },
+		{ id: 'pricing', label: 'Tarifs', icon: '🏷️' },
+		{ id: 'fullAccess', label: 'Full access', icon: '🔓' },
 		{ id: 'levels', label: "Niveaux d'études", icon: '🎓' },
 		{ id: 'sectors', label: "Secteurs d'activité", icon: '🏢' },
 		{ id: 'cities', label: 'Villes par pays', icon: '📍' },
@@ -82,6 +84,21 @@
 
 	let reportEmailTo = $state(data.settings[SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO]);
 	let careerjetAffid = $state(data.settings[SETTING_KEYS.SCRAPER_CAREERJET_AFFID]);
+
+	let fullAccess = $state(data.settings[SETTING_KEYS.OFFER_FULL_ACCESS]);
+
+	// Nb de profils référençant chaque valeur de secteur/ville/niveau — sert à
+	// désactiver la suppression d'une valeur encore utilisée (le backend rejette
+	// aussi cette suppression via PATCH /admin/settings/:key, ceci n'est qu'un
+	// indicateur pour éviter à l'admin une manip pour rien).
+	const referenceUsage = data.referenceUsage;
+
+	const PAID_PLANS = ['PREMIUM', 'ELITE'] as const;
+	// Repli défensif si l'API tourne encore sur un ancien build de @tumaa/shared
+	// (avant l'ajout de PLAN_PRICING) — évite un crash de composant (page blanche)
+	// tant que le serveur n'a pas été redémarré.
+	const DEFAULT_PRICING = { PREMIUM: { barredPrice: 650, price: 650 }, ELITE: { barredPrice: 1250, price: 1250 } };
+	let pricing = $state(structuredClone(data.settings[SETTING_KEYS.PLAN_PRICING] ?? DEFAULT_PRICING));
 
 	let paydunyaMode = $state(data.settings[SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]);
 	let paydunyaConfirmOpen = $state(false);
@@ -208,14 +225,13 @@
 		</div>
 		<div class="table-wrap">
 			<table>
-				<thead><tr><th>Nom du job</th><th>Scraper</th><th>Pattern cron</th><th></th></tr></thead>
+				<thead><tr><th>Nom du job</th><th>Scraper</th><th>Pattern cron</th></tr></thead>
 				<tbody>
 					{#each visibleSchedule as job}
 						<tr>
 							<td class="mono">{job.name}</td>
 							<td class="mono">{job.scraperKey}</td>
 							<td><input type="text" class="cron-input" bind:value={job.pattern} /></td>
-							<td><button class="btn-remove" onclick={() => (schedule = schedule.filter((j) => j !== job))} aria-label="Supprimer">✕</button></td>
 						</tr>
 					{/each}
 				</tbody>
@@ -224,6 +240,7 @@
 				<p class="empty-hint">Aucun scraper programmé pour ce pays.</p>
 			{/if}
 		</div>
+		<p class="hint">Un scraper programmé ne peut pas être retiré d'ici — utilise "Désactiver" sur <a href="/admin/scrapers">/admin/scrapers</a> pour l'arrêter sans perdre sa programmation.</p>
 		<div class="list-actions">
 			{#if addableScrapers.length > 0}
 				<div class="add-scraper-row">
@@ -360,6 +377,72 @@
 	</section>
 	{/if}
 
+	<!-- ── Tarifs ───────────────────────────────────────────────────── -->
+	{#if activeSection === 'pricing'}
+	<section class="card">
+		<div class="card-header">
+			<h2>Tarifs</h2>
+			{#if status.pricing === 'saved'}<span class="status-ok">✓ Enregistré</span>{/if}
+			{#if status.pricing === 'error'}<span class="status-error">{errorMsg.pricing}</span>{/if}
+		</div>
+		<div class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Formule</th>
+						<th>Prix barré (FCFA)</th>
+						<th>Prix réel (FCFA)</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each PAID_PLANS as plan}
+						<tr>
+							<td class="plan-name">{PLAN_LABEL[plan]}</td>
+							<td><input type="number" min="0" class="num-input" bind:value={pricing[plan].barredPrice} /></td>
+							<td><input type="number" min="0" class="num-input" bind:value={pricing[plan].price} /></td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+		<p class="hint">Le prix barré n'est qu'un affichage marketing — seul le prix réel est facturé (PayDunya). Laissez les deux valeurs égales pour ne pas afficher de réduction.</p>
+		<button
+			class="btn-primary"
+			disabled={status.pricing === 'saving'}
+			onclick={() => saveSection('pricing', SETTING_KEYS.PLAN_PRICING, pricing)}
+		>
+			Enregistrer
+		</button>
+	</section>
+	{/if}
+
+	<!-- ── Full access ──────────────────────────────────────────────── -->
+	{#if activeSection === 'fullAccess'}
+	<section class="card">
+		<div class="card-header">
+			<h2>Full access</h2>
+			{#if status.fullAccess === 'saved'}<span class="status-ok">✓ Enregistré</span>{/if}
+			{#if status.fullAccess === 'error'}<span class="status-error">{errorMsg.fullAccess}</span>{/if}
+		</div>
+		<div class="field-row">
+			<div class="field">
+				<label>
+					<input type="checkbox" bind:checked={fullAccess} />
+					Full access — les Freemium ont aussi accès à la source des offres
+				</label>
+			</div>
+			<button
+				class="btn-primary"
+				disabled={status.fullAccess === 'saving'}
+				onclick={() => saveSection('fullAccess', SETTING_KEYS.OFFER_FULL_ACCESS, fullAccess)}
+			>
+				Enregistrer
+			</button>
+		</div>
+		<p class="hint">N'affecte que la page web tokenisée `/offre/[token]` — le comportement des liens WhatsApp reste inchangé.</p>
+	</section>
+	{/if}
+
 	<!-- ── Référentiels ─────────────────────────────────────────────── -->
 	{#if activeSection === 'levels'}
 	<section class="card">
@@ -372,7 +455,16 @@
 			{#each levels as opt, i}
 				<div class="option-row">
 					<input type="text" placeholder="Valeur" bind:value={opt.value} oninput={() => (opt.label = opt.value)} />
-					<button class="btn-remove" onclick={() => (levels = removeOption(levels, i))} aria-label="Supprimer">✕</button>
+					{#if referenceUsage.levels[opt.value] > 0}
+						<span class="tab-count" title={`Utilisé par ${referenceUsage.levels[opt.value]} profil(s) — impossible à supprimer`}>🔒 {referenceUsage.levels[opt.value]}</span>
+					{/if}
+					<button
+						class="btn-remove"
+						disabled={referenceUsage.levels[opt.value] > 0}
+						onclick={() => (levels = removeOption(levels, i))}
+						aria-label="Supprimer"
+						title={referenceUsage.levels[opt.value] > 0 ? `Utilisé par ${referenceUsage.levels[opt.value]} profil(s) — impossible à supprimer` : 'Supprimer'}
+					>✕</button>
 				</div>
 			{/each}
 		</div>
@@ -394,7 +486,16 @@
 			{#each sectors as opt, i}
 				<div class="option-row">
 					<input type="text" placeholder="Valeur" bind:value={opt.value} oninput={() => (opt.label = opt.value)} />
-					<button class="btn-remove" onclick={() => (sectors = removeOption(sectors, i))} aria-label="Supprimer">✕</button>
+					{#if referenceUsage.sectors[opt.value] > 0}
+						<span class="tab-count" title={`Utilisé par ${referenceUsage.sectors[opt.value]} profil(s) — impossible à supprimer`}>🔒 {referenceUsage.sectors[opt.value]}</span>
+					{/if}
+					<button
+						class="btn-remove"
+						disabled={referenceUsage.sectors[opt.value] > 0}
+						onclick={() => (sectors = removeOption(sectors, i))}
+						aria-label="Supprimer"
+						title={referenceUsage.sectors[opt.value] > 0 ? `Utilisé par ${referenceUsage.sectors[opt.value]} profil(s) — impossible à supprimer` : 'Supprimer'}
+					>✕</button>
 				</div>
 			{/each}
 		</div>
@@ -424,7 +525,16 @@
 			{#each citiesByCountry[activeCityCountry] as opt, i}
 				<div class="option-row">
 					<input type="text" placeholder="Ville" bind:value={opt.value} oninput={() => (opt.label = opt.value)} />
-					<button class="btn-remove" onclick={() => (citiesByCountry[activeCityCountry] = removeOption(citiesByCountry[activeCityCountry], i))} aria-label="Supprimer">✕</button>
+					{#if referenceUsage.cities[opt.value] > 0}
+						<span class="tab-count" title={`Utilisé par ${referenceUsage.cities[opt.value]} profil(s) — impossible à supprimer`}>🔒 {referenceUsage.cities[opt.value]}</span>
+					{/if}
+					<button
+						class="btn-remove"
+						disabled={referenceUsage.cities[opt.value] > 0}
+						onclick={() => (citiesByCountry[activeCityCountry] = removeOption(citiesByCountry[activeCityCountry], i))}
+						aria-label="Supprimer"
+						title={referenceUsage.cities[opt.value] > 0 ? `Utilisé par ${referenceUsage.cities[opt.value]} profil(s) — impossible à supprimer` : 'Supprimer'}
+					>✕</button>
 				</div>
 			{/each}
 			{#if citiesByCountry[activeCityCountry].length === 0}

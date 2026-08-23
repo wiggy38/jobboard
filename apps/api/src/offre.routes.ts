@@ -128,10 +128,11 @@ export async function offreRoutes(fastify: FastifyInstance) {
         .catch(() => {})
     }
 
-    const user = userId
-      ? await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } })
-      : null
-    const hasDirectSourceAccess = user ? user.plan !== 'FREEMIUM' : false
+    const [user, fullAccessEnabled] = await Promise.all([
+      userId ? prisma.user.findUnique({ where: { id: userId }, select: { plan: true } }) : null,
+      getSetting(SETTING_KEYS.OFFER_FULL_ACCESS),
+    ])
+    const hasDirectSourceAccess = fullAccessEnabled || (user ? user.plan !== 'FREEMIUM' : false)
 
     // Subscribe-token dérivé de l'utilisateur déjà authentifié par le token
     // offre (`?t=`) — permet aux CTA "voir la source"/"passer en Premium ou

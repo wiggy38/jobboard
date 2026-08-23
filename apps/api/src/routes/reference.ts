@@ -23,4 +23,16 @@ export async function referenceRoutes(fastify: FastifyInstance) {
     const limits = await getSetting(SETTING_KEYS.PLAN_LIMITS)
     return reply.send({ limits })
   })
+
+  // Prix (barré + réel) par plan — défaut PLAN_PRICING, ou surcharge backoffice
+  // via SETTING_KEYS.PLAN_PRICING — consommés publiquement par apps/web et
+  // apps/home pour ne jamais afficher un tarif obsolète.
+  fastify.get('/api/reference/plan-pricing', async (_request, reply) => {
+    // apps/home est servi sur une origine distincte (WAMP), non proxifiée vers
+    // l'API — même en-tête CORS que les autres endpoints publics qu'il
+    // consomme (voir offre.routes.ts: whatsapp-number, offres, offre/:id).
+    reply.header('Access-Control-Allow-Origin', '*')
+    const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING)
+    return reply.send({ pricing })
+  })
 }

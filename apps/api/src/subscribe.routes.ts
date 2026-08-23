@@ -13,10 +13,6 @@ import {
   ContractGroupId,
 } from '@tumaa/shared'
 
-const PLAN_PRICING: Record<'PREMIUM' | 'ELITE', number> = {
-  PREMIUM: 650,
-  ELITE: 1250,
-}
 const PLAN_LABELS: Record<'PREMIUM' | 'ELITE', string> = {
   PREMIUM: 'Abonnement Tumaa PREMIUM (30 jours)',
   ELITE: 'Abonnement Tumaa ELITE (30 jours)',
@@ -328,10 +324,12 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'USER_NOT_FOUND' })
     }
 
+    const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING)
+
     await prisma.payment.create({
       data: {
         userId: user.id,
-        amount: PLAN_PRICING[plan],
+        amount: pricing[plan].price,
         provider: 'PAYDUNYA',
         reference: `SIMULATED-${Date.now()}`,
         status: 'SUCCESS',
@@ -374,10 +372,12 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'USER_NOT_FOUND' })
     }
 
+    const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING)
+
     const payment = await prisma.payment.create({
       data: {
         userId: user.id,
-        amount: PLAN_PRICING[plan],
+        amount: pricing[plan].price,
         provider: 'PAYDUNYA',
         status: 'PENDING',
         planPurchased: plan as UserPlan,
@@ -387,7 +387,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
 
     try {
       const invoice = await createInvoice({
-        amount: PLAN_PRICING[plan],
+        amount: pricing[plan].price,
         description: PLAN_LABELS[plan],
         customData: { paymentId: payment.id, userId: user.id, plan },
         returnUrl: getPlanRedirectUrl(plan, t),

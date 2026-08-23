@@ -132,9 +132,12 @@ ad hoc à partir de `user.plan`.
    "Format des messages" plus bas). Les offres B2B insérées manuellement
    (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne sont pas concernées : leur
    `description`/`requirements` sont saisis en clair par l'admin et affichés intégralement.
-   ⚠️ **Écart connu** : `apps/api/src/offre.routes.ts` n'implémente pas encore cette
-   différenciation — il retourne toujours `accessLevel: 'FULL'` et le `sourceUrl` réel quel que
-   soit le plan de l'utilisateur ; à corriger dans un futur chantier.
+   Implémenté dans `apps/api/src/offre.routes.ts` (`hasDirectSourceAccess`) : `accessLevel`/
+   `sourceUrl` dépendent bien du plan de l'utilisateur.
+   **Réglage backoffice `OFFER_FULL_ACCESS`** (`/admin/parametres` → section "Formules
+   d'abonnement", clé `offers.fullAccess`, défaut `false`) : quand activé, lève cette restriction
+   et donne aussi aux FREEMIUM l'accès direct à la source, sans déploiement. N'affecte que la page
+   web tokenisée — le comportement WhatsApp reste inchangé.
 3. **DÉBLOQUER → lien direct Premium 650 FCFA**, jamais d'essai gratuit.
 4. **Paiement hors plateforme** (PayDunya : Orange Money/Moov Money/carte bancaire) — pas d'UI admin sur le paiement, suivi via dashboard PayDunya.
 5. **Retry paiement** : PENDING > 24h → relance manuelle ; commande `VÉRIFIER` resynchronise avec PayDunya ; relance à J-7 avant expiration d'abonnement.
@@ -182,9 +185,9 @@ ad hoc à partir de `user.plan`.
   identique. C'est uniquement **sur la page `/offre/[token]`** que le contenu diffère désormais
   par plan : les contacts (email/téléphone/adresse) restent toujours visibles quel que soit le
   plan (règle 1), mais le bouton "voir la source" (sourceUrl/sourceName) est réservé à
-  Premium/Elite — pour Freemium il redirige vers `/offres` (règle 2). `accessLevel` doit donc
-  refléter cette différence (`FULL` pour Premium/Elite, restreint pour Freemium) au lieu de
-  valoir toujours `'FULL'`. ⚠️ Non encore implémenté côté API, voir écart signalé règle 2.
+  Premium/Elite — pour Freemium il redirige vers `/offres` (règle 2). `accessLevel` reflète cette
+  différence (`FULL` pour Premium/Elite, restreint pour Freemium), sauf si le réglage backoffice
+  `OFFER_FULL_ACCESS` est activé (voir règle 2).
 - Le parser de commandes gère DEUX types d'entrée :
   1. message.text.body (texte libre)
   2. message.interactive.button_reply.id (Reply Button tapé)

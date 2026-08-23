@@ -109,6 +109,10 @@ export const adminApi = {
 			method: 'PATCH',
 			body: JSON.stringify({ value }),
 		}),
+	getReferenceUsage: () =>
+		apiFetch<{ sectors: Record<string, number>; cities: Record<string, number>; levels: Record<string, number> }>(
+			'/admin/settings/reference-usage'
+		),
 };
 
 export const employerApi = {

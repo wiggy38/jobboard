@@ -29,6 +29,8 @@ export const SETTING_KEYS = {
   WHATSAPP_BOT_NUMBERS: 'whatsapp.botNumbers',
   SCOUTS_CAPTURE_RATE: 'scouts.captureRate',
   PAYMENTS_PAYDUNYA_MODE: 'payments.paydunyaMode',
+  OFFER_FULL_ACCESS: 'offers.fullAccess',
+  PLAN_PRICING: 'plans.pricing',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
@@ -99,6 +101,13 @@ export interface TemplateCaps {
 
 export type PaydunyaMode = 'test' | 'live'
 
+export interface PlanPricing {
+  // Prix affiché biffé à des fins marketing — n'est jamais facturé.
+  barredPrice: number
+  // Prix réel, envoyé tel quel à PayDunya (createInvoice) — seule valeur qui compte pour le paiement.
+  price: number
+}
+
 export interface SettingValueMap {
   [SETTING_KEYS.SCRAPER_ALERT_THRESHOLD]: number
   [SETTING_KEYS.SCRAPER_RETRY_ATTEMPTS]: number
@@ -115,6 +124,8 @@ export interface SettingValueMap {
   [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: Record<string, string>
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: number
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: PaydunyaMode
+  [SETTING_KEYS.OFFER_FULL_ACCESS]: boolean
+  [SETTING_KEYS.PLAN_PRICING]: Record<'PREMIUM' | 'ELITE', PlanPricing>
 }
 
 // Reprend exactement la programmation actuelle de apps/scraper/src/scheduler.ts
@@ -165,4 +176,9 @@ export const DEFAULT_SETTINGS: SettingValueMap = {
   [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: { BF: '22645010707' },
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: 200,
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: 'live',
+  [SETTING_KEYS.OFFER_FULL_ACCESS]: false,
+  [SETTING_KEYS.PLAN_PRICING]: {
+    PREMIUM: { barredPrice: 650, price: 650 },
+    ELITE: { barredPrice: 1250, price: 1250 },
+  },
 }

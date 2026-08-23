@@ -36,6 +36,30 @@ function fillWaNumberDisplay() {
   });
 }
 
+// Formate un montant FCFA en séparant les milliers par un espace (ex: 1250 -> "1 250").
+function formatFcfa(amount) {
+  return new Intl.NumberFormat('fr-FR').format(amount);
+}
+
+// Remplace les tarifs Premium/Elite figés dans le HTML statique par ceux
+// configurés en backoffice (SETTING_KEYS.PLAN_PRICING) — n'écrit rien tant
+// que le fetch n'a pas répondu, pour éviter un flash sur le prix par défaut.
+function fillPlanPricing(pricing) {
+  document.querySelectorAll('[data-plan-price]').forEach((el) => {
+    const plan = el.getAttribute('data-plan-price');
+    const planPricing = pricing[plan];
+    if (!planPricing) return;
+    const amountEl = el.querySelector('[data-price-amount]');
+    const barredEl = el.querySelector('[data-price-barred]');
+    if (amountEl) amountEl.textContent = formatFcfa(planPricing.price);
+    if (barredEl) {
+      barredEl.textContent = planPricing.barredPrice > planPricing.price
+        ? `${formatFcfa(planPricing.barredPrice)} FCFA `
+        : '';
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Fill all [data-wa] links from their data-wa-text with the default number
   // first (instant, no layout shift), then refresh once the configured
@@ -53,6 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .catch(() => {
       // garde le numéro par défaut en cas d'échec réseau
+    });
+
+  fetch(`${apiBase}/api/reference/plan-pricing`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.pricing) fillPlanPricing(data.pricing);
+    })
+    .catch(() => {
+      // garde les tarifs par défaut figés dans le HTML en cas d'échec réseau
     });
 
   // Mobile menu toggle

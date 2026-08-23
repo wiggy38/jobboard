@@ -24,6 +24,7 @@ Référencer ces deux add-ons dans les variables d'env de chaque service via les
 | `tumaa-scraper` | `/` (racine repo) | `railway.scraper.json` | Scheduler BullMQ + Playwright (Chromium headless). Le build installe les libs système via `playwright install --with-deps` |
 | `tumaa-web-nginx` | `/` (racine repo) | `railway.web-nginx.json` (`dockerfilePath: apps/web/nginx/Dockerfile`) | Landing statique + app React `/subscribe` (buildée dans le même Dockerfile, Root Directory à la racine pour résoudre `@tumaa/shared` en `workspace:*`) + reverse proxy vers `tumaa-web-app` et `tumaa-api`. Générer un domaine Railway (ou domaine custom `tumaa.bf`) |
 | `tumaa-web-app` | `/` (racine repo) | `railway.web-app.json` (`dockerfilePath: apps/backoffice/Dockerfile`) | SvelteKit (admin, B2B, liens tokenisés `/offre/`). Pas de domaine public nécessaire — accédé uniquement via le réseau interne par `tumaa-web-nginx` |
+| `tumaa-home` | `/` (racine repo) | `railway.home.json` (`dockerfilePath: apps/home/Dockerfile`) | Site statique autonome (`apps/home`, HTML/CSS/JS sans dépendance au workspace pnpm) — build via `node build.mjs` (assemble `src/pages/` + `src/partials/`) puis servi par `nginx:alpine`. Service Railway dédié, indépendant de `tumaa-web-nginx`/`apps/web/landing`. Domaine custom `tumaajob.com` (`www.tumaajob.com` → redirect 301 vers `tumaajob.com`, géré dans [nginx.conf](../apps/home/nginx.conf)) |
 
 `tumaa-api`, `tumaa-bot`, `tumaa-scraper` utilisent le builder RAILPACK avec
 `buildCommand`/`startCommand` définis dans leur JSON — le Root Directory reste la
@@ -66,6 +67,7 @@ Patterns recommandés (à saisir un par ligne dans le dashboard) :
 | `tumaa-scraper` | `apps/scraper/**`, `packages/db/**`, `packages/shared/**`, `railway.scraper.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
 | `tumaa-web-nginx` | `apps/web/**`, `packages/shared/**`, `railway.web-nginx.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
 | `tumaa-web-app` | `apps/backoffice/**`, `packages/shared/**`, `railway.web-app.json`, `turbo.json`, `pnpm-lock.yaml`, `package.json` |
+| `tumaa-home` | `apps/home/**`, `railway.home.json` |
 
 Après toute modification d'un `railway.*.json` ou d'un package partagé sans
 changement dans le répertoire de l'app elle-même, **déclencher un redeploy
@@ -109,6 +111,7 @@ dur ici, ils évoluent. Points d'attention au moment du déploiement :
   utiliser un mot de passe d'application dédié, jamais commité)
 - `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM`, `API_UPSTREAM` (voir ci-dessus)
 - `tumaa-web-app` : `PORT=3000`, `VITE_API_URL` → domaine public/privé de `tumaa-api`
+- `tumaa-home` : aucune — site statique sans backend, build 100% local au Dockerfile
 
 Tous les secrets réels vivent uniquement dans les variables d'env Railway —
 jamais dans `.env.example`, qui ne doit contenir que des placeholders.
@@ -124,3 +127,7 @@ jamais dans `.env.example`, qui ne doit contenir que des placeholders.
    et `API_UPSTREAM` pointant vers le domaine privé de `tumaa-api`
 6. Générer un domaine public pour `tumaa-web-nginx` (et `tumaa-bot` pour le
    webhook Meta) ; brancher le domaine custom `tumaa.bf` si applicable
+7. Déployer `tumaa-home`, brancher le domaine custom `tumaajob.com` (+
+   `www.tumaajob.com`) dans Settings → Networking → Custom Domain — Railway
+   fournit un CNAME cible à pointer chez le registrar/DNS pour les deux
+   enregistrements

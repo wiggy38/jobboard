@@ -2,6 +2,7 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import fjwt from '@fastify/jwt'
 import fformbody from '@fastify/formbody'
+import fcors from '@fastify/cors'
 import { offreRoutes } from './offre.routes'
 import { subscribeRoutes } from './subscribe.routes'
 import { adminRoutes } from './admin.routes'
@@ -17,7 +18,18 @@ import path from 'path'
 
 const app = Fastify({ logger: true })
 
+const ALLOWED_ORIGINS = [
+  'https://backoffice.tumaajob.com',
+  'https://app.tumaajob.com',
+  'https://www.tumaajob.com',
+  'https://tumaajob.com',
+  /^http:\/\/localhost:\d+$/,
+]
 
+app.register(fcors, {
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+})
 app.register(fjwt, {
   secret: process.env.TOKEN_SECRET ?? 'changeme',
 })

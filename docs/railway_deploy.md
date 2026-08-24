@@ -110,8 +110,11 @@ dur ici, ils évoluent. Points d'attention au moment du déploiement :
   `ANTHROPIC_API_KEY`, `PAYDUNYA_*`, `INTERNAL_API_URL` →
   pointer vers le domaine privé de `tumaa-api`, `CHANNEL_INVITE_LINK_*`, `PORT=3000`
   (confirmé fonctionnel sur `wabot.tumaajob.com`)
-- `tumaa-scraper` : `DATABASE_URL`, `REDIS_URL`, `SMTP_*` (rapport quotidien —
-  utiliser un mot de passe d'application dédié, jamais commité)
+- `tumaa-scraper` : `DATABASE_URL`, `REDIS_URL`, `ANTHROPIC_API_KEY` (extraction
+  sémantique Claude Haiku, `apps/scraper/src/lib/ai-normalizer.ts` /
+  `ai-extractor.ts` — oublié lors du premier déploiement, cause de
+  `Haiku extraction failed: Could not resolve authentication method`), `SMTP_*`
+  (rapport quotidien — utiliser un mot de passe d'application dédié, jamais commité)
 - `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM=<domaine privé tumaa-web-app>:80`,
   `API_UPSTREAM=<domaine privé tumaa-api>:2999` (les ports internes des deux services
   cibles doivent rester synchronisés avec leurs `PORT` respectifs — voir `tumaa-api` et

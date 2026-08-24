@@ -19,6 +19,9 @@ const PLAN_LABELS: Record<'PREMIUM' | 'ELITE', string> = {
 }
 const SUBSCRIPTION_DURATION_DAYS = 30
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
+if (process.env.NODE_ENV === 'production' && !process.env.API_BASE_URL) {
+  throw new Error('API_BASE_URL doit être définie en production (callback PayDunya)')
+}
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3000'
 
 function verifySubscribeToken(fastify: FastifyInstance, token: string): { userId: string } {

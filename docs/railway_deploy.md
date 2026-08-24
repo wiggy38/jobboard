@@ -83,7 +83,7 @@ En local (`docker-compose.web.yml`) elles valent `sveltekit:3000` et `api:3000`.
 Sur Railway, positionner sur `tumaa-web-nginx` :
 
 ```
-SVELTEKIT_UPSTREAM=${{tumaa-web-app.RAILWAY_PRIVATE_DOMAIN}}:3000
+SVELTEKIT_UPSTREAM=${{tumaa-web-app.RAILWAY_PRIVATE_DOMAIN}}:80
 API_UPSTREAM=${{tumaa-api.RAILWAY_PRIVATE_DOMAIN}}:3000
 ```
 
@@ -103,14 +103,22 @@ dur ici, ils évoluent. Points d'attention au moment du déploiement :
 
 - `tumaa-api` : `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `ADMIN_JWT_SECRET`,
   `ADMIN_PASSWORD`, `TOKEN_SECRET`, `WEB_BASE_URL`, `API_BASE_URL`,
-  `CHANNEL_INVITE_LINK_*`, `PAYDUNYA_*` (mode `live` en prod)
+  `CHANNEL_INVITE_LINK_*`, `PAYDUNYA_*` (mode `live` en prod), `PORT=2999` (le code
+  défaut sur `3000` si `PORT` n'est pas positionné — sans cette variable Railway route
+  vers le mauvais port interne et le domaine custom `api.tumaajob.com` répond en 502)
 - `tumaa-bot` : `DATABASE_URL`, `REDIS_URL`, `META_*` (webhook WhatsApp),
   `ANTHROPIC_API_KEY`, `PAYDUNYA_*`, `INTERNAL_API_URL` →
-  pointer vers le domaine privé de `tumaa-api`, `CHANNEL_INVITE_LINK_*`
+  pointer vers le domaine privé de `tumaa-api`, `CHANNEL_INVITE_LINK_*`, `PORT=3000`
+  (confirmé fonctionnel sur `wabot.tumaajob.com`)
 - `tumaa-scraper` : `DATABASE_URL`, `REDIS_URL`, `SMTP_*` (rapport quotidien —
   utiliser un mot de passe d'application dédié, jamais commité)
-- `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM`, `API_UPSTREAM` (voir ci-dessus)
-- `tumaa-web-app` : `PORT=3000`, `VITE_API_URL` → domaine public/privé de `tumaa-api`
+- `tumaa-web-nginx` : `SVELTEKIT_UPSTREAM=<domaine privé tumaa-web-app>:80`,
+  `API_UPSTREAM=<domaine privé tumaa-api>:2999` (les ports internes des deux services
+  cibles doivent rester synchronisés avec leurs `PORT` respectifs — voir `tumaa-api` et
+  `tumaa-web-app` ci-dessus — sinon `/api/` et `/offre/` timeout côté nginx)
+- `tumaa-web-app` : `PORT=80` (aligné sur `EXPOSE 80`/`ENV PORT=80` du
+  Dockerfile — ne pas laisser une ancienne valeur `PORT=3000` sur Railway),
+  `VITE_API_URL` → domaine public/privé de `tumaa-api`
 - `tumaa-home` : aucune — site statique sans backend, build 100% local au Dockerfile
 
 Tous les secrets réels vivent uniquement dans les variables d'env Railway —

@@ -1,12 +1,13 @@
 services:
-  sveltekit:
+  backoffice:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://api:3000
     environment:
-      - VITE_API_URL=http://bot:3000
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=80
     networks:
       - tumaa_network
     restart: unless-stopped

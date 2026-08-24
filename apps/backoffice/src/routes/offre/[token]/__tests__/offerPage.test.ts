@@ -1,7 +1,7 @@
 // Tests unitaires du chargement de la page offre tokenisée
 // Nécessite vitest ou jest + msw pour mocker l'API
 
-const API_BASE = 'http://localhost:3000'
+const API_BASE = 'http://localhost:2999'
 
 const baseOffer = {
   id: 'offer-123',

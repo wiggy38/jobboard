@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import type { SettingKey, SettingValueMap } from '@tumaa/shared';
 import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminKpis, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedReferrals, PaginatedTracking, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:2999';
 
 function getAdminToken(): string | undefined {
 	if (!browser) return undefined;

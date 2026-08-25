@@ -82,13 +82,17 @@ function fillPlanLimits(limits) {
   });
 }
 
-// Masque la section tarifs quand le backoffice a activé offers.fullAccess
+// Masque la section tarifs et son lien de menu (present sur toutes les pages
+// via le partial header) quand le backoffice a activé offers.fullAccess
 // (SETTING_KEYS.OFFER_FULL_ACCESS) : l'accès direct aux annonces est alors
 // offert à tous les plans, la grille de prix n'a plus lieu d'être affichée.
 function toggleTarifsSection(fullAccess) {
+  const display = fullAccess ? 'none' : '';
   const section = document.getElementById('tarifs');
-  if (!section) return;
-  section.style.display = fullAccess ? 'none' : '';
+  if (section) section.style.display = display;
+  document.querySelectorAll('[data-nav-tarifs]').forEach((el) => {
+    el.style.display = display;
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

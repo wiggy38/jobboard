@@ -55,7 +55,6 @@ const start = async () => {
     await app.register(fastifyStatic, {
       root: path.join(__dirname, '../../web/dist'),
       prefix: '/',
-      decorateReply: false,
     })
     app.setNotFoundHandler((req, reply) => {
       if (!req.url.startsWith('/api') && !req.url.startsWith('/admin')) {

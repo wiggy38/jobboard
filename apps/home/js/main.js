@@ -60,6 +60,28 @@ function fillPlanPricing(pricing) {
   });
 }
 
+// Valeur sentinelle "illimité" — doit rester synchronisée avec UNLIMITED dans
+// packages/shared/src/planLimits.ts (apps/home n'importe pas @tumaa/shared).
+const PLAN_LIMIT_UNLIMITED = 999;
+
+// Remplace les nombres de villes/secteurs figés dans le HTML statique par ceux
+// configurés en backoffice (SETTING_KEYS.PLAN_LIMITS) — n'écrit rien tant que
+// le fetch n'a pas répondu, pour éviter un flash sur les valeurs par défaut.
+function fillPlanLimits(limits) {
+  document.querySelectorAll('[data-limit-cities]').forEach((el) => {
+    const plan = el.getAttribute('data-limit-cities');
+    const n = limits[plan] && limits[plan].maxCities;
+    if (n == null) return;
+    el.textContent = n >= PLAN_LIMIT_UNLIMITED ? 'Villes illimitées' : `${n} villes`;
+  });
+  document.querySelectorAll('[data-limit-sectors]').forEach((el) => {
+    const plan = el.getAttribute('data-limit-sectors');
+    const n = limits[plan] && limits[plan].maxSectors;
+    if (n == null) return;
+    el.textContent = n >= PLAN_LIMIT_UNLIMITED ? 'Secteurs illimités' : `${n} secteurs`;
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Fill all [data-wa] links from their data-wa-text with the default number
   // first (instant, no layout shift), then refresh once the configured
@@ -86,6 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .catch(() => {
       // garde les tarifs par défaut figés dans le HTML en cas d'échec réseau
+    });
+
+  fetch(`${apiBase}/api/reference/plan-limits`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.limits) fillPlanLimits(data.limits);
+    })
+    .catch(() => {
+      // garde les limites par défaut figées dans le HTML en cas d'échec réseau
     });
 
   // Mobile menu toggle

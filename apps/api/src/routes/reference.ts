@@ -18,8 +18,11 @@ export async function referenceRoutes(fastify: FastifyInstance) {
 
   // Limites de plan effectives (défaut PLAN_LIMITS, ou surcharge backoffice
   // via SETTING_KEYS.PLAN_LIMITS) — consommées publiquement par /subscribe
-  // (apps/web) pour ne jamais afficher des chiffres obsolètes.
+  // (apps/web) et apps/home pour ne jamais afficher des chiffres obsolètes.
   fastify.get('/api/reference/plan-limits', async (_request, reply) => {
+    // apps/home est servi sur une origine distincte (WAMP), non proxifiée vers
+    // l'API — même en-tête CORS que plan-pricing.
+    reply.header('Access-Control-Allow-Origin', '*')
     const limits = await getSetting(SETTING_KEYS.PLAN_LIMITS)
     return reply.send({ limits })
   })

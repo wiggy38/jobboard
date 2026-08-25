@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     job = data.job;
+    job.accessLevel = data.accessLevel;
   } catch (err) {
     if (detailEl) detailEl.innerHTML = '<p class="job-empty">Cette offre est introuvable ou n\'est plus disponible.</p>';
     return;
@@ -58,10 +59,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelector('[data-offer-source-name]').textContent = job.sourceName || '—';
 
   const externalBtn = document.querySelector('[data-offer-external]');
-  externalBtn.href = job.sourceUrl || job.applicationUrl || '#';
-  externalBtn.addEventListener('click', () => {
-    fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/click`, { method: 'POST', keepalive: true }).catch(() => {});
-  });
+  if (job.accessLevel === 'FULL' && job.sourceUrl) {
+    externalBtn.href = job.sourceUrl;
+    externalBtn.addEventListener('click', () => {
+      fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/click`, { method: 'POST', keepalive: true }).catch(() => {});
+    });
+  } else {
+    externalBtn.style.display = 'none';
+  }
 
   const waMsg = `Regarde cette offre sur Tumaa : ${job.title} (${job.city}) — ${window.location.href}`;
   const shareWaLink = document.querySelector('[data-offer-share-wa]');

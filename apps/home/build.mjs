@@ -2,9 +2,24 @@
 // No template engine dependency: {{var}} substitution and {{#if var}}...{{/if}} blocks only.
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// css/js sont servis avec un cache navigateur immutable de 30j (voir
+// nginx.conf.template) et aucun hash dans leur nom de fichier — sans
+// cache-busting, un déploiement qui change main.js reste invisible pour un
+// navigateur ayant déjà chargé la page jusqu'à expiration du cache. On
+// suffixe donc chaque référence js/css d'un hash du contenu du fichier
+// (?v=<hash>), qui change automatiquement dès que le fichier change.
+function cacheBust(page) {
+  return page.replace(/((?:src|href)="(?:css|js)\/[^"?]+\.(?:css|js))"/g, (match, prefix) => {
+    const relPath = prefix.replace(/^(?:src|href)="/, '');
+    const hash = createHash('md5').update(readFileSync(path.join(__dirname, relPath))).digest('hex').slice(0, 8);
+    return `${prefix}?v=${hash}"`;
+  });
+}
 const partialsDir = path.join(__dirname, 'src', 'partials');
 const pagesDir = path.join(__dirname, 'src', 'pages');
 
@@ -44,6 +59,7 @@ for (const file of readdirSync(pagesDir)) {
     if (!partial) throw new Error(`Unknown partial "${name}" (in ${file})`);
     return renderTemplate(partial, ctx).trimEnd();
   });
+  page = cacheBust(page);
 
   const outPath = path.join(__dirname, file);
   writeFileSync(outPath, page, 'utf8');

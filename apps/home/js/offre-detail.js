@@ -61,11 +61,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const externalBtn = document.querySelector('[data-offer-external]');
   if (job.accessLevel === 'FULL' && job.sourceUrl) {
     externalBtn.href = job.sourceUrl;
+    externalBtn.target = '_blank';
     externalBtn.addEventListener('click', () => {
       fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/click`, { method: 'POST', keepalive: true }).catch(() => {});
     });
   } else {
-    externalBtn.style.display = 'none';
+    externalBtn.href = 'offres.html';
+    externalBtn.removeAttribute('target');
+    externalBtn.addEventListener('click', () => {
+      fetch(`${apiBase}/api/offre/${encodeURIComponent(id)}/click-locked`, { method: 'POST', keepalive: true }).catch(() => {});
+    });
   }
 
   const waMsg = `Regarde cette offre sur Tumaa : ${job.title} (${job.city}) — ${window.location.href}`;

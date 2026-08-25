@@ -7,6 +7,9 @@ import { getSetting } from '../lib/settings'
 // d'abonnement (apps/web) et par le formulaire employeur (apps/backoffice).
 export async function referenceRoutes(fastify: FastifyInstance) {
   fastify.get('/api/reference/options', async (_request, reply) => {
+    // apps/home est servi sur une origine distincte (WAMP), non proxifiée vers
+    // l'API — même en-tête CORS que plan-limits/plan-pricing.
+    reply.header('Access-Control-Allow-Origin', '*')
     const [levels, sectors, citiesByCountry] = await Promise.all([
       getSetting(SETTING_KEYS.REFERENCE_LEVELS),
       getSetting(SETTING_KEYS.REFERENCE_SECTORS),

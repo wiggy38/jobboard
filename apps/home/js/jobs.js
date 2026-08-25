@@ -59,8 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     sectors.forEach((s) => {
       const li = document.createElement('li');
       li.setAttribute('role', 'option');
-      li.dataset.value = s;
-      li.textContent = s;
+      li.dataset.value = s.value;
+      li.textContent = s.label;
       dropdownList.appendChild(li);
     });
   }
@@ -151,8 +151,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  const apiBase = window.TUMAA_API_BASE || '';
+
+  fetch(`${apiBase}/api/reference/options`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (Array.isArray(data && data.sectors)) populateSectorDropdown(data.sectors);
+    })
+    .catch(() => {
+      // garde le seul choix "Tous les secteurs" en cas d'échec réseau
+    });
+
   try {
-    const apiBase = window.TUMAA_API_BASE || '';
     const res = await fetch(`${apiBase}/api/offres`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -164,10 +174,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       grid.appendChild(card);
       return card;
     });
-
-    const sectors = Array.from(new Set(offers.map((o) => o.sector).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, 'fr'));
-    populateSectorDropdown(sectors);
 
     if (!tabs.length) return;
     apply();

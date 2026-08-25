@@ -13,7 +13,12 @@ server {
     # le même pattern). API_UPSTREAM doit être défini en env : "api:3000" en
     # local, "<service>.railway.internal:<port>" sur Railway.
     location /api/ {
-        proxy_pass http://${API_UPSTREAM}/;
+        # Pas de "/" après l'upstream : nginx transmet l'URI d'origine telle
+        # quelle (avec le préfixe /api/), qui est ce que les routes Fastify
+        # attendent (ex. fastify.get('/api/reference/plan-pricing', ...)) —
+        # un proxy_pass qui se termine par "/" réécrit l'URI en retirant le
+        # préfixe /api/ matché par cette location, ce qui casse le routing.
+        proxy_pass http://${API_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

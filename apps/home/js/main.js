@@ -82,6 +82,15 @@ function fillPlanLimits(limits) {
   });
 }
 
+// Masque la section tarifs quand le backoffice a activé offers.fullAccess
+// (SETTING_KEYS.OFFER_FULL_ACCESS) : l'accès direct aux annonces est alors
+// offert à tous les plans, la grille de prix n'a plus lieu d'être affichée.
+function toggleTarifsSection(fullAccess) {
+  const section = document.getElementById('tarifs');
+  if (!section) return;
+  section.style.display = fullAccess ? 'none' : '';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Fill all [data-wa] links from their data-wa-text with the default number
   // first (instant, no layout shift), then refresh once the configured
@@ -114,9 +123,11 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((res) => res.json())
     .then((data) => {
       if (data && data.limits) fillPlanLimits(data.limits);
+      toggleTarifsSection(!!(data && data.fullAccess));
     })
     .catch(() => {
       // garde les limites par défaut figées dans le HTML en cas d'échec réseau
+      // (et la section tarifs reste visible, son état par défaut)
     });
 
   // Mobile menu toggle

@@ -7,7 +7,7 @@ import { generateSubscribeToken, buildSubscribeUrl } from '../../services/tokenS
 import { getCountryFromPhone } from '../../lib/country';
 import { planLimitsForCreate } from '../../lib/planLimits';
 import { getSetting } from '../../lib/settings';
-import { SETTING_KEYS } from '@tumaa/shared';
+import { SETTING_KEYS, planLimitsLine } from '@tumaa/shared';
 
 // ── Nouveau numéro — bienvenue, création du compte FREEMIUM, CTA /subscribe ───
 // L'onboarding (choix ville/secteur/contrat) ne se fait plus sur WhatsApp : il
@@ -69,13 +69,16 @@ export async function startOnboarding(cmd: ParsedCommand, db: PrismaClient): Pro
 // user qui n'a pas encore choisi sa formule.
 export async function sendPlanOptions(cmd: ParsedCommand, userId: string): Promise<void> {
   const token = generateSubscribeToken(userId);
-  const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING);
+  const [pricing, limits] = await Promise.all([
+    getSetting(SETTING_KEYS.PLAN_PRICING),
+    getSetting(SETTING_KEYS.PLAN_LIMITS),
+  ]);
 
   await sendInteractiveCtaUrl(
     cmd.userId,
-    '🆓 *FREEMIUM* — gratuit, 3 villes + 3 secteurs + 3 types de contrat\n' +
-      `📱 *PREMIUM — ${pricing.PREMIUM.price} FCFA/mois* — 3 villes + 3 secteurs + 3 types de contrat, alertes mots-clés\n` +
-      `👑 *ELITE — ${pricing.ELITE.price} FCFA/mois* — illimité + jusqu'à 3 pays de recherche`,
+    `🆓 *FREEMIUM* — gratuit, ${planLimitsLine(limits.FREEMIUM)}\n` +
+      `📱 *PREMIUM — ${pricing.PREMIUM.price} FCFA/mois* — ${planLimitsLine(limits.PREMIUM)}, alertes mots-clés\n` +
+      `👑 *ELITE — ${pricing.ELITE.price} FCFA/mois* — illimité + jusqu'à ${limits.ELITE.maxCountries} pays de recherche`,
     '👉 Choisir ma formule',
     buildSubscribeUrl(token),
     cmd.country,

@@ -1,5 +1,6 @@
 export * from './types'
 export * from './planLimits'
+export * from './planLimitsText'
 export * from './profileOptions'
 export * from './dates'
 export * from './settings'

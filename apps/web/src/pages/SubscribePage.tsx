@@ -45,6 +45,18 @@ function freemiumSummary(limits: PlanLimits): string {
   return `${cities}, ${sectors}, ${levels}, ${limits.maxContractGroups} types de contrat`
 }
 
+function freemiumFeatures(limits: PlanLimits): string[] {
+  const cities = isUnlimited(limits.maxCities) ? 'villes illimitées' : `${limits.maxCities} villes`
+  const sectors = isUnlimited(limits.maxSectors)
+    ? "secteurs d'activités illimités"
+    : `${limits.maxSectors} secteurs d'activités`
+  return [
+    `Rechercher dans ${cities}`,
+    `Rechercher dans ${sectors}`,
+    `Rechercher jusqu'à ${limits.maxContractGroups} types de contrat`,
+  ]
+}
+
 function premiumFeatures(limits: PlanLimits): string[] {
   const cities = isUnlimited(limits.maxCities) ? 'un nombre illimité de villes' : `${limits.maxCities} villes`
   const sectors = isUnlimited(limits.maxSectors)
@@ -135,7 +147,14 @@ function FreemiumCard({
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
       <span className="text-2xl">🆓</span>
       <h2 className="text-base font-bold text-slate-900 mt-1 mb-2">Continuer gratuitement</h2>
-      <p className="text-sm text-slate-600 mb-4">{freemiumSummary(limits)}</p>
+      <ul className="space-y-2 mb-6 text-left">
+        {freemiumFeatures(limits).map((feature) => (
+          <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
+            <span className="text-green-600">✔️</span>
+            {feature}
+          </li>
+        ))}
+      </ul>
       <button
         type="button"
         onClick={() => navigate(`/profile?t=${token}&plan=FREEMIUM`)}

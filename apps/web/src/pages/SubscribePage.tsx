@@ -130,6 +130,14 @@ function FreemiumCard({
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
         <h2 className="text-base font-bold text-slate-900 mb-2">🆓 Continuer gratuitement</h2>
+        <ul className="space-y-2 mb-4 text-left">
+          {freemiumFeatures(limits).map((feature) => (
+            <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
+              <span className="text-green-600">✔️</span>
+              {feature}
+            </li>
+          ))}
+        </ul>
         <p className="text-sm text-slate-600 mb-4">
           Tape *OFFRES* sur WhatsApp pour recevoir tes premières offres.
         </p>

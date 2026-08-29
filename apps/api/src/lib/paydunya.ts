@@ -52,14 +52,24 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<Create
     }),
   })
 
-  const data = (await response.json()) as {
-    response_code?: string
-    response_text?: string
-    token?: string
+  // PayDunya répond parfois par une page d'erreur non-JSON (auth rejetée en
+  // amont, 5xx) — .json() lèverait alors une SyntaxError qui masquerait le
+  // vrai problème. On lit le texte brut d'abord pour toujours pouvoir logger
+  // un message exploitable (statut HTTP + corps) côté appelant.
+  const rawBody = await response.text()
+  let data: { response_code?: string; response_text?: string; token?: string }
+  try {
+    data = JSON.parse(rawBody)
+  } catch {
+    throw new Error(
+      `PAYDUNYA_CREATE_INVOICE_FAILED: réponse non-JSON (HTTP ${response.status}): ${rawBody.slice(0, 300)}`
+    )
   }
 
   if (data.response_code !== '00' || !data.token) {
-    throw new Error(`PAYDUNYA_CREATE_INVOICE_FAILED: ${data.response_text ?? 'unknown error'}`)
+    throw new Error(
+      `PAYDUNYA_CREATE_INVOICE_FAILED (HTTP ${response.status}): ${data.response_text ?? rawBody.slice(0, 300)}`
+    )
   }
 
   return {

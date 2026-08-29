@@ -406,7 +406,11 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
 
       return reply.send({ ok: true, paymentUrl: invoice.invoiceUrl })
     } catch (err) {
-      fastify.log.error(err, 'PayDunya invoice creation failed')
+      // Message inclus directement dans le texte du log (pas seulement dans
+      // l'objet `err`) car certains viewers de logs (Railway) n'affichent que
+      // la première ligne texte d'une entrée sans développer le JSON attaché.
+      const message = err instanceof Error ? err.message : String(err)
+      fastify.log.error(err, `PayDunya invoice creation failed: ${message}`)
       await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } })
       return reply.status(502).send({ error: 'PAYMENT_INIT_FAILED' })
     }

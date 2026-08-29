@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { ParsedCommand } from '../whatsapp/types';
 import { getState } from '../session/state';
-import { startOnboarding } from './handlers/onboarding';
+import { startOnboarding, sendPlanOptions } from './handlers/onboarding';
 import { handleOffres } from './handlers/offres';
 import { handleSuite } from './handlers/suite';
 import { handleVoir } from './handlers/voir';
@@ -54,7 +54,7 @@ export async function routeCommand(cmd: ParsedCommand, db: PrismaClient): Promis
   // Detect new user (no DB record) and start onboarding
   const existing = await db.user.findUnique({
     where: { phone: cmd.userId },
-    select: { id: true },
+    select: { id: true, profile: { select: { cities: true, sectors: true } } },
   });
   if (!existing) {
     await startOnboarding(cmd, db);
@@ -63,6 +63,17 @@ export async function routeCommand(cmd: ParsedCommand, db: PrismaClient): Promis
 
   // First token handles compound commands like "VOIR 1" and normalizes button ids
   const key = cmd.command.trim().toUpperCase().split(/\s+/)[0];
+
+  // Tant que le profil n'a pas été configuré via le wizard web /subscribe
+  // (cities/sectors toujours vides), on renvoie systématiquement les formules
+  // + lien de souscription — sauf STOP, qui doit rester utilisable (opt-out).
+  const profileUnconfigured =
+    (existing.profile?.cities.length ?? 0) === 0 && (existing.profile?.sectors.length ?? 0) === 0;
+  if (profileUnconfigured && key !== 'STOP') {
+    await sendPlanOptions(cmd, existing.id);
+    return;
+  }
+
   const handler = ROUTES[key] ?? handleUnknown;
   await handler(cmd, db);
 }

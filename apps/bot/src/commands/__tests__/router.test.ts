@@ -4,6 +4,7 @@ jest.mock('../../session/state', () => ({ getState: jest.fn().mockResolvedValue(
 
 jest.mock('../handlers/onboarding', () => ({
   startOnboarding: jest.fn().mockResolvedValue(undefined),
+  sendPlanOptions: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../handlers/offres',   () => ({ handleOffres:   jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../handlers/suite',    () => ({ handleSuite:    jest.fn().mockResolvedValue(undefined) }));
@@ -19,7 +20,7 @@ jest.mock('../handlers/stats',    () => ({ handleStats:    jest.fn().mockResolve
 jest.mock('../handlers/unknown',  () => ({ handleUnknown:  jest.fn().mockResolvedValue(undefined) }));
 
 const { getState } = require('../../session/state');
-const { startOnboarding } = require('../handlers/onboarding');
+const { startOnboarding, sendPlanOptions } = require('../handlers/onboarding');
 const { handleOffres }   = require('../handlers/offres');
 const { handleVoir }     = require('../handlers/voir');
 const { handlePremium }  = require('../handlers/premium');
@@ -32,8 +33,10 @@ const { handleSuite }    = require('../handlers/suite');
 
 const USER = '+22670000001';
 const cmd  = (command: string, raw = command) => ({ userId: USER, command, raw });
-const db   = (exists = true) => ({
-  user: { findUnique: jest.fn().mockResolvedValue(exists ? { id: 'uuid-1' } : null) },
+// Par défaut, profil déjà configuré (cities/sectors non vides) pour ne pas
+// déclencher le rappel formules et laisser le routage normal s'appliquer.
+const db = (exists = true, profile: { cities: string[]; sectors: string[] } | null = { cities: ['Ouagadougou'], sectors: ['Informatique'] }) => ({
+  user: { findUnique: jest.fn().mockResolvedValue(exists ? { id: 'uuid-1', profile } : null) },
 } as any);
 
 beforeEach(() => { jest.clearAllMocks(); getState.mockResolvedValue(null); });
@@ -113,5 +116,33 @@ describe('routeCommand — routage normal', () => {
   it('commande vide → handleUnknown', async () => {
     await routeCommand(cmd(''), db());
     expect(handleUnknown).toHaveBeenCalled();
+  });
+});
+
+describe('routeCommand — profil non configuré (cities/sectors vides)', () => {
+  const emptyProfileDb = () => db(true, { cities: [], sectors: [] });
+
+  it('OFFRES → sendPlanOptions, pas handleOffres', async () => {
+    await routeCommand(cmd('OFFRES'), emptyProfileDb());
+    expect(sendPlanOptions).toHaveBeenCalledWith(expect.objectContaining({ command: 'OFFRES' }), 'uuid-1');
+    expect(handleOffres).not.toHaveBeenCalled();
+  });
+
+  it('commande inconnue → sendPlanOptions, pas handleUnknown', async () => {
+    await routeCommand(cmd('FOOBAR'), emptyProfileDb());
+    expect(sendPlanOptions).toHaveBeenCalled();
+    expect(handleUnknown).not.toHaveBeenCalled();
+  });
+
+  it('STOP → handleStop malgré le profil non configuré', async () => {
+    await routeCommand(cmd('STOP'), emptyProfileDb());
+    expect(handleStop).toHaveBeenCalled();
+    expect(sendPlanOptions).not.toHaveBeenCalled();
+  });
+
+  it('profile absent (null) → traité comme non configuré → sendPlanOptions', async () => {
+    await routeCommand(cmd('OFFRES'), db(true, null));
+    expect(sendPlanOptions).toHaveBeenCalled();
+    expect(handleOffres).not.toHaveBeenCalled();
   });
 });

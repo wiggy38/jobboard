@@ -60,12 +60,20 @@ export async function startOnboarding(cmd: ParsedCommand, db: PrismaClient): Pro
   await openWindow(cmd.userId);
   await resetOffset(cmd.userId);
 
-  const token = generateSubscribeToken(user.id);
+  await sendPlanOptions(cmd, user.id);
+}
+
+// ── Rappel formules — renvoyé tant que le profil n'a pas été configuré via le
+// wizard web /subscribe (Profile.cities/sectors vides). Appelé aussi bien à
+// l'onboarding initial que par le router pour tout message ultérieur d'un
+// user qui n'a pas encore choisi sa formule.
+export async function sendPlanOptions(cmd: ParsedCommand, userId: string): Promise<void> {
+  const token = generateSubscribeToken(userId);
   const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING);
 
   await sendInteractiveCtaUrl(
     cmd.userId,
-    '🆓 *FREEMIUM* — gratuit, 1 ville + 1 secteur + 1 type de contrat\n' +
+    '🆓 *FREEMIUM* — gratuit, 3 villes + 3 secteurs + 3 types de contrat\n' +
       `📱 *PREMIUM — ${pricing.PREMIUM.price} FCFA/mois* — 3 villes + 3 secteurs + 3 types de contrat, alertes mots-clés\n` +
       `👑 *ELITE — ${pricing.ELITE.price} FCFA/mois* — illimité + jusqu'à 3 pays de recherche`,
     '👉 Choisir ma formule',

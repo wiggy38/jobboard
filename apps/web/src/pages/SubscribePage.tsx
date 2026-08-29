@@ -38,34 +38,51 @@ function PriceTag({ pricing }: { pricing: PlanPricing }) {
   )
 }
 
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural
+}
+
 function freemiumSummary(limits: PlanLimits): string {
-  const cities = isUnlimited(limits.maxCities) ? 'villes illimitées' : `${limits.maxCities} villes`
-  const sectors = isUnlimited(limits.maxSectors) ? 'secteurs illimités' : `${limits.maxSectors} secteurs`
-  const levels = isUnlimited(limits.maxLevels) ? "niveaux d'étude illimités" : `${limits.maxLevels} niveau d'étude`
-  return `${cities}, ${sectors}, ${levels}, ${limits.maxContractGroups} types de contrat`
+  const cities = isUnlimited(limits.maxCities)
+    ? 'villes illimitées'
+    : `${limits.maxCities} ${pluralize(limits.maxCities, 'ville', 'villes')}`
+  const sectors = isUnlimited(limits.maxSectors)
+    ? 'secteurs illimités'
+    : `${limits.maxSectors} ${pluralize(limits.maxSectors, 'secteur', 'secteurs')}`
+  const levels = isUnlimited(limits.maxLevels)
+    ? "niveaux d'étude illimités"
+    : `${limits.maxLevels} ${pluralize(limits.maxLevels, "niveau d'étude", "niveaux d'étude")}`
+  const contracts = pluralize(limits.maxContractGroups, 'type de contrat', 'types de contrat')
+  return `${cities}, ${sectors}, ${levels}, ${limits.maxContractGroups} ${contracts}`
 }
 
 function freemiumFeatures(limits: PlanLimits): string[] {
-  const cities = isUnlimited(limits.maxCities) ? 'villes illimitées' : `${limits.maxCities} villes`
+  const cities = isUnlimited(limits.maxCities)
+    ? 'villes illimitées'
+    : `${limits.maxCities} ${pluralize(limits.maxCities, 'ville', 'villes')}`
   const sectors = isUnlimited(limits.maxSectors)
     ? "secteurs d'activités illimités"
-    : `${limits.maxSectors} secteurs d'activités`
+    : `${limits.maxSectors} ${pluralize(limits.maxSectors, "secteur d'activité", "secteurs d'activités")}`
+  const contracts = pluralize(limits.maxContractGroups, 'type de contrat', 'types de contrat')
   return [
     `Rechercher dans ${cities}`,
     `Rechercher dans ${sectors}`,
-    `Rechercher jusqu'à ${limits.maxContractGroups} types de contrat`,
+    `Rechercher jusqu'à ${limits.maxContractGroups} ${contracts}`,
   ]
 }
 
 function premiumFeatures(limits: PlanLimits): string[] {
-  const cities = isUnlimited(limits.maxCities) ? 'un nombre illimité de villes' : `${limits.maxCities} villes`
+  const cities = isUnlimited(limits.maxCities)
+    ? 'un nombre illimité de villes'
+    : `${limits.maxCities} ${pluralize(limits.maxCities, 'ville', 'villes')}`
   const sectors = isUnlimited(limits.maxSectors)
     ? "un nombre illimité de secteurs d'activités"
-    : `${limits.maxSectors} secteurs d'activités`
+    : `${limits.maxSectors} ${pluralize(limits.maxSectors, "secteur d'activité", "secteurs d'activités")}`
+  const contracts = pluralize(limits.maxContractGroups, 'type de contrat', 'types de contrat')
   return [
     `Rechercher dans ${cities}`,
     `Rechercher dans ${sectors}`,
-    `Rechercher jusqu'à ${limits.maxContractGroups} types de contrat`,
+    `Rechercher jusqu'à ${limits.maxContractGroups} ${contracts}`,
     'Alertes par mots-clés',
     "Lien direct vers l'offre complète",
   ]

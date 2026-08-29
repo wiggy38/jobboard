@@ -32,7 +32,7 @@ export default function PremiumPage() {
 
   useEffect(() => {
     fetchPlanPricing()
-      .then((p) => setPricing(p.PREMIUM))
+      .then(({ pricing }) => setPricing(pricing.PREMIUM))
       .catch(() => {
         // garde la valeur par défaut DEFAULT_PREMIUM_PRICING en cas d'échec réseau
       })

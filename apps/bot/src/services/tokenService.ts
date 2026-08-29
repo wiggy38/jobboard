@@ -10,7 +10,7 @@ export function generateOfferToken(offerId: string, userId: string): string {
 }
 
 export function buildOfferUrl(offerId: string, token: string): string {
-  const base = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
+  const base = process.env.ONBOARDING_BASE_URL ?? process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
   return `${base}/offre/${offerId}?t=${token}`
 }
 
@@ -23,6 +23,6 @@ export function generateSubscribeToken(userId: string): string {
 }
 
 export function buildSubscribeUrl(token: string): string {
-  const base = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
+  const base = process.env.ONBOARDING_BASE_URL ?? process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
   return `${base}/subscribe?t=${token}`
 }

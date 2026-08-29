@@ -148,11 +148,14 @@ export interface PlanPricing {
   price: number
 }
 
-export async function fetchPlanPricing(): Promise<Record<'PREMIUM' | 'ELITE', PlanPricing>> {
-  const { data } = await axios.get<{ pricing: Record<'PREMIUM' | 'ELITE', PlanPricing> }>(
-    '/api/reference/plan-pricing'
-  )
-  return data.pricing
+export interface PlanPricingResponse {
+  pricing: Record<'PREMIUM' | 'ELITE', PlanPricing>
+  paydunyaMode: 'test' | 'live'
+}
+
+export async function fetchPlanPricing(): Promise<PlanPricingResponse> {
+  const { data } = await axios.get<PlanPricingResponse>('/api/reference/plan-pricing')
+  return data
 }
 
 export interface SubscribeProfileData {

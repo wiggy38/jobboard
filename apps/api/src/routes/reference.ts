@@ -35,13 +35,19 @@ export async function referenceRoutes(fastify: FastifyInstance) {
 
   // Prix (barré + réel) par plan — défaut PLAN_PRICING, ou surcharge backoffice
   // via SETTING_KEYS.PLAN_PRICING — consommés publiquement par apps/web et
-  // apps/home pour ne jamais afficher un tarif obsolète.
+  // apps/home pour ne jamais afficher un tarif obsolète. Inclut aussi le mode
+  // PayDunya (test/live, SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE) pour que
+  // /subscribe (apps/web) puisse n'afficher le bouton "Simuler le paiement"
+  // que lorsque PayDunya est en mode Test — voir SubscribePage.tsx.
   fastify.get('/api/reference/plan-pricing', async (_request, reply) => {
     // apps/home est servi sur une origine distincte (WAMP), non proxifiée vers
     // l'API — même en-tête CORS que les autres endpoints publics qu'il
     // consomme (voir offre.routes.ts: whatsapp-number, offres, offre/:id).
     reply.header('Access-Control-Allow-Origin', '*')
-    const pricing = await getSetting(SETTING_KEYS.PLAN_PRICING)
-    return reply.send({ pricing })
+    const [pricing, paydunyaMode] = await Promise.all([
+      getSetting(SETTING_KEYS.PLAN_PRICING),
+      getSetting(SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE),
+    ])
+    return reply.send({ pricing, paydunyaMode })
   })
 }

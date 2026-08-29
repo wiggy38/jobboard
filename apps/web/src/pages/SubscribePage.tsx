@@ -14,7 +14,12 @@ import {
   type PlanPricing,
 } from '../lib/api'
 
-const SIMULATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
+// Le bouton "Simuler le paiement" est toujours affiché en dev local, et
+// sinon uniquement quand le backoffice a réglé PayDunya sur le mode Test
+// (SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE, /admin/parametres) — voir
+// simulationEnabled ci-dessous.
+const SIMULATION_ENABLED_LOCAL =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_PAYMENT_SIMULATION === 'true'
 
 const DEFAULT_PLAN_PRICING: Record<'PREMIUM' | 'ELITE', PlanPricing> = {
   PREMIUM: { barredPrice: 650, price: 650 },
@@ -221,6 +226,7 @@ export default function SubscribePage() {
   const [payError, setPayError] = useState<string | null>(null)
   const [planLimits, setPlanLimits] = useState<Record<UserPlan, PlanLimits>>(PLAN_LIMITS)
   const [planPricing, setPlanPricing] = useState<Record<'PREMIUM' | 'ELITE', PlanPricing>>(DEFAULT_PLAN_PRICING)
+  const [paydunyaMode, setPaydunyaMode] = useState<'test' | 'live'>('live')
 
   useEffect(() => {
     if (token) trackSubscribeClick(token)
@@ -246,11 +252,16 @@ export default function SubscribePage() {
 
   useEffect(() => {
     fetchPlanPricing()
-      .then(setPlanPricing)
+      .then(({ pricing, paydunyaMode }) => {
+        setPlanPricing(pricing)
+        setPaydunyaMode(paydunyaMode)
+      })
       .catch(() => {
-        // garde les valeurs par défaut DEFAULT_PLAN_PRICING en cas d'échec réseau
+        // garde les valeurs par défaut (DEFAULT_PLAN_PRICING, mode 'live') en cas d'échec réseau
       })
   }, [])
+
+  const simulationEnabled = SIMULATION_ENABLED_LOCAL || paydunyaMode === 'test'
 
   const handlePlanClick = (plan: 'PREMIUM' | 'ELITE') => {
     if (token) trackSubscribeClick(token, plan)
@@ -338,7 +349,7 @@ export default function SubscribePage() {
               S&apos;abonner · {formatFcfa(planPricing.PREMIUM.price)} FCFA/mois
             </a>
           )}
-          {SIMULATION_ENABLED && token && (
+          {simulationEnabled && token && (
             <button
               type="button"
               onClick={() => handleSimulatePayment('PREMIUM')}
@@ -385,7 +396,7 @@ export default function SubscribePage() {
               S&apos;abonner · {formatFcfa(planPricing.ELITE.price)} FCFA/mois
             </a>
           )}
-          {SIMULATION_ENABLED && token && (
+          {simulationEnabled && token && (
             <button
               type="button"
               onClick={() => handleSimulatePayment('ELITE')}

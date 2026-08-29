@@ -4,6 +4,9 @@ RUN corepack enable
 
 WORKDIR /app
 
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=...@tumaa/web

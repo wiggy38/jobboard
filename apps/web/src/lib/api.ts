@@ -1,9 +1,16 @@
 import axios from 'axios'
 import type { PlanLimits, UserPlan } from '@tumaa/shared'
 
+// Domaine de l'API — en prod pointe vers https://api.tumaajob.com (le proxy
+// nginx de tumaa-web-nginx vers tumaa-api n'est pas fiable, cf. incident
+// 2026-08-29) ; en dev laisser vide pour passer par le proxy Vite (/api ->
+// localhost:2999, voir vite.config.ts).
+const API_BASE = import.meta.env.VITE_API_URL || ''
+axios.defaults.baseURL = API_BASE
+
 export async function trackSubscribeClick(token: string, plan?: 'PREMIUM' | 'ELITE'): Promise<void> {
   try {
-    await fetch('/api/subscribe/track', {
+    await fetch(`${API_BASE}/api/subscribe/track`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ t: token, plan }),
@@ -102,7 +109,7 @@ export async function joinHomeChannel(token: string): Promise<{ ok: true; channe
 // casser la navigation vers le lien wa.me/channel externe.
 export function markChannelJoined(token: string): void {
   try {
-    void fetch('/api/subscribe/channel-joined', {
+    void fetch(`${API_BASE}/api/subscribe/channel-joined`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ t: token }),

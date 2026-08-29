@@ -296,15 +296,19 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
-  // Simule un paiement réussi (dev/démo uniquement — aucun provider réel n'est
-  // encore intégré, voir docs/subscription_flow_elite.md). Crée un Payment
-  // SUCCESS, active le plan, et indique où rediriger ensuite (choix des pays
-  // pour ELITE).
+  // Simule un paiement réussi (dev/démo, ou prod tant que le backoffice a
+  // réglé PayDunya sur le mode Test — SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE,
+  // /admin/parametres — voir SubscribePage.tsx côté web pour l'affichage du
+  // bouton). Crée un Payment SUCCESS, active le plan, et indique où rediriger
+  // ensuite (choix des pays pour ELITE).
   fastify.post<{
     Body: { t?: string; plan?: 'PREMIUM' | 'ELITE' }
   }>('/api/subscribe/simulate-payment', async (request, reply) => {
     if (process.env.NODE_ENV === 'production') {
-      return reply.status(403).send({ error: 'SIMULATION_DISABLED' })
+      const paydunyaMode = await getSetting(SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE)
+      if (paydunyaMode !== 'test') {
+        return reply.status(403).send({ error: 'SIMULATION_DISABLED' })
+      }
     }
 
     const { t, plan } = request.body ?? {}

@@ -28,7 +28,7 @@ server {
 
     # App React onboarding (/subscribe, /subscribe/profile, /subscribe/success)
     location = /subscribe {
-        return 301 /subscribe/;
+        return 301 /subscribe/$is_args$args;
     }
 
     location /subscribe/ {

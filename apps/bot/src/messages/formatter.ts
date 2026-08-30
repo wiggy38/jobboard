@@ -1,7 +1,6 @@
 import { ContractType, JobOffer, UserPlan } from '@prisma/client';
 import { InteractiveButtonMessage, OutgoingMessage, TextMessage } from '../whatsapp/types';
 import { buildOfferUrl, generateOfferToken } from '../services/tokenService';
-import { DIGEST_AVAILABILITY_TEMPLATES, DIGEST_CTA_TEMPLATES } from './digestPhrases';
 
 const CONTRACT_LABELS: Record<ContractType, string> = {
   CDI: 'CDI',
@@ -80,25 +79,6 @@ export function formatJobMessage(
       },
     },
   };
-}
-
-// Sélection quotidienne automatique PREMIUM/ELITE — notification de compte courte
-// (catégorie Meta UTILITY du template DAILY_DIGEST) : le détail des offres est
-// consulté sur /digest/[token] (apps/backoffice), jamais inline dans le corps du
-// message WhatsApp — voir apps/bot/src/services/dailyDigest.ts.
-function pickRandom<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-// {{1}} du corps du template — formulation tirée au hasard dans un pool de 60
-// (voir digestPhrases.ts) pour éviter un message identique jour après jour.
-export function formatDigestAvailability(count: number): string {
-  return pickRandom(DIGEST_AVAILABILITY_TEMPLATES)(count);
-}
-
-// {{2}} du corps du template — idem, incitation tirée au hasard dans un pool de 60.
-export function formatDigestCta(): string {
-  return pickRandom(DIGEST_CTA_TEMPLATES);
 }
 
 export function formatTeaserSummary(count: number): TextMessage {

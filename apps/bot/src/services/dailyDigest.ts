@@ -2,13 +2,14 @@ import { PrismaClient, UserPlan } from '@prisma/client';
 import { getMatchedOffers } from './matching';
 import { recordPullDelivery } from './pull';
 import { sendPaidTemplate } from './templateGate';
-import { generateDigestToken, buildDigestUrlSuffix } from './tokenService';
-import { formatDigestAvailability, formatDigestCta } from '../messages/formatter';
 
 // Sélection quotidienne automatique PREMIUM/ELITE — voir .claude/CLAUDE.md
 // ("Règles métier CRITIQUES", exception DAILY_DIGEST). Contrairement à
 // OFFRES/SUITE, n'utilise jamais session:{userId}:offset (pas de pagination
 // à préserver, c'est une sélection figée du jour, pas une session interactive).
+// Template `daily_digest_fr` approuvé par Meta : corps 100% statique (pas de
+// variable), avec un bouton quick-reply "OFFRES" qui redéclenche directement
+// le flow OFFRES existant côté router (aucun lien web / token nécessaire).
 const MESSAGE_DELAY_MS = 800;
 const TEMPLATE_NAME = 'daily_digest_fr';
 
@@ -49,36 +50,19 @@ export async function postDailyDigests(db: PrismaClient): Promise<DailyDigestRes
       continue;
     }
 
-    // Enregistré AVANT l'envoi : le lien /digest/[pullDeliveryId] envoyé dans le
-    // template a besoin de l'id généré ici. Le détail complet des offres du jour
-    // vit sur cette page web, jamais dans le corps du message WhatsApp (catégorie
-    // Meta UTILITY — voir .claude/CLAUDE.md).
-    const delivery = await recordPullDelivery(user.id, 'DAILY_DIGEST', offers.map((o) => o.id), plan);
-    const urlSuffix = buildDigestUrlSuffix(delivery.id, generateDigestToken(delivery.id, user.id));
+    // Log analytique des offres livrées ce jour-là — indépendant du template
+    // envoyé, conservé pour le suivi/matching même si le corps du message ne
+    // référence plus cet id (plus de lien web depuis le retrait du bouton URL).
+    await recordPullDelivery(user.id, 'DAILY_DIGEST', offers.map((o) => o.id), plan);
 
-    // Le lien est un bouton URL du template (pas un texte dans le corps) — le
-    // domaine est fixé côté config du bouton dans Meta Business Manager, seul
-    // le suffixe dynamique (pullDeliveryId + token) est envoyé ici.
+    // Corps et bouton "OFFRES" sont statiques côté template Meta — aucun
+    // paramètre dynamique à envoyer.
     const result = await sendPaidTemplate(
       user.phone,
       user.id,
       'DAILY_DIGEST',
       TEMPLATE_NAME,
-      [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: formatDigestAvailability(offers.length) },
-            { type: 'text', text: formatDigestCta() },
-          ],
-        },
-        {
-          type: 'button',
-          sub_type: 'url',
-          index: '0',
-          parameters: [{ type: 'text', text: urlSuffix }],
-        },
-      ],
+      [],
       user.countries[0],
     );
 

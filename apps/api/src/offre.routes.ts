@@ -26,30 +26,6 @@ function verifyOfferToken(fastify: FastifyInstance, jobId: string, token: string
   }
 }
 
-type DigestTokenVerifyResult =
-  | { ok: true; userId: string }
-  | { ok: false; error: string; message: string }
-
-// Contrairement au token offre, pas d'accès anonyme : le lien /digest/[token]
-// envoyé dans le template DAILY_DIGEST (apps/bot/src/services/dailyDigest.ts)
-// n'a de sens que pour l'utilisateur propriétaire du PullDelivery.
-function verifyDigestToken(
-  fastify: FastifyInstance,
-  pullDeliveryId: string,
-  token: string | null,
-): DigestTokenVerifyResult {
-  if (!token) return { ok: false, error: 'TOKEN_REQUIRED', message: 'Lien invalide' }
-  try {
-    const payload = fastify.jwt.verify<{ userId: string; pullDeliveryId: string }>(token)
-    if (payload.pullDeliveryId !== pullDeliveryId) {
-      return { ok: false, error: 'TOKEN_INVALID', message: 'Token invalide' }
-    }
-    return { ok: true, userId: payload.userId }
-  } catch {
-    return { ok: false, error: 'TOKEN_EXPIRED', message: 'Lien expiré ou invalide' }
-  }
-}
-
 export async function offreRoutes(fastify: FastifyInstance) {
   // Numéro WhatsApp du bot par pays, éditable en backoffice (Paramètres →
   // "Numéro du bot") — alimente les liens wa.me sur apps/home et apps/web.
@@ -175,62 +151,6 @@ export async function offreRoutes(fastify: FastifyInstance) {
         sourceName: job.source.name,
         sourceTrustScore: job.source.trustScore,
       },
-    })
-  })
-
-  // Récapitulatif de la sélection quotidienne automatique (DAILY_DIGEST,
-  // PREMIUM/ELITE) — voir apps/bot/src/services/dailyDigest.ts. Le lien envoyé
-  // dans le template WhatsApp pointe ici pour le détail des offres du jour ;
-  // le message WhatsApp lui-même ne contient plus que le nombre + ce lien
-  // (catégorie Meta UTILITY — voir .claude/CLAUDE.md).
-  fastify.get<{
-    Params: { pullDeliveryId: string }
-    Querystring: { t?: string }
-  }>('/api/digest/:pullDeliveryId', async (request, reply) => {
-    reply.header('Access-Control-Allow-Origin', '*')
-    const { pullDeliveryId } = request.params
-    const token = request.query.t ?? null
-
-    const verified = verifyDigestToken(fastify, pullDeliveryId, token)
-    if (!verified.ok) {
-      return reply.status(401).send({ error: verified.error, message: verified.message })
-    }
-
-    const delivery = await prisma.pullDelivery.findUnique({
-      where: { id: pullDeliveryId },
-      select: {
-        userId: true,
-        createdAt: true,
-        offers: {
-          include: { source: { select: { name: true, trustScore: true } } },
-        },
-      },
-    })
-
-    if (!delivery) {
-      return reply.status(404).send({ error: 'DIGEST_NOT_FOUND', message: 'Sélection introuvable' })
-    }
-
-    // Un token digest n'est valide que pour son propriétaire — pas d'accès
-    // anonyme (contrairement au token offre), voir verifyDigestToken.
-    if (delivery.userId !== verified.userId) {
-      return reply.status(403).send({ error: 'FORBIDDEN', message: 'Accès refusé' })
-    }
-
-    return reply.send({
-      offers: delivery.offers.map((job) => ({
-        id: job.id,
-        title: job.title,
-        city: job.city,
-        country: job.country,
-        sector: job.sector,
-        contractType: job.contractType,
-        deadline: job.deadline?.toISOString() ?? null,
-        organization: job.organization,
-        sourceUrl: job.sourceUrl,
-        sourceName: job.source.name,
-      })),
-      createdAt: delivery.createdAt.toISOString(),
     })
   })
 

@@ -72,6 +72,7 @@ enum TemplateType {
   RELANCE         // inactif > 24h — max 2/mois
   MATCH_PARFAIT   // offre à score très élevé — max 1/mois
   NUDGE_PREMIUM   // utilisateur engagé sans abonnement — max 1/mois
+  DAILY_DIGEST    // sélection quotidienne automatique PREMIUM/ELITE — catégorie Meta UTILITY, plafond séparé du GLOBAL_CAP marketing
 }
 
 enum JobOfferStatus {
@@ -407,7 +408,7 @@ model PullDelivery {
   id          String   @id @default(uuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  command     String   // OFFRES | SUITE
+  command     String   // OFFRES | SUITE | DAILY_DIGEST
   offersCount Int      @default(0)
   offers      JobOffer[] @relation("PullDeliveryOffers")
   planAtPull  UserPlan?

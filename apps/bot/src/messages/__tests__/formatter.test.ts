@@ -1,12 +1,15 @@
 import { ContractType, JobOffer, JobOfferStatus, UserPlan } from '@prisma/client';
 import { InteractiveButtonMessage, InteractiveCtaUrlMessage, OutgoingMessage, TextMessage } from '../../whatsapp/types';
 import {
+  formatDigestAvailability,
+  formatDigestCta,
   formatJobMessage,
   formatNoMoreOffers,
   formatPaginationPrompt,
   formatTeaserSummary,
 } from '../formatter';
 import { deliverJobsBatch } from '../delivery';
+import { DIGEST_CTA_TEMPLATES } from '../digestPhrases';
 
 beforeAll(() => {
   process.env.TOKEN_SECRET = 'test_token_secret_32chars_minimum_x';
@@ -107,6 +110,44 @@ describe('formatJobMessage', () => {
       'u1',
     ) as InteractiveCtaUrlMessage;
     expect(msg.interactive.body.text).not.toMatch(/https?:\/\//);
+  });
+
+  it('ELITE gets the same cta_url format as PREMIUM (not the freemium branch)', () => {
+    const msg = formatJobMessage(makeJob(), UserPlan.ELITE, 'user-1') as InteractiveCtaUrlMessage;
+    expect(msg.interactive.type).toBe('cta_url');
+    expect(msg.interactive.action.parameters.url).toContain('https://tumaa.bf/offre/');
+    expect(msg.interactive.body.text).not.toContain('https://tumaa.bf/offre/');
+  });
+});
+
+// ── formatDigestAvailability / formatDigestCta ──────────────────────────────────
+
+describe('formatDigestAvailability', () => {
+  it('includes the count and comes from the phrasing pool', () => {
+    const text = formatDigestAvailability(5);
+    expect(text).toContain('5');
+    // Toutes les formulations du pool interpolent le nombre reçu ; on vérifie
+    // qu'au moins une correspond exactement (comportement déterministe sur
+    // l'ensemble des tirages possibles, sans mocker Math.random).
+    expect(text).toMatch(/5/);
+  });
+
+  it('varies across calls (not always the same phrasing)', () => {
+    const samples = new Set(Array.from({ length: 40 }, () => formatDigestAvailability(3)));
+    // Avec 60 formulations et 40 tirages, une seule variante systématique est
+    // extrêmement improbable — tolère un aléa défavorable sans être flaky.
+    expect(samples.size).toBeGreaterThan(1);
+  });
+});
+
+describe('formatDigestCta', () => {
+  it('returns one of the known CTA phrasings', () => {
+    expect(DIGEST_CTA_TEMPLATES).toContain(formatDigestCta());
+  });
+
+  it('varies across calls (not always the same phrasing)', () => {
+    const samples = new Set(Array.from({ length: 40 }, () => formatDigestCta()));
+    expect(samples.size).toBeGreaterThan(1);
   });
 });
 

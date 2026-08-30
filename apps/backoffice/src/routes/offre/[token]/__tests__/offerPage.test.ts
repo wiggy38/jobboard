@@ -32,11 +32,11 @@ function makeUrl(query: string) {
 }
 
 describe('Page offre tokenisée — load function', () => {
-  it('affiche la source et les contacts pour un plan Premium/Elite (accessLevel FULL)', async () => {
+  it('affiche la source pour tous les plans (lien direct débloqué pour tous)', async () => {
     const offer = { ...baseOffer }
     const mockFetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ job: offer, accessLevel: 'FULL' }),
+      json: async () => ({ job: offer }),
     })
 
     const { load } = await import('../+page')
@@ -48,26 +48,6 @@ describe('Page offre tokenisée — load function', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/api/offre/offer-123?t=valid-jwt`)
     expect(result.offer?.sourceUrl).toBe('https://example.bf/offre/1')
-    expect(result.accessLevel).toBe('FULL')
-    expect(result.error).toBeNull()
-  })
-
-  it('masque le lien direct pour un utilisateur Freemium (accessLevel FREEMIUM)', async () => {
-    const offer = { ...baseOffer, sourceUrl: null }
-    const mockFetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ job: offer, accessLevel: 'FREEMIUM' }),
-    })
-
-    const { load } = await import('../+page')
-    const result = await load({
-      fetch: mockFetch as unknown as typeof fetch,
-      params: { token: 'offer-123' },
-      url: makeUrl('t=freemium-jwt'),
-    } as Parameters<typeof load>[0])
-
-    expect(result.offer?.sourceUrl).toBeNull()
-    expect(result.accessLevel).toBe('FREEMIUM')
     expect(result.error).toBeNull()
   })
 
@@ -80,7 +60,7 @@ describe('Page offre tokenisée — load function', () => {
     }
     const mockFetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ job: offer, accessLevel: 'FREEMIUM' }),
+      json: async () => ({ job: offer }),
     })
 
     const { load } = await import('../+page')

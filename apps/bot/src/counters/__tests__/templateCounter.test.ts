@@ -234,4 +234,38 @@ describe('templateCounter', () => {
 
     expect(result).toEqual({ allowed: true });
   });
+
+  // ── DAILY_DIGEST — plafond indépendant du GLOBAL_CAP marketing ─────────────
+
+  describe('DAILY_DIGEST — plafond séparé', () => {
+    it('3×RELANCE+MATCH_PARFAIT+NUDGE_PREMIUM (GLOBAL_CAP atteint) : DAILY_DIGEST reste autorisé', async () => {
+      await canSendTemplate(USER, 'RELANCE');
+      await canSendTemplate(USER, 'RELANCE');
+      await canSendTemplate(USER, 'MATCH_PARFAIT');
+      // GLOBAL_CAP (3) atteint pour les types marketing
+      const blocked = await canSendTemplate(USER, 'NUDGE_PREMIUM');
+      expect(blocked).toEqual({ allowed: false, reason: 'CAP_GLOBAL' });
+
+      const digest = await canSendTemplate(USER, 'DAILY_DIGEST');
+      expect(digest).toEqual({ allowed: true });
+    });
+
+    it("envoyer 31 DAILY_DIGEST n'affecte pas le GLOBAL_CAP marketing (RELANCE reste autorisé)", async () => {
+      for (let i = 0; i < 5; i++) {
+        await canSendTemplate(USER, 'DAILY_DIGEST');
+      }
+
+      const result = await canSendTemplate(USER, 'RELANCE');
+      expect(result).toEqual({ allowed: true });
+    });
+
+    it('DAILY_DIGEST se bloque sur son propre plafond (31/mois) sans toucher au GLOBAL_CAP', async () => {
+      for (let i = 0; i < 31; i++) {
+        await canSendTemplate(USER, 'DAILY_DIGEST');
+      }
+
+      const result = await canSendTemplate(USER, 'DAILY_DIGEST');
+      expect(result).toEqual({ allowed: false, reason: 'CAP_TYPE' });
+    });
+  });
 });

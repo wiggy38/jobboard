@@ -29,11 +29,27 @@ Monorepo pnpm. Trois briques principales :
 ## Règles métier CRITIQUES — ne jamais contourner
 1. **Templates payants ≤ 3/utilisateur/mois** — vérifier `template_counters`
    AVANT chaque envoi, jamais après.
-2. **Boucle pull = gratuite** — jamais de push marketing quotidien.
-   Si TPQ baisse → améliorer le teaser, JAMAIS passer au push.
+2. **Boucle pull = gratuite pour FREEMIUM** — jamais de push MARKETING quotidien vers FREEMIUM.
+   Si TPQ baisse → améliorer le teaser, JAMAIS passer au push pour ce plan.
+   **Exception actée (2026-08-30) — sélection quotidienne PREMIUM/ELITE** : PREMIUM et ELITE
+   reçoivent une notification de compte courte via un template WhatsApp Meta catégorie
+   **UTILITY** (pas MARKETING), type `DAILY_DIGEST` — job planifié `daily-digest` à 07h30
+   (`apps/bot/src/scheduler.ts`, `apps/bot/src/services/dailyDigest.ts::postDailyDigests`). Le
+   corps du message ne contient **jamais le détail des offres** (ce serait trop proche de
+   contenu éditorial/marketing pour la catégorie UTILITY) — seulement le nombre d'offres
+   matchées ce jour en corps, et un **bouton URL** du template (pas un lien texte) pointant,
+   via un suffixe dynamique (`generateDigestToken`/`buildDigestUrlSuffix`,
+   `apps/bot/src/services/tokenService.ts`), vers une page récapitulative
+   (`GET /api/digest/:pullDeliveryId` dans `apps/api/src/offre.routes.ts`, affichée par
+   `apps/backoffice/src/routes/digest/[token]/+page.svelte`) où le détail est consulté,
+   avec le même contrôle d'accès source Premium/Elite que la page offre (règle 2 ci-dessous).
+   `DAILY_DIGEST` a son **propre plafond mensuel** (31/mois), totalement indépendant du
+   `GLOBAL_CAP` marketing ci-dessous (voir règle budget WhatsApp) — ne jamais le faire contribuer
+   au `GLOBAL_CAP` partagé par RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM.
 3. **Déduplication** → hash SHA-256 (titre + org + date) avant insertion.
 4. **TTL offres** → sans date de clôture, expiration automatique après 30 jours.
-5. Les templates WhatsApp payants sont plafonnés à 3/utilisateur/mois (compteur Redis)
+5. Les templates WhatsApp payants (marketing) sont plafonnés à 3/utilisateur/mois (compteur
+   Redis, `GLOBAL_CAP` — voir exception `DAILY_DIGEST` règle 2 ci-dessus, budgété séparément)
 6. Ne jamais envoyer de push marketing sans vérifier le compteur
 7. Toute offre scrappée passe par le pipeline de déduplication avant insertion
 
@@ -102,14 +118,16 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 ### Tiers
 | Tier | Prix | Villes | Secteurs | Types de contrat | Pays | Contacts | Lien direct source | Alertes keywords | Historique |
 |---|---|---|---|---|---|---|---|---|---|
-| FREEMIUM | 0 FCFA | 3 | 3 | 3 | 1 (inféré) | Non | Non (redirige vers /offres) | Non | 30j |
+| FREEMIUM | 0 FCFA | 3 | 3 | 3 | 1 (inféré) | Non | Oui | Non | 30j |
 | PREMIUM | 650 FCFA/mois | 3 | 3 | 3 | 1 (inféré) | Visibles | Oui | Oui | 30j |
 | ELITE | 1 250 FCFA/mois | Illimité | Illimité | 3 | Jusqu'à 3 (choix user) | Visibles | Oui | Oui (prioritaires) | 30j |
 
 Freemium et Premium partagent désormais les mêmes limites villes/secteurs (3) — la
-différenciation Freemium/Premium ne se fait plus sur ces compteurs mais sur l'accès au lien
-direct vers la source (voir règle 2 ci-dessous). `maxContractGroups` est plafonné à 3 pour les
-trois plans, y compris Elite (plus de valeur "illimité" sur ce champ).
+différenciation Freemium/Premium se fait sur les alertes mots-clés et la sélection quotidienne
+automatique (voir règle 2 ci-dessous et l'exception `DAILY_DIGEST` dans "Règles métier
+CRITIQUES"). Le lien direct vers la source n'est plus un différenciateur : il est débloqué pour
+tous les plans, y compris Freemium (décision actée 2026-08-30 — voir règle 2). `maxContractGroups`
+est plafonné à 3 pour les trois plans, y compris Elite (plus de valeur "illimité" sur ce champ).
 
 Limites villes/secteurs/contrats/pays et alertes stockées en cache par utilisateur sur
 `Profile.maxCities/maxSectors/maxContractGroups/maxCountries/keywordAlertsEnabled` — source de
@@ -120,25 +138,23 @@ ad hoc à partir de `user.plan`.
 
 ### Règles Freemium/Premium/Elite — ne jamais contourner
 1. **Contacts toujours visibles, quel que soit le plan** (y compris Freemium) — la
-   différenciation Freemium se fait sur l'accès au lien direct vers la source (règle 2) et sur
-   les alertes mots-clés, jamais sur la visibilité des contacts.
-2. **Lien direct vers la source réservé à Premium/Elite — restriction limitée à la page web
-   tokenisée `/offre/[token]`.** Le contenu affiché à l'utilisateur pour une offre scrapée est
-   une ébauche courte (`description` ≤ ~250 caractères, `requirements` toujours `null`, cf. règle
-   scraping ci-dessous). Sur `/offre/[token]`, le bouton "voir la source" redirige vers l'annonce
-   complète sur le site d'origine pour Premium/Elite ; pour Freemium, il redirige vers la page
-   des offres (`/offres`) en incitation à l'upgrade. **Cette restriction ne concerne que cette
-   page web** : les liens tokenisés envoyés dans les messages WhatsApp ne changent pas (voir
-   "Format des messages" plus bas). Les offres B2B insérées manuellement
-   (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne sont pas concernées : leur
-   `description`/`requirements` sont saisis en clair par l'admin et affichés intégralement.
-   Implémenté dans `apps/api/src/offre.routes.ts` (`hasDirectSourceAccess`) : `accessLevel`/
-   `sourceUrl` dépendent bien du plan de l'utilisateur.
-   **Réglage backoffice `OFFER_FULL_ACCESS`** (`/admin/parametres` → section "Formules
-   d'abonnement", clé `offers.fullAccess`, défaut `false`) : quand activé, lève cette restriction
-   et donne aussi aux FREEMIUM l'accès direct à la source, sans déploiement. N'affecte que la page
-   web tokenisée — le comportement WhatsApp reste inchangé.
-3. **DÉBLOQUER → lien direct Premium 650 FCFA**, jamais d'essai gratuit.
+   différenciation Freemium se fait sur les alertes mots-clés et la sélection quotidienne
+   automatique (règle 2), jamais sur la visibilité des contacts.
+2. **Lien direct vers la source débloqué pour tous les plans, y compris Freemium** (décision
+   actée 2026-08-30 — ce n'est plus un différenciateur payant). Sur la page web tokenisée
+   `/offre/[token]` (et `/digest/[token]`), le bouton "voir la source" redirige toujours vers
+   l'annonce complète sur le site d'origine, quel que soit le plan de l'utilisateur — plus de
+   branche verrouillée ni de CTA "Débloquer l'accès". L'ancienne restriction Premium/Elite et le
+   réglage backoffice `OFFER_FULL_ACCESS` (`/admin/parametres`) ont été retirés du code
+   (`apps/api/src/offre.routes.ts`, `packages/shared/src/settings.ts`) plutôt que laissés en
+   toggle réversible. Le contenu affiché pour une offre scrapée reste une ébauche courte
+   (`description` ≤ ~250 caractères, `requirements` toujours `null`, cf. règle scraping
+   ci-dessous) — l'utilisateur est redirigé vers `url_source` pour le détail complet, comme avant.
+   Les offres B2B insérées manuellement (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne
+   sont pas concernées : leur `description`/`requirements` sont saisis en clair par l'admin et
+   affichés intégralement. Rien ne change côté WhatsApp (voir "Format des messages" plus bas) :
+   cette restriction n'a jamais existé sur les liens tokenisés envoyés par le bot.
+3. **Passage Premium/Elite via commande `PREMIUM` et paiement PayDunya**, jamais d'essai gratuit.
 4. **Paiement hors plateforme** (PayDunya : Orange Money/Moov Money/carte bancaire) — pas d'UI admin sur le paiement, suivi via dashboard PayDunya.
 5. **Retry paiement** : PENDING > 24h → relance manuelle ; commande `VÉRIFIER` resynchronise avec PayDunya ; relance à J-7 avant expiration d'abonnement.
 6. **Canaux WhatsApp — 1 canal par pays** (décision actée) : `#Emploi-BF`, `#Emploi-BJ`, `#Emploi-TG`, `#Emploi-CI`. Auto-post 08:00, zéro modération manuelle, archivage auto après 15j, toujours un lien `wa.me` par message. Remplace l'ancienne architecture à 10 canaux thématiques (par ville/secteur, BF uniquement) décrite dans `docs/freemium_v1.1.md` — cette dernière est obsolète sur ce point précis, voir `docs/subscription_flow_elite.md`.
@@ -182,19 +198,20 @@ ad hoc à partir de `user.plan`.
   PREMIUM mentionnée dans le corps du message
 - Le lien tokenisé envoyé dans le message WhatsApp lui-même ne change pas selon le plan — ce
   comportement (message texte + preview_url pour Premium, bouton CTA pour Freemium) reste
-  identique. C'est uniquement **sur la page `/offre/[token]`** que le contenu diffère désormais
-  par plan : les contacts (email/téléphone/adresse) restent toujours visibles quel que soit le
-  plan (règle 1), mais le bouton "voir la source" (sourceUrl/sourceName) est réservé à
-  Premium/Elite — pour Freemium il redirige vers `/offres` (règle 2). `accessLevel` reflète cette
-  différence (`FULL` pour Premium/Elite, restreint pour Freemium), sauf si le réglage backoffice
-  `OFFER_FULL_ACCESS` est activé (voir règle 2).
+  identique. Sur la page `/offre/[token]`, les contacts (email/téléphone/adresse) et le bouton
+  "voir la source" (sourceUrl/sourceName) sont tous deux visibles quel que soit le plan (règles 1
+  et 2 — plus de branchement par `accessLevel`, ce champ n'existe plus dans la réponse API).
 - Le parser de commandes gère DEUX types d'entrée :
   1. message.text.body (texte libre)
   2. message.interactive.button_reply.id (Reply Button tapé)
 
 ### Garde-fous budget WhatsApp
 - TemplateCounter doit être vérifié AVANT tout envoi de template payant
-- Plafond absolu : 3 templates payants par utilisateur par mois
+- Plafond absolu : 3 templates **marketing** par utilisateur par mois (`GLOBAL_CAP` —
+  RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM)
+- `DAILY_DIGEST` (sélection quotidienne PREMIUM/ELITE, catégorie Meta UTILITY) a un plafond
+  séparé (31/mois) et ne consomme jamais le `GLOBAL_CAP` marketing ci-dessus — implémenté dans
+  `apps/bot/src/counters/templateCounter.ts` (`TYPES_EXEMPT_FROM_GLOBAL_CAP`)
 - La vérification se fait en transaction DB atomique
 
 ### Fenêtre de service

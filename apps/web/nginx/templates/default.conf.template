@@ -55,4 +55,15 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # Récapitulatif de la sélection quotidienne (DAILY_DIGEST) — lien envoyé dans
+    # le template WhatsApp, voir apps/bot/src/services/tokenService.ts::buildDigestUrl
+    location /digest/ {
+        proxy_pass http://${SVELTEKIT_UPSTREAM}/digest/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }

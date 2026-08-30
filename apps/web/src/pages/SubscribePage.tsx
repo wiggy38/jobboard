@@ -73,6 +73,7 @@ function freemiumFeatures(limits: PlanLimits): string[] {
     `Rechercher dans ${cities}`,
     `Rechercher dans ${sectors}`,
     `Rechercher jusqu'à ${limits.maxContractGroups} ${contracts}`,
+    'À la demande (commande OFFRES)',
   ]
 }
 
@@ -88,8 +89,8 @@ function premiumFeatures(limits: PlanLimits): string[] {
     `Rechercher dans ${cities}`,
     `Rechercher dans ${sectors}`,
     `Rechercher jusqu'à ${limits.maxContractGroups} ${contracts}`,
+    'Sélection quotidienne automatique',
     'Alertes par mots-clés',
-    "Lien direct vers l'offre complète",
   ]
 }
 
@@ -127,7 +128,7 @@ function buildFaqItems(freemium: PlanLimits) {
     {
       question: 'Le service est gratuit ?',
       answer:
-        `Oui, l'offre Freemium est gratuite et sans limite de durée : ${freemiumSummary(freemium)}. Le Premium te donne accès au lien direct vers l'annonce d'origine et aux alertes par mots-clés — mensuel, sans engagement. Si tu arrêtes, tu repasses simplement en Freemium et gardes l'accès au service.`,
+        `Oui, l'offre Freemium est gratuite et sans limite de durée : ${freemiumSummary(freemium)}. Le Premium te donne accès à la sélection quotidienne automatique et aux alertes par mots-clés — mensuel, sans engagement. Si tu arrêtes, tu repasses simplement en Freemium et gardes l'accès au service.`,
     },
     {
       question: 'Il y a des offres pour les profils sans diplôme ?',

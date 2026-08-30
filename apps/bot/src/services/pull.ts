@@ -67,11 +67,11 @@ export async function recordPullEvent(userId: string, offersCount = 0): Promise<
 
 export async function recordPullDelivery(
   userId: string,
-  command: 'OFFRES' | 'SUITE',
+  command: 'OFFRES' | 'SUITE' | 'DAILY_DIGEST',
   offerIds: string[],
   plan: UserPlan,
-): Promise<void> {
-  await prisma.pullDelivery.create({
+): Promise<{ id: string }> {
+  return prisma.pullDelivery.create({
     data: {
       userId,
       command,
@@ -79,6 +79,7 @@ export async function recordPullDelivery(
       offers: { connect: offerIds.map((id) => ({ id })) },
       planAtPull: plan,
     },
+    select: { id: true },
   });
 }
 

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Queue, Worker } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
 import { postDailyChannelTeasers } from './services/channelTeaser';
+import { postDailyDigests } from './services/dailyDigest';
 
 const NAME = 'bot-scheduler';
 const db = new PrismaClient();
@@ -22,6 +23,11 @@ const queue = new Queue('bot', { connection });
 // chaque matin à 08:00, un par canal national (#Emploi-BF, #Emploi-BJ...).
 const CHANNEL_TEASER_JOB = { name: 'channel-teaser-daily', pattern: '0 8 * * *' };
 
+// Sélection quotidienne automatique PREMIUM/ELITE (template Meta UTILITY, voir
+// .claude/CLAUDE.md) — avant le teaser de canal pour ne pas les faire concurrence
+// sur le débit d'envoi WhatsApp.
+const DAILY_DIGEST_JOB = { name: 'daily-digest', pattern: '30 7 * * *' };
+
 // Retries automatiques : 3 tentatives, backoff exponentiel (1min, 2min, 4min)
 // — même politique que apps/scraper/src/scheduler.ts.
 const RETRY_OPTS = { attempts: 3, backoff: { type: 'exponential' as const, delay: 60_000 } };
@@ -33,6 +39,13 @@ async function registerJobs(): Promise<void> {
     { repeat: { pattern: CHANNEL_TEASER_JOB.pattern }, ...RETRY_OPTS },
   );
   console.log(`[${NAME}] Registered: ${CHANNEL_TEASER_JOB.name} (${CHANNEL_TEASER_JOB.pattern})`);
+
+  await queue.add(
+    DAILY_DIGEST_JOB.name,
+    {},
+    { repeat: { pattern: DAILY_DIGEST_JOB.pattern }, ...RETRY_OPTS },
+  );
+  console.log(`[${NAME}] Registered: ${DAILY_DIGEST_JOB.name} (${DAILY_DIGEST_JOB.pattern})`);
 }
 
 const worker = new Worker(
@@ -44,6 +57,12 @@ const worker = new Worker(
     if (job.name === CHANNEL_TEASER_JOB.name) {
       const results = await postDailyChannelTeasers(db);
       console.log(`[${NAME}] Channel teasers postés :`, JSON.stringify(results));
+      return { results };
+    }
+
+    if (job.name === DAILY_DIGEST_JOB.name) {
+      const results = await postDailyDigests(db);
+      console.log(`[${NAME}] Sélections quotidiennes envoyées :`, JSON.stringify(results));
       return { results };
     }
 

@@ -75,7 +75,7 @@ manuel** pour le(s) service(s) concerné(s) plutôt que de compter sur l'auto-de
 
 ## Réseau interne — nginx → SvelteKit / API
 
-`tumaa-web-nginx` proxy vers `tumaa-web-app` (routes `/app/`, `/offre/`) via
+`tumaa-web-nginx` proxy vers `tumaa-web-app` (routes `/app/`, `/offre/`, `/digest/`) via
 `SVELTEKIT_UPSTREAM`, et vers `tumaa-api` (route `/api/`, appelée en relatif par
 l'app React `/subscribe`) via `API_UPSTREAM` — les deux résolues par `envsubst`
 dans [default.conf.template](../apps/web/nginx/templates/default.conf.template).

@@ -5,7 +5,13 @@ import { SETTING_KEYS, type TemplateCaps } from '@tumaa/shared';
 import { getSetting } from '../lib/settings';
 import { isDormant } from './dormancyGuard';
 
-export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM';
+export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM' | 'DAILY_DIGEST';
+
+// DAILY_DIGEST (sélection quotidienne PREMIUM/ELITE, catégorie Meta UTILITY) est budgété à part :
+// il ne compte ni ne consomme le GLOBAL_CAP partagé par les templates marketing existants
+// (RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM) — sinon un envoi quotidien épuiserait ce plafond
+// commun en 3 jours et bloquerait ces autres templates pour le reste du mois.
+const TYPES_EXEMPT_FROM_GLOBAL_CAP: TemplateType[] = ['DAILY_DIGEST'];
 
 async function getCaps(): Promise<TemplateCaps> {
   return getSetting(SETTING_KEYS.TEMPLATE_CAPS);
@@ -47,7 +53,9 @@ async function checkViaRedis(
   const typeCount = parseInt(typeVal ?? '0', 10);
   const caps = await getCaps();
 
-  if (totalCount >= caps.GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
+  if (!TYPES_EXEMPT_FROM_GLOBAL_CAP.includes(type) && totalCount >= caps.GLOBAL_CAP) {
+    return { allowed: false, reason: 'CAP_GLOBAL' };
+  }
   if (typeCount >= caps[type]) return { allowed: false, reason: 'CAP_TYPE' };
   return { allowed: true };
 }
@@ -67,15 +75,21 @@ async function checkViaPg(
     }),
     prisma.templateCounter.findMany({
       where: { userId, month },
-      select: { count: true },
+      select: { count: true, type: true },
     }),
   ]);
 
   const typeCount = typeRow?.count ?? 0;
-  const totalCount = allRows.reduce((sum, r) => sum + r.count, 0);
+  // Le total "marketing" exclut les types exemptés (DAILY_DIGEST) — sinon leur volume
+  // contaminerait le GLOBAL_CAP des autres types (voir TYPES_EXEMPT_FROM_GLOBAL_CAP).
+  const totalCount = allRows
+    .filter((r) => !TYPES_EXEMPT_FROM_GLOBAL_CAP.includes(r.type as TemplateType))
+    .reduce((sum, r) => sum + r.count, 0);
   const caps = await getCaps();
 
-  if (totalCount >= caps.GLOBAL_CAP) return { allowed: false, reason: 'CAP_GLOBAL' };
+  if (!TYPES_EXEMPT_FROM_GLOBAL_CAP.includes(type) && totalCount >= caps.GLOBAL_CAP) {
+    return { allowed: false, reason: 'CAP_GLOBAL' };
+  }
   if (typeCount >= caps[type]) return { allowed: false, reason: 'CAP_TYPE' };
   return { allowed: true };
 }
@@ -87,15 +101,17 @@ async function checkViaPg(
 async function incrementRedis(userId: string, type: TemplateType, month: string): Promise<void> {
   const ttl = secondsUntilMonthEnd();
   const tKey = typeKey(userId, month, type);
-  const gKey = totalKey(userId, month);
 
-  await redis
-    .multi()
-    .incr(tKey)
-    .expire(tKey, ttl)
-    .incr(gKey)
-    .expire(gKey, ttl)
-    .exec();
+  const multi = redis.multi().incr(tKey).expire(tKey, ttl);
+
+  // Ne pas incrémenter le total marketing partagé pour les types exemptés (DAILY_DIGEST) —
+  // voir TYPES_EXEMPT_FROM_GLOBAL_CAP.
+  if (!TYPES_EXEMPT_FROM_GLOBAL_CAP.includes(type)) {
+    const gKey = totalKey(userId, month);
+    multi.incr(gKey).expire(gKey, ttl);
+  }
+
+  await multi.exec();
 }
 
 export async function incrementTemplateCounter(userId: string, type: string): Promise<void> {
@@ -203,7 +219,7 @@ export async function checkAndIncrementTemplate(
 // State query
 // -------------------------------------------------------------------
 
-const TEMPLATE_TYPES: TemplateType[] = ['RELANCE', 'MATCH_PARFAIT', 'NUDGE_PREMIUM'];
+const TEMPLATE_TYPES: TemplateType[] = ['RELANCE', 'MATCH_PARFAIT', 'NUDGE_PREMIUM', 'DAILY_DIGEST'];
 
 export async function getTemplateCounters(
   userId: string,

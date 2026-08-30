@@ -24,7 +24,6 @@
 		{ id: 'pull', label: 'Pull WhatsApp', icon: '📲' },
 		{ id: 'plans', label: "Formules d'abonnement", icon: '💳' },
 		{ id: 'pricing', label: 'Tarifs', icon: '🏷️' },
-		{ id: 'fullAccess', label: 'Full access', icon: '🔓' },
 		{ id: 'levels', label: "Niveaux d'études", icon: '🎓' },
 		{ id: 'sectors', label: "Secteurs d'activité", icon: '🏢' },
 		{ id: 'cities', label: 'Villes par pays', icon: '📍' },
@@ -86,8 +85,6 @@
 
 	let reportEmailTo = $state(data.settings[SETTING_KEYS.SCRAPER_REPORT_EMAIL_TO]);
 	let careerjetAffid = $state(data.settings[SETTING_KEYS.SCRAPER_CAREERJET_AFFID]);
-
-	let fullAccess = $state(data.settings[SETTING_KEYS.OFFER_FULL_ACCESS]);
 
 	// Nb de profils référençant chaque valeur de secteur/ville/niveau — sert à
 	// désactiver la suppression d'une valeur encore utilisée (le backend rejette
@@ -415,33 +412,6 @@
 		>
 			Enregistrer
 		</button>
-	</section>
-	{/if}
-
-	<!-- ── Full access ──────────────────────────────────────────────── -->
-	{#if activeSection === 'fullAccess'}
-	<section class="card">
-		<div class="card-header">
-			<h2>Full access</h2>
-			{#if status.fullAccess === 'saved'}<span class="status-ok">✓ Enregistré</span>{/if}
-			{#if status.fullAccess === 'error'}<span class="status-error">{errorMsg.fullAccess}</span>{/if}
-		</div>
-		<div class="field-row">
-			<div class="field">
-				<label>
-					<input type="checkbox" bind:checked={fullAccess} />
-					Full access — les Freemium ont aussi accès à la source des offres
-				</label>
-			</div>
-			<button
-				class="btn-primary"
-				disabled={status.fullAccess === 'saving'}
-				onclick={() => saveSection('fullAccess', SETTING_KEYS.OFFER_FULL_ACCESS, fullAccess)}
-			>
-				Enregistrer
-			</button>
-		</div>
-		<p class="hint">N'affecte que la page web tokenisée `/offre/[token]` — le comportement des liens WhatsApp reste inchangé.</p>
 	</section>
 	{/if}
 

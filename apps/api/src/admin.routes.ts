@@ -379,6 +379,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       RELANCE: 2,
       MATCH_PARFAIT: 1,
       NUDGE_PREMIUM: 1,
+      // Catégorie Meta UTILITY (sélection quotidienne PREMIUM/ELITE) — plafond
+      // indépendant du GLOBAL_CAP marketing partagé par les 3 types ci-dessus,
+      // voir apps/bot/src/counters/templateCounter.ts.
+      DAILY_DIGEST: 31,
     }
 
     const [usage, activeUsers] = await Promise.all([

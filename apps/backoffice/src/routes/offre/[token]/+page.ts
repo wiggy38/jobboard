@@ -12,13 +12,11 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const res = await fetch(`${apiBase}/api/offre/${jobId}?t=${jwt}`)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      return { offer: null, subscribeToken: null, error: (body as { error?: string }).error ?? `Erreur ${res.status}` }
+      return { offer: null, error: (body as { error?: string }).error ?? `Erreur ${res.status}` }
     }
-    const body: { job: TokenizedOffer; accessLevel: string; subscribeToken: string | null } = await res.json()
+    const body: { job: TokenizedOffer } = await res.json()
     return {
       offer: body.job,
-      accessLevel: body.accessLevel,
-      subscribeToken: body.subscribeToken,
       error: null,
       jobId,
       jwt,
@@ -27,7 +25,6 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
   } catch {
     return {
       offer: null,
-      subscribeToken: null,
       error: 'Erreur réseau — réessayez dans quelques instants.',
       jobId,
       jwt,

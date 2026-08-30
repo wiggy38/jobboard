@@ -26,11 +26,8 @@ export async function referenceRoutes(fastify: FastifyInstance) {
     // apps/home est servi sur une origine distincte (WAMP), non proxifiée vers
     // l'API — même en-tête CORS que plan-pricing.
     reply.header('Access-Control-Allow-Origin', '*')
-    const [limits, fullAccess] = await Promise.all([
-      getSetting(SETTING_KEYS.PLAN_LIMITS),
-      getSetting(SETTING_KEYS.OFFER_FULL_ACCESS),
-    ])
-    return reply.send({ limits, fullAccess })
+    const limits = await getSetting(SETTING_KEYS.PLAN_LIMITS)
+    return reply.send({ limits })
   })
 
   // Prix (barré + réel) par plan — défaut PLAN_PRICING, ou surcharge backoffice

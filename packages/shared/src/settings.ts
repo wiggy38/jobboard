@@ -29,7 +29,6 @@ export const SETTING_KEYS = {
   WHATSAPP_BOT_NUMBERS: 'whatsapp.botNumbers',
   SCOUTS_CAPTURE_RATE: 'scouts.captureRate',
   PAYMENTS_PAYDUNYA_MODE: 'payments.paydunyaMode',
-  OFFER_FULL_ACCESS: 'offers.fullAccess',
   PLAN_PRICING: 'plans.pricing',
 } as const
 
@@ -90,13 +89,17 @@ export const SCRAPER_REGISTRY: ScraperRegistryEntry[] = [
   { key: 'emploiaubenin', country: 'BJ' },
 ]
 
-export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM'
+export type TemplateType = 'RELANCE' | 'MATCH_PARFAIT' | 'NUDGE_PREMIUM' | 'DAILY_DIGEST'
 
 export interface TemplateCaps {
   RELANCE: number
   MATCH_PARFAIT: number
   NUDGE_PREMIUM: number
+  // Plafond partagé marketing (RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM uniquement) — DAILY_DIGEST
+  // (catégorie Meta UTILITY, PREMIUM/ELITE) a son propre plafond indépendant, voir DAILY_DIGEST
+  // ci-dessous et apps/bot/src/counters/templateCounter.ts.
   GLOBAL_CAP: number
+  DAILY_DIGEST: number
 }
 
 export type PaydunyaMode = 'test' | 'live'
@@ -124,7 +127,6 @@ export interface SettingValueMap {
   [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: Record<string, string>
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: number
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: PaydunyaMode
-  [SETTING_KEYS.OFFER_FULL_ACCESS]: boolean
   [SETTING_KEYS.PLAN_PRICING]: Record<'PREMIUM' | 'ELITE', PlanPricing>
 }
 
@@ -164,6 +166,7 @@ export const DEFAULT_SETTINGS: SettingValueMap = {
     MATCH_PARFAIT: 1,
     NUDGE_PREMIUM: 1,
     GLOBAL_CAP: 3,
+    DAILY_DIGEST: 31,
   },
   [SETTING_KEYS.PULL_BATCH_SIZE]: 10,
   [SETTING_KEYS.PLAN_LIMITS]: PLAN_LIMITS,
@@ -176,7 +179,6 @@ export const DEFAULT_SETTINGS: SettingValueMap = {
   [SETTING_KEYS.WHATSAPP_BOT_NUMBERS]: { BF: '22645010707' },
   [SETTING_KEYS.SCOUTS_CAPTURE_RATE]: 200,
   [SETTING_KEYS.PAYMENTS_PAYDUNYA_MODE]: 'live',
-  [SETTING_KEYS.OFFER_FULL_ACCESS]: false,
   [SETTING_KEYS.PLAN_PRICING]: {
     PREMIUM: { barredPrice: 650, price: 650 },
     ELITE: { barredPrice: 1250, price: 1250 },

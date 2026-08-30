@@ -64,7 +64,7 @@ async function recordRun(params: {
 }
 
 function computeScoreConfidence(offer: RawJobOffer): number {
-  if (offer.title && offer.organization && offer.city && offer.contactEmail) return 1.0
+  if (offer.title && offer.organization && offer.city && offer.applicationUrl) return 1.0
   if (offer.title && offer.organization && offer.city) return 0.8
   if (offer.title && offer.organization) return 0.6
   return 0.4
@@ -296,7 +296,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
             publishedAt: offer.publishedAt,
             deadline: offer.deadline,
             scoreConfidence: offer.scoreConfidence,
-            status: JobOfferStatus.PENDING,
+            status: JobOfferStatus.ACTIVE,
           },
         })
         totalInserted++

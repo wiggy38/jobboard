@@ -7,11 +7,11 @@
  * fois par offre et retourne les champs de contenu normalisés.
  *
  * Volontairement, seuls les champs de CONTENU sont demandés à Haiku (title,
- * organization, city, sector, level, contractType, description (ébauche
- * courte, ~250 caractères — pas le détail complet, l'utilisateur est
- * redirigé vers la page source pour ça), contacts, applicationUrl, dates,
- * isSponsored, isFraudSuspect). Les champs
- * système/métier (id, hash, status, ttlDays, scoreConfidence, validated,
+ * organization, city, sector, level, contractType, applicationUrl, dates,
+ * isSponsored, isFraudSuspect). description/contacts ne sont plus demandés
+ * (l'utilisateur est redirigé vers la page source pour le détail complet et
+ * les coordonnées). Les champs système/métier (id, hash, status, ttlDays,
+ * scoreConfidence, validated,
  * createdAt/updatedAt, fraudConfirmedAt) restent calculés par le pipeline
  * (pipeline.ts, normalizer.ts) — jamais par le LLM.
  */
@@ -28,13 +28,17 @@ export interface HaikuExtraction {
   level?: string
   contractType?: string
   sector?: string
+  /** @deprecated Plus jamais renseigné par Haiku — le prompt ne demande plus ce champ (l'utilisateur est redirigé vers la page source pour le détail). Gardé optionnel pour ne pas casser le typage des scrapers qui font `description: extracted.description`. */
   description?: string
   /** @deprecated Plus jamais renseigné par Haiku — le prompt ne demande plus ce champ (ébauche courte via `description` désormais). Gardé optionnel pour ne pas casser le typage des ~40 scrapers qui font `requirements: extracted.requirements`. */
   requirements?: string
   deadline?: string        // texte brut, ex: "31/07/2025" ou "31 juillet 2025"
   publishedAt?: string     // texte brut, ex: "30/06/2026"
+  /** @deprecated Plus jamais renseigné par Haiku — le prompt ne demande plus ce champ (l'utilisateur est redirigé vers la page source pour les coordonnées). Gardé optionnel pour ne pas casser le typage des scrapers qui font `contactEmail: extracted.contactEmail`. */
   contactEmail?: string
+  /** @deprecated Plus jamais renseigné par Haiku — voir contactEmail. */
   contactPhone?: string
+  /** @deprecated Plus jamais renseigné par Haiku — voir contactEmail. */
   contactAddress?: string
   applicationUrl?: string
   isSponsored?: boolean
@@ -75,17 +79,15 @@ Si et seulement si la page décrit plusieurs postes distincts :
 - Mets "isJobOffer": true
 - Ajoute un champ "offers" : un tableau d'objets, un par poste, chacun avec
   les mêmes champs que décrits ci-dessous (title, organization, city, sector,
-  level, contractType, description, contactEmail,
-  contactPhone, contactAddress, applicationUrl, deadline, publishedAt,
+  level, contractType, applicationUrl, deadline, publishedAt,
   isSponsored, isFraudSuspect).
-- Les champs communs à toute l'annonce (organization, contactEmail,
-  contactPhone, contactAddress, deadline, publishedAt, isSponsored) doivent
-  être répétés à l'identique dans CHAQUE élément de "offers" — chaque poste
-  doit rester exploitable isolément, sans dépendre des autres éléments du
-  tableau.
+- Les champs communs à toute l'annonce (organization, deadline, publishedAt,
+  isSponsored) doivent être répétés à l'identique dans CHAQUE élément de
+  "offers" — chaque poste doit rester exploitable isolément, sans dépendre
+  des autres éléments du tableau.
 - Ne remplis PAS les champs de contenu au niveau racine de l'objet dans ce
-  cas (title, description, etc. au top-level sont ignorés si "offers" est
-  présent) — seul le tableau "offers" est utilisé.
+  cas (title, etc. au top-level sont ignorés si "offers" est présent) —
+  seul le tableau "offers" est utilisé.
 Si la page ne décrit qu'UN seul poste (le cas normal et le plus fréquent),
 omets complètement "isMultiOffer" et "offers", et remplis les champs de
 contenu directement à la racine comme d'habitude.
@@ -106,14 +108,6 @@ CHAMPS À EXTRAIRE (omets les champs absents ou inconnus, ne mets jamais de vale
   Si plusieurs niveaux distincts sont acceptés, sépare par ", " (ex: "BAC+3, BAC+5"). Si plusieurs diplômes mappent vers le même niveau, ne le retourne qu'une fois.
 
 - contractType : normalise vers CDI, CDD, STAGE, ALTERNANCE, FREELANCE, BENEVOLE ou AUTRE.
-
-- description : résumé court du poste (l'essentiel de la mission + 1-2 exigences clés si notables), max 250 caractères. Ce n'est PAS un résumé exhaustif de l'annonce : l'utilisateur sera redirigé vers la page source pour le détail complet, ce champ ne sert qu'à donner une idée du poste avant de cliquer.
-
-- contactEmail : adresse email de dépôt de candidature.
-
-- contactPhone : numéro de téléphone de contact, format +226 XX-XX-XX-XX si burkinabè.
-
-- contactAddress : adresse physique et/ou indications de dépôt de dossier (cabinet, personne, lieu).
 
 - applicationUrl : URL de candidature en ligne si mentionnée (sinon omets — ne jamais mettre l'URL de la page elle-même).
 

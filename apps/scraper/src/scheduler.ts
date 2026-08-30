@@ -24,8 +24,8 @@ const queue = new Queue('scraper', { connection })
 
 const HEALTH_JOB = { name: 'health-check', pattern: '0 */6 * * *' }
 
-// 22h30 — après la vague du soir (22h00-22h10), avant minuit
-const DAILY_REPORT_JOB = { name: 'daily-report', pattern: '30 22 * * *' }
+// 00h15 — après la vague unique de scraping (23h00-00h05)
+const DAILY_REPORT_JOB = { name: 'daily-report', pattern: '15 0 * * *' }
 
 async function registerJobs(): Promise<void> {
   // Programmation des scrapers (SETTING_KEYS.SCRAPER_SCHEDULE) éditable depuis le

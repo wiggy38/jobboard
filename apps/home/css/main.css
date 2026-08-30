@@ -198,6 +198,7 @@ p{margin:0 0 12px}
 .plan-elite{border-color:var(--yellow-dark);background:linear-gradient(180deg,#fff 0%,var(--yellow-light) 140%)}
 .plan-elite .plan-name{color:var(--yellow-dark)}
 .plan-note{font-size:13px;background:var(--yellow-light);color:var(--yellow-dark);padding:10px 12px;border-radius:var(--r-sm);font-weight:600}
+.pricing-cta{display:block;max-width:320px;margin:32px auto 0}
 
 /* FAQ */
 .faq-list{margin-top:32px;display:flex;flex-direction:column;gap:1px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}

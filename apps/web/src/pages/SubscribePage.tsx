@@ -73,7 +73,7 @@ function freemiumFeatures(limits: PlanLimits): string[] {
     `Rechercher dans ${cities}`,
     `Rechercher dans ${sectors}`,
     `Rechercher jusqu'à ${limits.maxContractGroups} ${contracts}`,
-    'À la demande (commande OFFRES)',
+    'À la demande (Sur envoi du mot "OFFRES")',
   ]
 }
 

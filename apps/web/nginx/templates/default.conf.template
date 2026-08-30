@@ -36,9 +36,12 @@ server {
         try_files $uri $uri/ /subscribe/index.html;
     }
 
-    # API interne (appelée en relatif par l'app React ci-dessus)
+    # API interne (appelée en relatif par l'app React ci-dessus) — proxy_pass SANS
+    # URI (pas de "/" final) pour ne pas retirer le préfixe /api/ : les routes
+    # Fastify sont toutes déclarées avec ce préfixe (ex. /api/subscribe/profile
+    # dans apps/api/src/subscribe.routes.ts), donc le retirer fait 404 côté API.
     location /api/ {
-        proxy_pass http://${API_UPSTREAM}/;
+        proxy_pass http://${API_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

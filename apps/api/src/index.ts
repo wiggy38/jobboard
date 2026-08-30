@@ -23,6 +23,14 @@ const ALLOWED_ORIGINS = [
   'https://app.tumaajob.com',
   'https://www.tumaajob.com',
   'https://tumaajob.com',
+  // App React /subscribe (tumaa-web-nginx) — servie sur le domaine custom
+  // tumaa.bf (voir WEB_BASE_URL), pas sur un sous-domaine *.tumaajob.com.
+  // Depuis que apps/web/src/lib/api.ts appelle l'API directement via
+  // VITE_API_URL (contournement du proxy nginx peu fiable, incident
+  // 2026-08-29), ces requêtes sont cross-origin et étaient bloquées par CORS
+  // faute d'être dans cette liste.
+  'https://tumaa.bf',
+  'https://www.tumaa.bf',
   /^http:\/\/localhost:\d+$/,
 ]
 

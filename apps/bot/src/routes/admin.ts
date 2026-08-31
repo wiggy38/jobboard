@@ -146,17 +146,40 @@ export async function adminRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         source: { select: { id: true, name: true, url: true, type: true, trustScore: true } },
-        interactions: {
-          select: { action: true },
-        },
       },
     })
     if (!offer) return reply.status(404).send({ error: 'Offre introuvable' })
 
-    const interactionCounts = offer.interactions.reduce<Record<string, number>>((acc, i) => {
-      acc[i.action] = (acc[i.action] ?? 0) + 1
-      return acc
-    }, {})
+    const [counts] = await prisma.$queryRaw<
+      {
+        seen: bigint
+        clickedSource: bigint
+        sharedCount: bigint
+        clickedLocked: bigint
+        unlocked: bigint
+        bookmarked: bigint
+        reportedFraud: bigint
+      }[]
+    >`
+      SELECT
+        COUNT("seenAt")          AS seen,
+        COUNT("clickedSourceAt") AS "clickedSource",
+        COUNT("sharedAt")        AS "sharedCount",
+        COUNT("clickedLockedAt") AS "clickedLocked",
+        COUNT("unlockedAt")      AS unlocked,
+        COUNT("bookmarkedAt")    AS bookmarked,
+        COUNT("reportedFraudAt") AS "reportedFraud"
+      FROM "JobInteraction" WHERE "jobId" = ${id}
+    `
+    const interactionCounts: Record<string, number> = {
+      SEEN: Number(counts.seen),
+      CLICKED_SOURCE: Number(counts.clickedSource),
+      SHARED: Number(counts.sharedCount),
+      CLICKED_LOCKED: Number(counts.clickedLocked),
+      UNLOCKED: Number(counts.unlocked),
+      BOOKMARKED: Number(counts.bookmarked),
+      REPORTED_FRAUD: Number(counts.reportedFraud),
+    }
 
     return reply.send({
       ...offer,

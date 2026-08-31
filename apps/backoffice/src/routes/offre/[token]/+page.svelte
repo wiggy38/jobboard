@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state'
+	import { browser } from '$app/environment'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
@@ -56,6 +57,17 @@
 	// pointe déjà vers l'URL courte au moment où l'utilisateur clique dessus.
 	$effect(() => {
 		if (offer) ensureShortUrl()
+	})
+
+	// Déclenche le rendu de l'unité AdSense de promo-zone-top une fois l'offre
+	// chargée — le script adsbygoogle.js est chargé globalement dans app.html.
+	$effect(() => {
+		if (offer && browser) {
+			try {
+				const w = window as unknown as { adsbygoogle: unknown[] }
+				;(w.adsbygoogle = w.adsbygoogle || []).push({})
+			} catch {}
+		}
 	})
 
 	const shareMessage = $derived(
@@ -177,7 +189,14 @@
 			</div>
 		{:else if offer}
 			<div class="promo-zone promo-zone-top">
-				<span class="promo-zone-label">Partenaire</span>
+				<ins
+					class="adsbygoogle"
+					style="display:block"
+					data-ad-client="ca-pub-8406000170439705"
+					data-ad-slot="4200043925"
+					data-ad-format="auto"
+					data-full-width-responsive="true"
+				></ins>
 			</div>
 
 			<article class="offer">

@@ -15,8 +15,8 @@ export async function fraudRoutes(fastify: FastifyInstance) {
       where: { isFraudSuspect: true },
       include: {
         interactions: {
-          where: { action: 'REPORTED_FRAUD' },
-          select: { userId: true, createdAt: true },
+          where: { reportedFraudAt: { not: null } },
+          select: { userId: true, reportedFraudAt: true },
         },
         source: { select: { name: true, type: true, trustScore: true } },
       },
@@ -26,9 +26,9 @@ export async function fraudRoutes(fastify: FastifyInstance) {
     suspects.sort((a, b) => b.interactions.length - a.interactions.length)
 
     const total = suspects.length
-    const data = suspects.slice((page - 1) * limit, page * limit).map((offer) => ({
+    const data = suspects.slice((page - 1) * limit, page * limit).map(({ interactions, ...offer }) => ({
       ...offer,
-      reportCount: offer.interactions.length,
+      reportCount: interactions.length,
       deadline: offer.deadline?.toISOString() ?? null,
       publishedAt: offer.publishedAt?.toISOString() ?? null,
       createdAt: offer.createdAt.toISOString(),
@@ -42,23 +42,24 @@ export async function fraudRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/fraud/:jobId', { preHandler: guard }, async (request, reply) => {
     const { jobId } = request.params as { jobId: string }
 
-    const offer = await prisma.jobOffer.findUnique({
+    const offerWithInteractions = await prisma.jobOffer.findUnique({
       where: { id: jobId },
       include: {
         interactions: {
-          where: { action: 'REPORTED_FRAUD' },
-          select: { userId: true, createdAt: true },
+          where: { reportedFraudAt: { not: null } },
+          select: { userId: true, reportedFraudAt: true },
         },
         source: true,
       },
     })
 
-    if (!offer) return reply.status(404).send({ error: 'Not found' })
-    if (!offer.isFraudSuspect) return reply.status(404).send({ error: 'Not a fraud suspect' })
+    if (!offerWithInteractions) return reply.status(404).send({ error: 'Not found' })
+    if (!offerWithInteractions.isFraudSuspect) return reply.status(404).send({ error: 'Not a fraud suspect' })
 
+    const { interactions, ...offer } = offerWithInteractions
     return reply.send({
       ...offer,
-      reportCount: offer.interactions.length,
+      reportCount: interactions.length,
       deadline: offer.deadline?.toISOString() ?? null,
       publishedAt: offer.publishedAt?.toISOString() ?? null,
       createdAt: offer.createdAt.toISOString(),

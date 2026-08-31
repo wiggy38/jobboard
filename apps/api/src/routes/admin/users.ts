@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../../lib/prisma'
 import { adminAuth, requireRole } from '../../middleware/adminAuth'
+import { ACTION_COLUMN_MAP, buildInteractionEventsUnion, type InteractionAction } from '../../lib/jobInteractionEvents'
 
 export async function userRoutes(fastify: FastifyInstance) {
   // GET /admin/users
@@ -203,13 +204,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     const jobIds = [...new Set(deliveries.flatMap((d) => d.offers.map((o) => o.id)))]
     const interactions = jobIds.length
       ? await prisma.jobInteraction.findMany({
-          where: { userId: id, jobId: { in: jobIds }, action: { in: ['SEEN', 'CLICKED_SOURCE', 'SHARED'] } },
-          select: { jobId: true, action: true, createdAt: true },
+          where: { userId: id, jobId: { in: jobIds } },
+          select: { jobId: true, seenAt: true, clickedSourceAt: true, sharedAt: true },
         })
       : []
-    const seenAt = new Map(interactions.filter((i) => i.action === 'SEEN').map((i) => [i.jobId, i.createdAt.toISOString()]))
-    const clickedAt = new Map(interactions.filter((i) => i.action === 'CLICKED_SOURCE').map((i) => [i.jobId, i.createdAt.toISOString()]))
-    const sharedAt = new Map(interactions.filter((i) => i.action === 'SHARED').map((i) => [i.jobId, i.createdAt.toISOString()]))
+    const seenAt = new Map(interactions.filter((i) => i.seenAt).map((i) => [i.jobId, i.seenAt!.toISOString()]))
+    const clickedAt = new Map(interactions.filter((i) => i.clickedSourceAt).map((i) => [i.jobId, i.clickedSourceAt!.toISOString()]))
+    const sharedAt = new Map(interactions.filter((i) => i.sharedAt).map((i) => [i.jobId, i.sharedAt!.toISOString()]))
 
     return reply.send({
       data: deliveries.map((d) => {
@@ -322,36 +323,87 @@ export async function userRoutes(fastify: FastifyInstance) {
     const toDate = new Date(to.toISOString().split('T')[0])
     toDate.setHours(23, 59, 59, 999)
 
-    const where: Record<string, any> = {
-      action: { in: ['SEEN', 'CLICKED_SOURCE'] },
-      createdAt: { gte: fromDate, lte: toDate },
+    // Par défaut SEEN+CLICKED_SOURCE (comportement historique) ; q.action
+    // restreint à une seule action et court-circuite l'UNION — validé contre
+    // la whitelist ACTION_COLUMN_MAP, jamais interpolé tel quel dans le SQL.
+    let actions: InteractionAction[]
+    if (q.action) {
+      if (!(q.action in ACTION_COLUMN_MAP)) {
+        return reply.status(400).send({ error: 'INVALID_ACTION', message: 'Action inconnue' })
+      }
+      actions = [q.action as InteractionAction]
+    } else {
+      actions = ['SEEN', 'CLICKED_SOURCE']
     }
-    if (q.action) where.action = q.action
-    if (q.jobTitle) where.job = { title: { contains: q.jobTitle, mode: 'insensitive' } }
 
-    const [total, events, seenCount, clickCount] = await Promise.all([
-      prisma.jobInteraction.count({ where }),
-      prisma.jobInteraction.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
+    const params: unknown[] = [fromDate, toDate]
+    let jobTitleClause = ''
+    if (q.jobTitle) {
+      params.push(`%${q.jobTitle}%`)
+      jobTitleClause = `AND j.title ILIKE $${params.length}`
+    }
+
+    const eventsUnion = buildInteractionEventsUnion(actions)
+    const baseFrom = `
+      FROM (${eventsUnion}) events
+      JOIN "User" u ON u.id = events."userId"
+      JOIN "JobOffer" j ON j.id = events."jobId"
+      WHERE events.event_at BETWEEN $1 AND $2
+      ${jobTitleClause}
+    `
+
+    const [totalRows, events, seenCountRows, clickCountRows] = await Promise.all([
+      prisma.$queryRawUnsafe<{ count: bigint }[]>(`SELECT COUNT(*) AS count ${baseFrom}`, ...params),
+      prisma.$queryRawUnsafe<
+        {
+          id: string
+          action: InteractionAction
+          event_at: Date
+          user_id: string
+          user_phone: string
+          user_displayName: string | null
+          job_id: string
+          job_title: string
+          job_organization: string
+        }[]
+      >(
+        `SELECT events.id, events.action, events.event_at,
+                u.id AS user_id, u.phone AS user_phone, u."displayName" AS "user_displayName",
+                j.id AS job_id, j.title AS job_title, j.organization AS job_organization
+         ${baseFrom}
+         ORDER BY events.event_at DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        ...params,
+        limit,
         skip,
-        take: limit,
-        include: {
-          job: { select: { id: true, title: true, organization: true } },
-          user: { select: { id: true, phone: true, displayName: true } },
-        },
-      }),
-      prisma.jobInteraction.count({ where: { ...where, action: 'SEEN' } }),
-      prisma.jobInteraction.count({ where: { ...where, action: 'CLICKED_SOURCE' } }),
+      ),
+      prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) AS count
+         FROM "JobInteraction" ji
+         JOIN "JobOffer" j ON j.id = ji."jobId"
+         WHERE ji."seenAt" IS NOT NULL AND ji."seenAt" BETWEEN $1 AND $2 ${jobTitleClause}`,
+        ...params,
+      ),
+      prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) AS count
+         FROM "JobInteraction" ji
+         JOIN "JobOffer" j ON j.id = ji."jobId"
+         WHERE ji."clickedSourceAt" IS NOT NULL AND ji."clickedSourceAt" BETWEEN $1 AND $2 ${jobTitleClause}`,
+        ...params,
+      ),
     ])
+
+    const total = Number(totalRows[0].count)
+    const seenCount = Number(seenCountRows[0].count)
+    const clickCount = Number(clickCountRows[0].count)
 
     return reply.send({
       data: events.map((e) => ({
         id: e.id,
         action: e.action,
-        createdAt: e.createdAt.toISOString(),
-        job: e.job,
-        user: e.user,
+        createdAt: e.event_at.toISOString(),
+        job: { id: e.job_id, title: e.job_title, organization: e.job_organization },
+        user: { id: e.user_id, phone: e.user_phone, displayName: e.user_displayName },
       })),
       total,
       page,

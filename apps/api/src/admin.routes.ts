@@ -6,6 +6,12 @@ import { parseDeadlineInput } from '@tumaa/shared'
 import { prisma } from './lib/prisma'
 import { redis } from './lib/redis'
 import { adminAuth, requireRole } from './middleware/adminAuth'
+import {
+  buildInteractionCountsSelect,
+  buildInteractionEventsUnion,
+  INTERACTION_ACTIONS,
+  type InteractionAction,
+} from './lib/jobInteractionEvents'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const scraperGuard = [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')]
@@ -260,21 +266,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
           ORDER BY date ASC
         `,
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
-          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          SELECT TO_CHAR(DATE(ji."seenAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
           FROM "JobInteraction" ji
           JOIN "User" u ON u.id = ji."userId"
-          WHERE ji.action = 'SEEN' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          WHERE ji."seenAt" IS NOT NULL AND ji."seenAt" BETWEEN ${fromDate} AND ${toDate}
           ${countryFilter}
-          GROUP BY DATE(ji."createdAt")
+          GROUP BY DATE(ji."seenAt")
           ORDER BY date ASC
         `,
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
-          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          SELECT TO_CHAR(DATE(ji."clickedLockedAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
           FROM "JobInteraction" ji
           JOIN "User" u ON u.id = ji."userId"
-          WHERE ji.action = 'CLICKED_LOCKED' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          WHERE ji."clickedLockedAt" IS NOT NULL AND ji."clickedLockedAt" BETWEEN ${fromDate} AND ${toDate}
           ${countryFilter}
-          GROUP BY DATE(ji."createdAt")
+          GROUP BY DATE(ji."clickedLockedAt")
           ORDER BY date ASC
         `,
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
@@ -287,12 +293,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
           ORDER BY date ASC
         `,
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
-          SELECT TO_CHAR(DATE(ji."createdAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+          SELECT TO_CHAR(DATE(ji."sharedAt"), 'YYYY-MM-DD') AS date, COUNT(*) AS count
           FROM "JobInteraction" ji
           JOIN "User" u ON u.id = ji."userId"
-          WHERE ji.action = 'SHARED' AND ji."createdAt" BETWEEN ${fromDate} AND ${toDate}
+          WHERE ji."sharedAt" IS NOT NULL AND ji."sharedAt" BETWEEN ${fromDate} AND ${toDate}
           ${countryFilter}
-          GROUP BY DATE(ji."createdAt")
+          GROUP BY DATE(ji."sharedAt")
           ORDER BY date ASC
         `,
         prisma.$queryRaw<{ date: string; count: bigint }[]>`
@@ -487,18 +493,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const offerIds = offers.map((o) => o.id)
     const interactionStats = offerIds.length
-      ? await prisma.jobInteraction.groupBy({
-          by: ['jobId', 'action'],
-          where: { jobId: { in: offerIds }, action: { in: ['SEEN', 'CLICKED_SOURCE'] } },
-          _count: { _all: true },
-        })
+      ? await prisma.$queryRaw<{ jobId: string; views: bigint; clicks: bigint }[]>`
+          SELECT "jobId", COUNT("seenAt") AS views, COUNT("clickedSourceAt") AS clicks
+          FROM "JobInteraction"
+          WHERE "jobId" IN (${Prisma.join(offerIds)})
+          GROUP BY "jobId"
+        `
       : []
     const statsByOffer = new Map<string, { views: number; clicks: number }>()
     for (const s of interactionStats) {
-      const entry = statsByOffer.get(s.jobId) ?? { views: 0, clicks: 0 }
-      if (s.action === 'SEEN') entry.views = s._count._all
-      if (s.action === 'CLICKED_SOURCE') entry.clicks = s._count._all
-      statsByOffer.set(s.jobId, entry)
+      statsByOffer.set(s.jobId, { views: Number(s.views), clicks: Number(s.clicks) })
     }
 
     return reply.send({
@@ -593,14 +597,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
       where: { id },
       include: {
         source: { select: { id: true, name: true, url: true, type: true, trustScore: true } },
-        interactions: { select: { action: true } },
       },
     })
     if (!offer) return reply.status(404).send({ error: 'Not found' })
 
+    const [countsRow] = await prisma.$queryRawUnsafe<Record<InteractionAction, bigint>[]>(
+      `SELECT ${buildInteractionCountsSelect()} FROM "JobInteraction" WHERE "jobId" = $1`,
+      id,
+    )
     const interactionCounts: Record<string, number> = {}
-    for (const i of offer.interactions) {
-      interactionCounts[i.action] = (interactionCounts[i.action] ?? 0) + 1
+    for (const action of INTERACTION_ACTIONS) {
+      interactionCounts[action] = Number(countsRow[action])
     }
 
     return reply.send({
@@ -620,26 +627,34 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const page = Math.max(1, Number(q.page) || 1)
     const perPage = Math.min(100, Math.max(1, Number(q.perPage) || 20))
 
-    const [data, total] = await Promise.all([
-      prisma.jobInteraction.findMany({
-        where: { jobId: id },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * perPage,
-        take: perPage,
-        select: {
-          action: true,
-          createdAt: true,
-          user: { select: { id: true, phone: true, displayName: true } },
-        },
-      }),
-      prisma.jobInteraction.count({ where: { jobId: id } }),
+    const eventsUnion = buildInteractionEventsUnion()
+    const [data, totalRows] = await Promise.all([
+      prisma.$queryRawUnsafe<
+        { action: InteractionAction; event_at: Date; user_id: string; user_phone: string; user_displayName: string | null }[]
+      >(
+        `SELECT events.action, events.event_at,
+                u.id AS user_id, u.phone AS user_phone, u."displayName" AS "user_displayName"
+         FROM (${eventsUnion}) events
+         JOIN "User" u ON u.id = events."userId"
+         WHERE events."jobId" = $1
+         ORDER BY events.event_at DESC
+         LIMIT $2 OFFSET $3`,
+        id,
+        perPage,
+        (page - 1) * perPage,
+      ),
+      prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) AS count FROM (${eventsUnion}) events WHERE events."jobId" = $1`,
+        id,
+      ),
     ])
+    const total = Number(totalRows[0].count)
 
     return reply.send({
       data: data.map((i) => ({
         action: i.action,
-        createdAt: i.createdAt.toISOString(),
-        user: i.user,
+        createdAt: i.event_at.toISOString(),
+        user: { id: i.user_id, phone: i.user_phone, displayName: i.user_displayName },
       })),
       total,
       page,

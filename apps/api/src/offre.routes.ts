@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { SETTING_KEYS } from '@tumaa/shared'
 import { prisma } from './lib/prisma'
 import { getSetting } from './lib/settings'
+import { recordJobInteraction } from './lib/jobInteraction'
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
 
@@ -123,9 +124,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     // désormais aussi débloqué pour tous les plans (décision actée 2026-08-30,
     // voir CLAUDE.md) — en WhatsApp le comportement était déjà inchangé.
     if (userId) {
-      await prisma.jobInteraction
-        .create({ data: { userId, jobId: job.id, action: 'SEEN' } })
-        .catch(() => {})
+      await recordJobInteraction(userId, job.id, 'seenAt').catch(() => {})
     }
 
     // ÉTAPE 5 — Construire la réponse
@@ -172,9 +171,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     }
 
     if (verified.userId) {
-      await prisma.jobInteraction
-        .create({ data: { userId: verified.userId, jobId, action: 'CLICKED_SOURCE' } })
-        .catch(() => {})
+      await recordJobInteraction(verified.userId, jobId, 'clickedSourceAt').catch(() => {})
     }
 
     return reply.status(204).send()
@@ -196,9 +193,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     }
 
     if (verified.userId) {
-      await prisma.jobInteraction
-        .create({ data: { userId: verified.userId, jobId, action: 'SHARED' } })
-        .catch(() => {})
+      await recordJobInteraction(verified.userId, jobId, 'sharedAt').catch(() => {})
     }
 
     return reply.status(204).send()

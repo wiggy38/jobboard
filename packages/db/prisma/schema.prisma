@@ -304,10 +304,18 @@ model JobInteraction {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobId     String
   job       JobOffer @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  action    String   // SEEN | CLICKED_SOURCE | CLICKED_LOCKED | UNLOCKED | BOOKMARKED | REPORTED_FRAUD | SHARED
+
+  seenAt          DateTime?
+  clickedSourceAt DateTime?
+  clickedLockedAt DateTime?
+  unlockedAt      DateTime?
+  bookmarkedAt    DateTime?
+  reportedFraudAt DateTime?
+  sharedAt        DateTime?
+
   createdAt DateTime @default(now())
 
-  @@unique([userId, jobId, action])
+  @@unique([userId, jobId])
   @@index([userId])
   @@index([jobId])
 }

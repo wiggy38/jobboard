@@ -54,7 +54,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelector('[data-offer-level]').textContent = job.level || 'Non précisé';
   document.querySelector('[data-offer-published]').textContent = '—';
   document.querySelector('[data-offer-deadline]').textContent = formatDate(job.deadline);
-  document.querySelector('[data-offer-preview]').textContent = job.description || 'Aucune description disponible.';
+  // Offres scrappées : description = ébauche courte, pas le détail complet (cf.
+  // CLAUDE.md, règle scraping) — on masque le bloc pour rediriger directement vers
+  // la source plutôt que d'afficher un aperçu tronqué. Les offres B2B_DIRECT ont une
+  // description saisie en clair par l'admin et restent affichées intégralement.
+  const previewEl = document.querySelector('[data-offer-preview]');
+  const previewTitleEl = document.querySelector('[data-offer-preview-title]');
+  const previewNoteEl = document.querySelector('[data-offer-preview-note]');
+  if (job.sourceType === 'B2B_DIRECT') {
+    previewEl.textContent = job.description || 'Aucune description disponible.';
+  } else {
+    previewEl.style.display = 'none';
+    if (previewTitleEl) previewTitleEl.style.display = 'none';
+    if (previewNoteEl) previewNoteEl.style.display = 'none';
+  }
   document.querySelector('[data-offer-publisher]').textContent = job.sourceName || job.organization;
   document.querySelector('[data-offer-source-name]').textContent = job.sourceName || '—';
 

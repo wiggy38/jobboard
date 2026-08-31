@@ -101,7 +101,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
     // ÉTAPE 3 — Récupérer l'offre en DB
     const job = await prisma.jobOffer.findUnique({
       where: { id: jobId },
-      include: { source: { select: { name: true, url: true, trustScore: true } } },
+      include: { source: { select: { name: true, url: true, trustScore: true, type: true } } },
     })
 
     if (!job) {
@@ -150,6 +150,7 @@ export async function offreRoutes(fastify: FastifyInstance) {
         sourceUrl: job.sourceUrl,
         sourceName: job.source.name,
         sourceTrustScore: job.source.trustScore,
+        sourceType: job.source.type,
       },
     })
   })

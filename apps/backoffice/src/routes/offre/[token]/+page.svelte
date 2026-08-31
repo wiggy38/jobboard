@@ -13,7 +13,7 @@
 	// l'inscription WhatsApp du destinataire (voir apps/bot/src/whatsapp/parser.ts).
 	const ref = $derived(page.url.searchParams.get('ref'))
 
-	const BOT_PHONE = '22645010707'
+	const BOT_PHONE = '22667735146'
 	const BOT_WA_LINK = $derived(
 		`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent(ref ? `OFFRES REF-${ref}` : 'OFFRES')}`
 	)
@@ -72,7 +72,7 @@
 
 	const shareMessage = $derived(
 		offer
-			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 45 01 07 07 : ${BOT_WA_LINK}`
+			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 67 73 51 46 : ${BOT_WA_LINK}`
 			: ''
 	)
 
@@ -277,7 +277,7 @@
 								Cliquer pour voir l'offre complète
 							</a>
 							<button type="button" class="cta-btn cta-share" onclick={shareOffer}>
-								{shareCopied ? '✓ Lien copié' : '📤 Partager avec un ami'}
+								{shareCopied ? '✓ Lien copié' : '📤 Envoyer cette offre à un ami'}
 							</button>
 						</div>
 						{#if sourceHostname}

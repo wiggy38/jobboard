@@ -61,7 +61,7 @@ Détermine si cette page est la fiche d'UNE offre d'emploi précise (un poste,
 un recruteur, un lieu). Réponds par le champ "isJobOffer" (boolean).
 Mets isJobOffer: false — et n'extrais AUCUN autre champ de contenu — si la
 page est : un article informatif ou de conseil ("5 règles pour...", "Comment
-réussir...", "astuces"), une page de contact/à propos/mentions légales, une
+réussir...", "astuces", "avis de vente..."), une page de contact/à propos/mentions légales, une
 liste récapitulative d'entreprises qui recrutent ou d'offres de la semaine,
 un sommaire/index d'offres, ou toute page qui n'est pas la fiche d'une offre
 individuelle. Sinon, mets isJobOffer: true et poursuis l'extraction normale

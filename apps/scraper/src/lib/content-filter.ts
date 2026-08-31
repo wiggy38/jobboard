@@ -31,6 +31,7 @@ const TITLE_BLOCKLIST_PATTERNS = [
   /\bconseils?\b/i,
   /\bastuces?\b/i,
   /recrutent en ce moment/i,
+  /avis de vente/i,
   /cette semaine/i,
   /\bpalmar[eè]s\b/i,
   /\bclassement\b/i,

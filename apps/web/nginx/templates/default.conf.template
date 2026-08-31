@@ -24,10 +24,15 @@ server {
         return 301 https://www.tumaajob.com;
     }
 
-    # SvelteKit app (admin + B2B + liens tokenisés)
-    location /app/ {
+    # SvelteKit app (admin + B2B + liens tokenisés) — regex + capture group pour
+    # retirer le préfixe /app/ nous-mêmes : avec un proxy_pass basé sur une variable
+    # (nécessaire pour forcer la re-résolution DNS via `resolver` ci-dessus), nginx ne
+    # fait plus le remplacement automatique du préfixe de location par l'URI donnée à
+    # proxy_pass — un `proxy_pass http://$var/;` transmet l'URI d'origine telle quelle
+    # (donc encore préfixée /app/) au lieu de la réécrire, d'où le 404 constaté.
+    location ~ ^/app/(.*)$ {
         set $sveltekit_upstream ${SVELTEKIT_UPSTREAM};
-        proxy_pass http://$sveltekit_upstream/;
+        proxy_pass http://$sveltekit_upstream/$1$is_args$args;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -61,10 +66,13 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Liens tokenisés offres (shortcut /offre/ sans passer par /app/)
+    # Liens tokenisés offres (shortcut /offre/ sans passer par /app/) — proxy_pass SANS
+    # URI (comme /api/ ci-dessus) : la route SvelteKit vit déjà à /offre/[token], donc
+    # transmettre l'URI d'origine telle quelle (avec le préfixe /offre/) est correct ;
+    # ajouter une URI ici casserait le chemin, cf. commentaire sur /app/ ci-dessus.
     location /offre/ {
         set $sveltekit_upstream ${SVELTEKIT_UPSTREAM};
-        proxy_pass http://$sveltekit_upstream/offre/;
+        proxy_pass http://$sveltekit_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

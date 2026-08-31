@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import {
   PLAN_LIMITS,
   isUnlimited,
@@ -11,18 +11,15 @@ import {
   type PlanLimits,
   type UserPlan,
 } from '@tumaa/shared'
+import Logo from '../components/Logo'
 import MetaTags from '../components/MetaTags'
-import JoinChannelScreen from '../components/JoinChannelScreen'
 import ToggleOptionStep from '../components/ToggleOptionStep'
 import {
-  saveSubscribeProfile,
-  fetchSubscribeCountries,
-  saveSubscribeCountries,
-  joinHomeChannel,
+  fetchEditProfile,
+  saveEditProfile,
+  fetchBotPhone,
   fetchReferenceOptions,
-  fetchSubscribeCountry,
   fetchPlanLimits,
-  type SubscribeChannel,
   type ReferenceOption,
 } from '../lib/api'
 
@@ -41,13 +38,13 @@ const COUNTRY_OPTIONS = [
   { value: 'CI', label: "🇨🇮 Côte d'Ivoire" },
 ]
 
-export default function SubscribeProfilePage() {
+export default function EditProfilePage() {
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
   const token = searchParams.get('t')
-  const planParam = searchParams.get('plan')
-  const plan: UserPlan | null =
-    planParam === 'FREEMIUM' || planParam === 'PREMIUM' || planParam === 'ELITE' ? planParam : null
+
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [plan, setPlan] = useState<UserPlan | null>(null)
 
   const [stepIndex, setStepIndex] = useState(0)
   const [cities, setCities] = useState<string[]>([])
@@ -55,27 +52,18 @@ export default function SubscribeProfilePage() {
   const [contractGroups, setContractGroups] = useState<ContractGroupId[]>([])
   const [levels, setLevels] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
-  const [channel, setChannel] = useState<SubscribeChannel | null>(null)
+  const [done, setDone] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Référentiels édités en backoffice — CITY_OPTIONS/SECTOR_OPTIONS/LEVEL_OPTIONS
-  // de @tumaa/shared servent d'état initial (pas de flash vide le temps du
-  // fetch), remplacés dès que /api/reference/options répond. Villes :
-  // filtrées sur le pays du profil (indicatif téléphonique à l'onboarding,
-  // voir /api/subscribe/country) — mono-pays pour Freemium/Premium/Elite sur
-  // cette étape, distinct des pays de recherche ELITE choisis plus loin.
   const [citiesByCountry, setCitiesByCountry] = useState<Record<string, ReferenceOption[]> | null>(null)
   const [country, setCountry] = useState('BF')
   const [sectorOptions, setSectorOptions] = useState<ReferenceOption[]>(SECTOR_OPTIONS)
   const [levelOptions, setLevelOptions] = useState<ReferenceOption[]>(LEVEL_OPTIONS)
   const cityOptions = citiesByCountry?.[country] ?? CITY_OPTIONS
 
-  // Limites de plan éditées en backoffice (/parametres) — PLAN_LIMITS de
-  // @tumaa/shared sert d'état initial (pas de flash le temps du fetch),
-  // remplacé dès que /api/reference/plan-limits répond. Voir SubscribePage.tsx
-  // pour le même pattern.
   const [planLimits, setPlanLimits] = useState<Record<UserPlan, PlanLimits>>(PLAN_LIMITS)
+  const [botPhone, setBotPhone] = useState(import.meta.env.VITE_BOT_PHONE ?? '22600000000')
 
   useEffect(() => {
     fetchReferenceOptions()
@@ -98,32 +86,44 @@ export default function SubscribeProfilePage() {
   }, [])
 
   useEffect(() => {
-    if (!token) return
-    fetchSubscribeCountry(token)
-      .then(setCountry)
-      .catch(() => {
-        // pas bloquant : on garde BF par défaut
-      })
-  }, [token])
+    fetchBotPhone().then(setBotPhone).catch(() => {
+      // garde la valeur par défaut en cas d'échec réseau
+    })
+  }, [])
 
   useEffect(() => {
-    if (plan !== 'ELITE' || !token) return
-    fetchSubscribeCountries(token)
-      .then((existing) => {
-        if (existing.length > 0) setCountries(existing)
+    if (!token) {
+      setLoading(false)
+      setLoadError(true)
+      return
+    }
+    fetchEditProfile(token)
+      .then((profile) => {
+        setPlan(profile.plan)
+        setCountry(profile.country)
+        setCities(profile.cities)
+        setSectors(profile.sectors)
+        setContractGroups(profile.contractGroups)
+        setLevels(profile.levels)
+        setCountries(profile.countries)
       })
-      .catch(() => {
-        // pas bloquant : l'utilisateur peut simplement sélectionner à nouveau
-      })
-  }, [plan, token])
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false))
+  }, [token])
 
-  if (!token || !plan) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 text-center">
+        <Logo />
+      </div>
+    )
+  }
+
+  if (loadError || !token || !plan) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 text-center">
         <p className="text-sm text-slate-500 mb-4">Lien invalide ou expiré.</p>
-        <a href="/subscribe" className="text-sm text-green-700 underline">
-          Retourner au choix de formule
-        </a>
+        <p className="text-xs text-slate-400">Tape *MODIFIER* sur WhatsApp pour obtenir un nouveau lien.</p>
       </div>
     )
   }
@@ -177,26 +177,41 @@ export default function SubscribeProfilePage() {
     setSaving(true)
     setError(null)
     try {
-      await saveSubscribeProfile(token, { cities, sectors, contractGroups, levels })
-      if (plan === 'ELITE') {
-        await saveSubscribeCountries(token, countries)
-      }
-      const { channel: result } = await joinHomeChannel(token)
-      setChannel(result)
+      await saveEditProfile(token, {
+        cities,
+        sectors,
+        contractGroups,
+        levels,
+        countries: plan === 'ELITE' ? countries : undefined,
+      })
+      setDone(true)
     } catch {
-      setError('Échec de l\'enregistrement. Réessaie ou vérifie que le lien n\'a pas expiré.')
+      setError("Échec de l'enregistrement. Réessaie ou vérifie que le lien n'a pas expiré.")
     } finally {
       setSaving(false)
     }
   }
 
-  if (channel) {
+  if (done) {
     return (
-      <JoinChannelScreen
-        channel={channel}
-        token={token}
-        onContinue={() => navigate(`/success?plan=${plan}`)}
-      />
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <div className="max-w-md mx-auto px-4 py-8 text-center">
+          <div className="flex justify-center mb-8">
+            <Logo />
+          </div>
+          <div className="text-4xl mb-4">✅</div>
+          <h1 className="text-lg font-semibold text-slate-800 mb-2">Profil mis à jour</h1>
+          <p className="text-sm text-slate-500 leading-relaxed mb-8">
+            Retourne sur WhatsApp pour voir tes nouvelles offres.
+          </p>
+          <a
+            href={`https://wa.me/${botPhone}?text=${encodeURIComponent('OFFRES')}`}
+            className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
+          >
+            Ouvrir WhatsApp
+          </a>
+        </div>
+      </div>
     )
   }
 
@@ -211,8 +226,8 @@ export default function SubscribeProfilePage() {
   return (
     <>
       <MetaTags
-        title="Ton profil de recherche — Tumaa"
-        description="Définis tes villes, secteurs, type de contrat et niveau d'étude."
+        title="Modifier ton profil — Tumaa"
+        description="Ajuste tes villes, secteurs, type de contrat et niveau d'étude."
         url={window.location.href}
       />
       {error && <p className="text-xs text-red-600 text-center pt-4">{error}</p>}
@@ -268,7 +283,7 @@ export default function SubscribeProfilePage() {
           max={limits.maxLevels}
           onToggle={(v) => toggle(levels, setLevels, v, limits.maxLevels)}
           onNext={goNext}
-          nextLabel={plan === 'ELITE' ? 'Suivant — choisir mes pays' : 'Terminer'}
+          nextLabel={plan === 'ELITE' ? 'Suivant — mes pays' : 'Enregistrer'}
           {...commonProps}
         />
       )}
@@ -282,7 +297,7 @@ export default function SubscribeProfilePage() {
           max={limits.maxCountries}
           onToggle={(v) => toggle(countries, setCountries, v, limits.maxCountries)}
           onNext={goNext}
-          nextLabel="Terminer"
+          nextLabel="Enregistrer"
           {...commonProps}
         />
       )}

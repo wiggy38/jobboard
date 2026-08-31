@@ -1,19 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
-import { sendText } from '../../services/whatsapp';
-import { setState } from '../../session/state';
+import { sendInteractiveCtaUrl } from '../../services/whatsapp';
+import { generateEditProfileToken, buildEditProfileUrl } from '../../services/tokenService';
 
-export async function handleModifier(cmd: ParsedCommand, _db: PrismaClient): Promise<void> {
-  await sendText(
+export async function handleModifier(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
+  const user = await db.user.findUnique({ where: { phone: cmd.userId } });
+  if (!user) return;
+
+  const token = generateEditProfileToken(user.id);
+  await sendInteractiveCtaUrl(
     cmd.userId,
-    '✏️ *Modifier ton profil de recherche*\n\n' +
-      'Que veux-tu modifier ?\n\n' +
-      '1 — Villes de recherche\n' +
-      '2 — Secteurs d\'activité\n' +
-      '3 — Niveau d\'études\n' +
-      '4 — Type de contrat\n\n' +
-      'Réponds *1*, *2*, *3* ou *4*.',
+    "✏️ *Modifier ton profil de recherche*\n\nVilles, secteurs, type de contrat, niveau d'études...",
+    '👉 Modifier mon profil',
+    buildEditProfileUrl(token),
     cmd.country,
   );
-  await setState(cmd.userId, { step: 'MODIFIER_CHOICE', data: {} });
 }

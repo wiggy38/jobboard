@@ -11,6 +11,8 @@ import {
   SETTING_KEYS,
   CONTRACT_GROUPS,
   ContractGroupId,
+  ContractType,
+  deriveContractGroups,
 } from '@tumaa/shared'
 
 const PLAN_LABELS: Record<'PREMIUM' | 'ELITE', string> = {
@@ -30,6 +32,74 @@ function verifySubscribeToken(fastify: FastifyInstance, token: string): { userId
     throw new Error('TOKEN_INVALID')
   }
   return { userId: payload.userId }
+}
+
+// Token de la commande WhatsApp MODIFIER (apps/bot/src/commands/handlers/modifier.ts,
+// generateEditProfileToken) — 1h, distinct du token 'subscribe' (24h) : action ponctuelle
+// déclenchée à la demande, pas un lien d'onboarding qu'on veut garder ouvert.
+function verifyEditProfileToken(fastify: FastifyInstance, token: string): { userId: string } {
+  const payload = fastify.jwt.verify<{ userId: string; purpose?: string }>(token)
+  if (payload.purpose !== 'edit_profile') {
+    throw new Error('TOKEN_INVALID')
+  }
+  return { userId: payload.userId }
+}
+
+// Validation des sélections villes/secteurs/contrats/niveaux, partagée par
+// POST /api/subscribe/profile (onboarding) et PUT /api/profile/edit (commande
+// MODIFIER) — mêmes bornes (Profile.maxCities/maxSectors/...) et mêmes
+// référentiels backoffice-éditables (SETTING_KEYS.REFERENCE_*).
+async function validateProfileSelections(
+  profile: { maxCities: number; maxSectors: number; maxLevels: number; maxContractGroups: number; country: string },
+  input: { cities?: string[]; sectors?: string[]; contractGroups?: ContractGroupId[]; levels?: string[] }
+): Promise<{ ok: true; contractTypes: ContractType[] } | { ok: false }> {
+  const { cities, sectors, contractGroups, levels } = input
+  const { maxCities, maxSectors, maxLevels, maxContractGroups, country } = profile
+
+  const [citiesByCountry, sectorOptions, levelOptions] = await Promise.all([
+    getSetting(SETTING_KEYS.REFERENCE_CITIES_BY_COUNTRY),
+    getSetting(SETTING_KEYS.REFERENCE_SECTORS),
+    getSetting(SETTING_KEYS.REFERENCE_LEVELS),
+  ])
+  const cityOptions = citiesByCountry[country] ?? []
+
+  const withinBounds = (selected: unknown[] | undefined, max: number): selected is unknown[] =>
+    Array.isArray(selected) && selected.length >= 1 && (isUnlimited(max) || selected.length <= max)
+
+  const citiesValid =
+    withinBounds(cities, maxCities) && cities!.every((c) => cityOptions.some((o) => o.value === c))
+  const sectorsValid =
+    withinBounds(sectors, maxSectors) && sectors!.every((s) => sectorOptions.some((o) => o.value === s))
+  const levelsValid =
+    withinBounds(levels, maxLevels) && levels!.every((l) => levelOptions.some((o) => o.value === l))
+  const contractGroupsValid =
+    withinBounds(contractGroups, maxContractGroups) &&
+    contractGroups!.every((g) => g in CONTRACT_GROUPS)
+
+  if (!citiesValid || !sectorsValid || !levelsValid || !contractGroupsValid) {
+    return { ok: false }
+  }
+
+  const contractTypes = [...new Set(contractGroups!.flatMap((g) => CONTRACT_GROUPS[g].types))]
+
+  return { ok: true, contractTypes }
+}
+
+// Validation des pays de recherche ELITE (User.countries), partagée par
+// POST /api/subscribe/countries (onboarding) et PUT /api/profile/edit
+// (commande MODIFIER).
+function validateCountriesSelection(
+  countries: string[] | undefined,
+  maxCountries: number
+): { ok: true; countries: string[] } | { ok: false } {
+  const selected = [...new Set(countries ?? [])]
+  if (selected.length === 0 || selected.length > maxCountries) {
+    return { ok: false }
+  }
+  if (selected.some((code) => !(code in COUNTRY_NAMES))) {
+    return { ok: false }
+  }
+  return { ok: true, countries: selected }
 }
 
 function getPlanRedirectUrl(plan: 'PREMIUM' | 'ELITE', t: string): string {
@@ -138,35 +208,10 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'USER_NOT_FOUND' })
     }
 
-    const { maxCities, maxSectors, maxLevels, maxContractGroups, country } = user.profile
-
-    const [citiesByCountry, sectorOptions, levelOptions] = await Promise.all([
-      getSetting(SETTING_KEYS.REFERENCE_CITIES_BY_COUNTRY),
-      getSetting(SETTING_KEYS.REFERENCE_SECTORS),
-      getSetting(SETTING_KEYS.REFERENCE_LEVELS),
-    ])
-    const cityOptions = citiesByCountry[country] ?? []
-
-    const withinBounds = (selected: unknown[] | undefined, max: number): selected is unknown[] =>
-      Array.isArray(selected) && selected.length >= 1 && (isUnlimited(max) || selected.length <= max)
-
-    const citiesValid =
-      withinBounds(cities, maxCities) && cities!.every((c) => cityOptions.some((o) => o.value === c))
-    const sectorsValid =
-      withinBounds(sectors, maxSectors) && sectors!.every((s) => sectorOptions.some((o) => o.value === s))
-    const levelsValid =
-      withinBounds(levels, maxLevels) && levels!.every((l) => levelOptions.some((o) => o.value === l))
-    const contractGroupsValid =
-      withinBounds(contractGroups, maxContractGroups) &&
-      contractGroups!.every((g) => g in CONTRACT_GROUPS)
-
-    if (!citiesValid || !sectorsValid || !levelsValid || !contractGroupsValid) {
+    const validated = await validateProfileSelections(user.profile, { cities, sectors, contractGroups, levels })
+    if (!validated.ok) {
       return reply.status(400).send({ error: 'PROFILE_INVALID' })
     }
-
-    const contractTypes = [
-      ...new Set(contractGroups!.flatMap((g) => CONTRACT_GROUPS[g].types)),
-    ]
 
     await prisma.profile.update({
       where: { userId: user.id },
@@ -174,7 +219,7 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
         cities: cities as string[],
         sectors: sectors as string[],
         levels: levels as string[],
-        contractTypes,
+        contractTypes: validated.contractTypes,
       },
     })
 
@@ -528,16 +573,112 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
     }
 
     const maxCountries = user.profile?.maxCountries ?? 1
-    const selected = [...new Set(countries ?? [])]
-    if (selected.length === 0 || selected.length > maxCountries) {
-      return reply.status(400).send({ error: 'COUNTRIES_INVALID' })
-    }
-    if (selected.some((code) => !(code in COUNTRY_NAMES))) {
+    const validated = validateCountriesSelection(countries, maxCountries)
+    if (!validated.ok) {
       return reply.status(400).send({ error: 'COUNTRIES_INVALID' })
     }
 
-    await prisma.user.update({ where: { id: user.id }, data: { countries: selected } })
+    await prisma.user.update({ where: { id: user.id }, data: { countries: validated.countries } })
 
-    return reply.send({ ok: true, countries: selected })
+    return reply.send({ ok: true, countries: validated.countries })
+  })
+
+  // Profil courant + pays de recherche (si ELITE) pour pré-remplir le
+  // formulaire d'édition ouvert depuis la commande WhatsApp MODIFIER
+  // (apps/bot/src/commands/handlers/modifier.ts). Token dédié 'edit_profile'
+  // (1h), distinct du token 'subscribe' de l'onboarding.
+  fastify.get<{
+    Querystring: { t?: string }
+  }>('/api/profile/edit', async (request, reply) => {
+    const { t } = request.query ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifyEditProfileToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } })
+    if (!user || !user.profile) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    return reply.send({
+      ok: true,
+      plan: user.plan,
+      country: user.profile.country,
+      cities: user.profile.cities,
+      sectors: user.profile.sectors,
+      levels: user.profile.levels,
+      contractGroups: deriveContractGroups(user.profile.contractTypes),
+      countries: user.plan === 'ELITE' ? user.countries.filter((c) => c in COUNTRY_NAMES) : [],
+    })
+  })
+
+  // Enregistre les modifications du profil depuis la commande WhatsApp
+  // MODIFIER — équivalent édition de POST /api/subscribe/profile (+
+  // POST /api/subscribe/countries pour ELITE), mais en un seul appel et sans
+  // les étapes propres à l'onboarding (pas de join-channel, pas de récap
+  // "profil prêt" — juste une confirmation de mise à jour).
+  fastify.put<{
+    Body: {
+      t?: string
+      cities?: string[]
+      sectors?: string[]
+      contractGroups?: ContractGroupId[]
+      levels?: string[]
+      countries?: string[]
+    }
+  }>('/api/profile/edit', async (request, reply) => {
+    const { t, cities, sectors, contractGroups, levels, countries } = request.body ?? {}
+    if (!t) {
+      return reply.status(400).send({ error: 'TOKEN_MISSING' })
+    }
+
+    let userId: string
+    try {
+      ;({ userId } = verifyEditProfileToken(fastify, t))
+    } catch {
+      return reply.status(401).send({ error: 'TOKEN_INVALID', message: 'Lien expiré ou invalide' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } })
+    if (!user || !user.profile) {
+      return reply.status(404).send({ error: 'USER_NOT_FOUND' })
+    }
+
+    const validated = await validateProfileSelections(user.profile, { cities, sectors, contractGroups, levels })
+    if (!validated.ok) {
+      return reply.status(400).send({ error: 'PROFILE_INVALID' })
+    }
+
+    if (user.plan === 'ELITE' && countries) {
+      const validatedCountries = validateCountriesSelection(countries, user.profile.maxCountries)
+      if (!validatedCountries.ok) {
+        return reply.status(400).send({ error: 'COUNTRIES_INVALID' })
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { countries: validatedCountries.countries } })
+    }
+
+    await prisma.profile.update({
+      where: { userId: user.id },
+      data: {
+        cities: cities as string[],
+        sectors: sectors as string[],
+        levels: levels as string[],
+        contractTypes: validated.contractTypes,
+      },
+    })
+
+    await sendText(
+      user.phone,
+      '✅ Ton profil de recherche a été mis à jour.\n\nTape *OFFRES* pour voir tes nouvelles offres.'
+    )
+
+    return reply.send({ ok: true })
   })
 }

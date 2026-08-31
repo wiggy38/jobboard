@@ -65,3 +65,23 @@ export const CONTRACT_GROUPS: Record<ContractGroupId, { label: string; types: Co
   CONTRACT_CDD: { label: 'CDD / Stage', types: ['CDD', 'STAGE'] },
   CONTRACT_ALL: { label: 'Tous types', types: ['CDI', 'CDD', 'STAGE', 'FREELANCE'] },
 }
+
+// Reconstitue les ContractGroupId sélectionnés à partir des contractTypes
+// stockés sur Profile (l'API n'enregistre que les types expansés, jamais les
+// groupes eux-mêmes) — nécessaire pour pré-remplir le formulaire d'édition de
+// profil. Correspondance best-effort valable tant que CONTRACT_GROUPS garde sa
+// forme actuelle : CONTRACT_ALL est un ensemble strictement plus grand que
+// CONTRACT_CDI ∪ CONTRACT_CDD, donc une égalité exacte avec CONTRACT_ALL.types
+// suffit à le distinguer d'une sélection combinée CDI+CDD.
+export function deriveContractGroups(contractTypes: ContractType[]): ContractGroupId[] {
+  const set = new Set(contractTypes)
+  const allTypes = CONTRACT_GROUPS.CONTRACT_ALL.types
+  if (allTypes.length === set.size && allTypes.every((t) => set.has(t))) {
+    return ['CONTRACT_ALL']
+  }
+
+  const groups: ContractGroupId[] = []
+  if (set.has('CDI')) groups.push('CONTRACT_CDI')
+  if (set.has('CDD')) groups.push('CONTRACT_CDD')
+  return groups
+}

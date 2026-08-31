@@ -7,6 +7,7 @@ import PremiumPage from './pages/PremiumPage'
 import SubscribePage from './pages/SubscribePage'
 import SubscribeProfilePage from './pages/SubscribeProfilePage'
 import SubscribeSuccessPage from './pages/SubscribeSuccessPage'
+import EditProfilePage from './pages/EditProfilePage'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/" element={<SubscribePage />} />
         <Route path="/profile" element={<SubscribeProfilePage />} />
         <Route path="/success" element={<SubscribeSuccessPage />} />
+        <Route path="/edit-profil" element={<EditProfilePage />} />
         <Route path="/expired" element={<ExpiredPage />} />
         <Route path="*" element={<ExpiredPage />} />
       </Routes>

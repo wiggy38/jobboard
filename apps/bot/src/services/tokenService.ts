@@ -26,3 +26,12 @@ export function buildSubscribeUrl(token: string): string {
   const base = process.env.ONBOARDING_BASE_URL ?? process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
   return `${base}/subscribe?t=${token}`
 }
+
+export function generateEditProfileToken(userId: string): string {
+  return jwt.sign({ userId, purpose: 'edit_profile' }, process.env.TOKEN_SECRET!, { expiresIn: '1h' })
+}
+
+export function buildEditProfileUrl(token: string): string {
+  const base = process.env.ONBOARDING_BASE_URL ?? process.env.WEB_BASE_URL ?? 'https://tumaa.bf'
+  return `${base}/subscribe/edit-profil?t=${token}`
+}

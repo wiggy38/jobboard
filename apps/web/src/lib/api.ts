@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { PlanLimits, UserPlan } from '@tumaa/shared'
+import type { ContractGroupId, PlanLimits, UserPlan } from '@tumaa/shared'
 
 // Domaine de l'API — en prod pointe vers https://api.tumaajob.com (le proxy
 // nginx de tumaa-web-nginx vers tumaa-api n'est pas fiable, cf. incident
@@ -170,6 +170,38 @@ export async function saveSubscribeProfile(
   data: SubscribeProfileData
 ): Promise<{ ok: true }> {
   const { data: res } = await axios.post<{ ok: true }>('/api/subscribe/profile', {
+    t: token,
+    ...data,
+  })
+  return res
+}
+
+// Profil courant, chargé depuis la commande WhatsApp MODIFIER
+// (apps/bot/src/commands/handlers/modifier.ts) pour pré-remplir le formulaire
+// d'édition — contrairement au wizard d'onboarding, le plan n'est pas connu
+// à l'avance côté URL, il vient de cette réponse.
+export interface EditProfileData {
+  plan: UserPlan
+  country: string
+  cities: string[]
+  sectors: string[]
+  contractGroups: ContractGroupId[]
+  levels: string[]
+  countries: string[]
+}
+
+export async function fetchEditProfile(token: string): Promise<EditProfileData> {
+  const { data } = await axios.get<{ ok: true } & EditProfileData>('/api/profile/edit', {
+    params: { t: token },
+  })
+  return data
+}
+
+export async function saveEditProfile(
+  token: string,
+  data: SubscribeProfileData & { countries?: string[] }
+): Promise<{ ok: true }> {
+  const { data: res } = await axios.put<{ ok: true }>('/api/profile/edit', {
     t: token,
     ...data,
   })

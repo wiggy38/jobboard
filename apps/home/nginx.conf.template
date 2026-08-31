@@ -5,6 +5,17 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Sans resolver + variable, proxy_pass résout API_UPSTREAM une seule fois au
+    # démarrage de nginx et met l'IP en cache pour toute la durée de vie du
+    # conteneur — si le service API est redémarré/replanifié ensuite (IP interne
+    # Railway changée) sans que nginx le soit aussi, les requêtes restent
+    # bloquées sur l'ancienne IP morte jusqu'au timeout (même incident que
+    # apps/web/nginx, cf. commit "Fix nginx serving stale upstream IPs after
+    # backend redeploy"). fd12::10 = résolveur DNS interne Railway. Le passage
+    # par une variable $api_upstream force nginx à re-résoudre à chaque requête
+    # (TTL 10s) au lieu de résoudre une fois pour toutes.
+    resolver [fd12::10] valid=10s;
+
     gzip on;
     gzip_types text/plain text/css application/javascript application/json;
     gzip_min_length 1024;
@@ -18,7 +29,8 @@ server {
         # attendent (ex. fastify.get('/api/reference/plan-pricing', ...)) —
         # un proxy_pass qui se termine par "/" réécrit l'URI en retirant le
         # préfixe /api/ matché par cette location, ce qui casse le routing.
-        proxy_pass http://${API_UPSTREAM};
+        set $api_upstream ${API_UPSTREAM};
+        proxy_pass http://$api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

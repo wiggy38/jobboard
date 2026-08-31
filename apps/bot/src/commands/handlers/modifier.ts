@@ -11,7 +11,7 @@ export async function handleModifier(cmd: ParsedCommand, db: PrismaClient): Prom
   await sendInteractiveCtaUrl(
     cmd.userId,
     "✏️ *Modifier ton profil de recherche*\n\nVilles, secteurs, type de contrat, niveau d'études...",
-    '👉 Modifier mon profil',
+    '👉 Modifier profil',
     buildEditProfileUrl(token),
     cmd.country,
   );

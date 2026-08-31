@@ -17,6 +17,9 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { SECTOR_OPTIONS } from '@tumaa/shared'
+
+const SECTOR_LIST = SECTOR_OPTIONS.map(o => o.value).join(', ')
 
 export interface HaikuExtraction {
   isJobOffer?: boolean
@@ -101,7 +104,9 @@ CHAMPS À EXTRAIRE (omets les champs absents ou inconnus, ne mets jamais de vale
 
 - city : ville du poste, orthographe officielle burkinabè (ex: "Ouaga" → "Ouagadougou", "Bobo" → "Bobo-Dioulasso"). Si plusieurs villes, prendre celle du "LIEU DU POSTE".
 
-- sector : secteur d'activité concis, déduit du titre/missions/qualifications (ex: "Informatique", "Finance", "Comptabilité", "Santé", "Agriculture", "Éducation", "ONG/Humanitaire", "BTP/Construction", "Transport/Logistique", "Droit/Juridique", "Communication/Marketing", "Ressources Humaines", "Commerce/Vente").
+- sector : UNIQUEMENT une valeur parmi cette liste fermée : ${SECTOR_LIST}.
+  Classe selon la FONCTION RÉELLE DU POSTE (le métier, les tâches quotidiennes décrites dans le titre/missions/qualifications), JAMAIS selon le secteur d'activité de l'organisme recruteur.
+  Exemple : "Chauffeur ambulancier" recruté par un hôpital → "Transport/Logistique" (le poste consiste à conduire), PAS "Santé" (secteur de l'employeur, pas du poste).
 
 - level : niveau(x) d'études requis, valeurs canoniques UNIQUEMENT : CEP, BEPC, BAC, BAC+2, BAC+3, BAC+4, BAC+5, Doctorat, Non précisé.
   Mapping : BTS/DUT/HND/DTS → BAC+2 ; Licence/Bachelor/L3 → BAC+3 ; Maîtrise/M1 → BAC+4 ; Master/M2/DESS/DEA/MBA/Ingénieur → BAC+5 ; Doctorat/PhD → Doctorat.

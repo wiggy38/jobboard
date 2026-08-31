@@ -17,7 +17,10 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { RawJobOffer } from '@tumaa/shared'
+import { RawJobOffer, SECTOR_OPTIONS, SETTING_KEYS } from '@tumaa/shared'
+import { getSetting } from './settings'
+
+const SECTOR_LIST = SECTOR_OPTIONS.map(o => o.value).join(', ')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,10 +130,12 @@ RÈGLES PAR CHAMP :
 
    Si aucune information sur le niveau n'est trouvée, lit la description pour inférer le niveau le plus probable, cherche dans les parties qui détaillent les qualifications ou expériences requises, sinon retourne "Non précisé".
 
-3. sector — déduis depuis le titre et/ou la description, cherchant des mots-clés spécifiques, analyse les qualifications requises, les roles principaux du poste pour déduire le secteur. Valeurs libres mais concises.
-   Exemples : Informatique, Finance, Comptabilité, Santé, Agriculture, Éducation,
-   ONG/Humanitaire, BTP/Construction, Transport/Logistique, Droit/Juridique,
-   Communication/Marketing, Ressources Humaines, Commerce/Vente
+3. sector — UNIQUEMENT une valeur parmi cette liste fermée : ${SECTOR_LIST}.
+   Déduis-la depuis le titre et/ou la description en analysant la FONCTION RÉELLE DU POSTE
+   (les tâches, les qualifications requises, le rôle principal), JAMAIS depuis le secteur
+   d'activité de l'organisme recruteur.
+   Exemple : "Chauffeur ambulancier" recruté par un hôpital → "Transport/Logistique" (le
+   poste consiste à conduire), PAS "Santé" (secteur de l'employeur, pas du poste).
 
 4. contractType — normalise vers : CDI, CDD, STAGE, ALTERNANCE, FREELANCE, BENEVOLE, AUTRE.
    Analyse les mentions dans le titre, la description ou les conditions de l'offre pour déterminer le type de contrat. Si aucune information n'est trouvée, retourne "AUTRE".
@@ -210,7 +215,7 @@ function buildUserMessage(offer: RawJobOffer): string {
  *
  * Retourne un objet vide si le JSON est invalide ou absent.
  */
-function parseAIResponse(text: string): AINormalizationResult {
+export function parseAIResponse(text: string, allowedSectors: readonly string[]): AINormalizationResult {
   // Isoler le bloc JSON dans la réponse brute
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
@@ -244,8 +249,8 @@ function parseAIResponse(text: string): AINormalizationResult {
     if (unique.length > 0) result.level = unique.join(', ')
   }
 
-  // ── sector : chaîne libre mais non vide ─────────────────────────────────────
-  if (typeof parsed.sector === 'string' && parsed.sector.trim().length > 0) {
+  // ── sector : valider contre la liste blanche (SECTOR_OPTIONS / réglage backoffice) ──
+  if (typeof parsed.sector === 'string' && allowedSectors.includes(parsed.sector.trim())) {
     result.sector = parsed.sector.trim()
   }
 
@@ -277,7 +282,8 @@ function parseAIResponse(text: string): AINormalizationResult {
 /**
  * Normalise une offre brute via Claude Haiku.
  *
- * @param offer  L'offre brute telle que sortie du scraper
+ * @param offer           L'offre brute telle que sortie du scraper
+ * @param allowedSectors  Liste blanche des secteurs acceptés (SECTOR_OPTIONS / réglage backoffice)
  * @returns      Un objet partiel avec les champs normalisés par l'IA.
  *               Les champs absents indiquent que l'IA n'a pas pu normaliser ;
  *               le fallback règle-based s'appliquera dans normalizer.ts.
@@ -285,7 +291,10 @@ function parseAIResponse(text: string): AINormalizationResult {
  * En cas d'erreur réseau ou API, la fonction retourne {} sans planter
  * le pipeline : la normalisation règle-based prend le relais.
  */
-export async function aiNormalizeOffer(offer: RawJobOffer): Promise<AINormalizationResult> {
+export async function aiNormalizeOffer(
+  offer: RawJobOffer,
+  allowedSectors: readonly string[]
+): Promise<AINormalizationResult> {
   try {
     const client = getClient()
 
@@ -305,7 +314,7 @@ export async function aiNormalizeOffer(offer: RawJobOffer): Promise<AINormalizat
     const firstBlock = message.content[0]
     if (firstBlock.type !== 'text') return {}
 
-    return parseAIResponse(firstBlock.text)
+    return parseAIResponse(firstBlock.text, allowedSectors)
   } catch (err) {
     // Ne pas faire planter le pipeline si l'API est indisponible
     const msg = err instanceof Error ? err.message : String(err)
@@ -321,15 +330,17 @@ export async function aiNormalizeOffer(offer: RawJobOffer): Promise<AINormalizat
  * cela réduit la latence et le coût pour le cas nominal.
  *
  * Critères pour déclencher l'appel IA :
- * - Le secteur est absent (cas très fréquent)
+ * - Le secteur est absent, ou présent mais hors de la liste blanche (ex: mal
+ *   classé par l'extracteur Phase 2 — cas où il a déduit le secteur de
+ *   l'organisme recruteur plutôt que de la fonction réelle du poste)
  * - Le level brut contient des séparateurs (/, ou, et) → possiblement multi-niveaux
  * - Le level ou le contractType ne sont pas dans les listes canoniques connues
  */
 // Valeurs que les scrapers mettent parfois quand l'organisation est inconnue
 const GENERIC_ORG_PLACEHOLDERS = ['n/a', 'na', 'inconnu', 'unknown', '-', '?', 'non précisé', 'non renseigné', '']
 
-export function needsAIEnrichment(offer: RawJobOffer): boolean {
-  if (!offer.sector) return true
+export function needsAIEnrichment(offer: RawJobOffer, allowedSectors: readonly string[]): boolean {
+  if (!offer.sector || !allowedSectors.includes(offer.sector)) return true
 
   // Organisation générique ou absente : Haiku doit l'inférer depuis la description
   const orgNormalized = offer.organization.trim().toLowerCase()

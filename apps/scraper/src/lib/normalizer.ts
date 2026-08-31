@@ -16,10 +16,11 @@
  * `normalize()` reste disponible pour les tests unitaires et les dry-runs.
  */
 
-import { RawJobOffer, NormalizedJobOffer } from '@tumaa/shared'
+import { RawJobOffer, NormalizedJobOffer, SETTING_KEYS, SECTOR_OPTIONS } from '@tumaa/shared'
 import { createHash } from './deduplicator'
 import { aiNormalizeOffer, needsAIEnrichment } from './ai-normalizer'
 import { endOfDay } from './ai-extractor'
+import { getSetting } from './settings'
 
 // ─── Tables de correspondance statiques ──────────────────────────────────────
 
@@ -181,15 +182,21 @@ export async function normalizeWithAI(
   // Passe 1 : normalisation règle-based (toujours exécutée, instantanée)
   const base = normalize(offer, scoreConfidence)
 
+  // Si le réglage backoffice est indisponible (DB inaccessible), on retombe
+  // sur la liste statique plutôt que de faire planter toute la normalisation.
+  const allowedSectors = await getSetting(SETTING_KEYS.REFERENCE_SECTORS)
+    .then(options => options.map(o => o.value))
+    .catch(() => SECTOR_OPTIONS.map(o => o.value))
+
   // Court-circuit : si l'offre est déjà complète et simple, pas besoin d'IA
-  if (!needsAIEnrichment(offer)) return base
+  if (!needsAIEnrichment(offer, allowedSectors)) return base
 
   // Passe 2 : enrichissement IA (asynchrone, peut échouer silencieusement)
-  const aiResult = await aiNormalizeOffer(offer)
+  const aiResult = await aiNormalizeOffer(offer, allowedSectors)
 
   // Fusion conservatrice : on n'écrase la valeur règle-based que si
   // l'IA retourne quelque chose de non-vide.
-  return {
+  const merged = {
     ...base,
     // L'IA nettoie l'intitulé du poste (supprime préfixes de recrutement, orga, ville)
     ...(aiResult.title !== undefined ? { title: aiResult.title } : {}),
@@ -206,5 +213,12 @@ export async function normalizeWithAI(
     ...(aiResult.city !== undefined && !CITY_MAP[offer.city?.toLowerCase().trim() ?? '']
       ? { city: aiResult.city }
       : {}),
+  }
+
+  // Filet de sécurité : quelle que soit l'origine du secteur retenu (règle-based,
+  // extracteur, ou Haiku), il doit rester dans la liste blanche une fois en base.
+  return {
+    ...merged,
+    sector: allowedSectors.includes(merged.sector) ? merged.sector : 'Non précisé',
   }
 }

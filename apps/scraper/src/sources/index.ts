@@ -13,6 +13,7 @@ import { GoAfricaOnlineScraper } from './bf/jobboard/goafricaonline'
 import { LinkedInScraper } from './bf/jobboard/linkedin'
 import { SidwayaScraper } from './bf/jobboard/sidwaya'
 import { Faso7Scraper } from './bf/jobboard/faso7'
+import { JobigloScraper } from './bf/jobboard/jobiglo'
 import { TalentsPlusAfriqueScraper } from './multi/talentsplusafrique'
 import { OffresdemploisBjScraper } from './bj/jobboard/offresdemplois'
 import { CareerjetBjScraper } from './bj/jobboard/careerjet'
@@ -45,6 +46,7 @@ const sources = new Map<string, BaseScraper>([
   ['linkedin', new LinkedInScraper()],
   ['sidwaya', new SidwayaScraper()],
   ['faso7', new Faso7Scraper()],
+  ['jobiglo', new JobigloScraper()],
   ['talentsplusafrique', new TalentsPlusAfriqueScraper()],
   ['offresdemplois-bj', new OffresdemploisBjScraper()],
   ['careerjet-bj', new CareerjetBjScraper()],

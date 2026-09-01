@@ -17,9 +17,9 @@ import { SETTING_KEYS, planLimitsLine } from '@tumaa/shared';
 export async function startOnboarding(cmd: ParsedCommand, db: PrismaClient): Promise<void> {
   await sendText(
     cmd.userId,
-    '👋 Bienvenue sur *Tumaa* !\n' +
-      'Je vous envoie les meilleures offres d\'emploi directement sur WhatsApp.\n\n' +
-      'Pour commencer, choisissez votre formule 👇',
+    '👋 Bienvenue sur *Tumaa* !\n\n' +
+      '*Imaginez avoir un assistant IA qui cherche votre prochain emploi à votre place.*\n\n' +
+      'Je suis Tumaa et je recherche 24h/24 les offres d\'emploi sur le web, je les analyse et vous envoie celles qui correspondent à votre profil, directement sur WhatsApp.',
     cmd.country,
   );
 
@@ -76,9 +76,8 @@ export async function sendPlanOptions(cmd: ParsedCommand, userId: string): Promi
 
   await sendInteractiveCtaUrl(
     cmd.userId,
-    `🆓 *FREEMIUM* — gratuit, ${planLimitsLine(limits.FREEMIUM)}\n` +
-      `📱 *PREMIUM — ${pricing.PREMIUM.price} FCFA/mois* — ${planLimitsLine(limits.PREMIUM)}, alertes mots-clés\n` +
-      `👑 *ELITE — ${pricing.ELITE.price} FCFA/mois* — illimité + jusqu'à ${limits.ELITE.maxCountries} pays de recherche`,
+    'Prêt(e) à laisser Tumaa chercher pour vous ?\n\n' +
+      'Cliquez ici pour commencer 👇',
     '👉 Choisir ma formule',
     buildSubscribeUrl(token),
     cmd.country,

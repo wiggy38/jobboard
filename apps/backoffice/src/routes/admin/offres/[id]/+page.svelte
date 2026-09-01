@@ -3,6 +3,8 @@
 	import { adminApi } from '$lib/api.js';
 	import type { JobOfferStatus, OfferInteractionEvent } from '$lib/types.js';
 	import RichEditor from '../../../../components/RichEditor.svelte';
+	import Combobox from '../../../../components/Combobox.svelte';
+	import { CITY_OPTIONS, SECTOR_OPTIONS, LEVEL_OPTIONS } from '@tumaa/shared';
 
 	let { data }: { data: PageData } = $props();
 
@@ -218,15 +220,15 @@
 				</label>
 				<label class="field">
 					<span>Ville</span>
-					<input type="text" bind:value={editForm.city} required />
+					<Combobox options={CITY_OPTIONS} bind:value={editForm.city} required />
 				</label>
 				<label class="field">
 					<span>Secteur</span>
-					<input type="text" bind:value={editForm.sector} required />
+					<Combobox options={SECTOR_OPTIONS} bind:value={editForm.sector} required />
 				</label>
 				<label class="field">
 					<span>Niveau</span>
-					<input type="text" bind:value={editForm.level} />
+					<Combobox options={LEVEL_OPTIONS} bind:value={editForm.level} />
 				</label>
 				<label class="field">
 					<span>Contrat</span>

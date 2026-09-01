@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { adminApi } from '$lib/api.js';
 	import RichEditor from '../../../components/RichEditor.svelte';
+	import Combobox from '../../../components/Combobox.svelte';
+	import { CITY_OPTIONS, SECTOR_OPTIONS, LEVEL_OPTIONS } from '@tumaa/shared';
 
 	let { data }: { data: PageData } = $props();
 
@@ -304,7 +306,7 @@
 					</label>
 					<label class="form-field">
 						<span>Ville</span>
-						<input type="text" bind:value={createForm.city} placeholder="Ex : Ouagadougou" />
+						<Combobox options={CITY_OPTIONS} bind:value={createForm.city} placeholder="Ex : Ouagadougou" />
 					</label>
 					<label class="form-field">
 						<span>Pays</span>
@@ -318,11 +320,11 @@
 					</label>
 					<label class="form-field">
 						<span>Secteur</span>
-						<input type="text" bind:value={createForm.sector} placeholder="Ex : Informatique" />
+						<Combobox options={SECTOR_OPTIONS} bind:value={createForm.sector} placeholder="Ex : Informatique" />
 					</label>
 					<label class="form-field">
 						<span>Niveau</span>
-						<input type="text" bind:value={createForm.level} placeholder="Ex : Junior, Senior" />
+						<Combobox options={LEVEL_OPTIONS} bind:value={createForm.level} placeholder="Ex : Junior, Senior" />
 					</label>
 					<label class="form-field">
 						<span>Type de contrat</span>

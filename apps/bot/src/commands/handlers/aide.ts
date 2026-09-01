@@ -17,6 +17,7 @@ export async function handleAide(cmd: ParsedCommand, db: PrismaClient): Promise<
     'SUITE — Voir les offres suivantes',
     'VOIR N — Débloquer le détail de l\'offre N',
     'MODIFIER — Changer tes critères (ville, secteur)',
+    'PROFIL — Voir le résumé de ton profil',
     'STATS — Offres disponibles pour ton profil',
     'ESSAI — 48h Premium gratuits (une seule fois)',
     'PREMIUM — Voir les formules d\'abonnement',

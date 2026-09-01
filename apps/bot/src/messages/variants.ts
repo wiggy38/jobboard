@@ -78,7 +78,7 @@ export const CLOSING_VARIANTS: Array<(prenom: string | null | undefined, nb?: nu
     'À demain avec OFFRES 👋',
   (prenom, nb) =>
     `Voilà${greetSuffix(prenom)} — ${nb ?? 0} pistes de plus 💪\n` +
-    'Je continue de chercher de mon côté. Revenez quand vous voulez avec OFFRES.',
+    'Je continue de chercher de mon côté. Revenez quand vous voulez.',
   (prenom) =>
     `Vous avez tout vu${greetSuffix(prenom)} 🎉\n` +
     'Je continue de fouiller les offres pour vous — de nouvelles arrivent chaque jour.\n' +

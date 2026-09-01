@@ -13,6 +13,7 @@ import { handlePause } from './handlers/pause';
 import { handleStop } from './handlers/stop';
 import { handleAide } from './handlers/aide';
 import { handleStats } from './handlers/stats';
+import { handleProfil } from './handlers/profil';
 import { handleJoinChannel } from './handlers/joinChannel';
 import { handlePays, handlePaysSelection } from './handlers/pays';
 import { handleUnknown } from './handlers/unknown';
@@ -34,6 +35,7 @@ const ROUTES: Record<string, Handler> = {
   STOP: handleStop,
   AIDE: handleAide,
   STATS: handleStats,
+  PROFIL: handleProfil,
   JOIN_CHANNEL: handleJoinChannel,
   PAYS: handlePays,
 };

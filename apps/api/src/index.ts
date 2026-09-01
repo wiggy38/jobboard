@@ -10,6 +10,7 @@ import { submissionRoutes } from './routes/admin/submissions'
 import { scoutRoutes } from './routes/admin/scouts'
 import { fraudRoutes } from './routes/admin/fraud'
 import { userRoutes } from './routes/admin/users'
+import { unknownCommandRoutes } from './routes/admin/unknownCommands'
 import { adminAuthRoutes } from './routes/admin/auth'
 import { adminUserRoutes } from './routes/admin/admin-users'
 import { settingsRoutes } from './routes/admin/settings'
@@ -54,6 +55,7 @@ app.register(submissionRoutes)
 app.register(scoutRoutes)
 app.register(fraudRoutes)
 app.register(userRoutes)
+app.register(unknownCommandRoutes)
 app.register(settingsRoutes)
 app.register(referenceRoutes)
 

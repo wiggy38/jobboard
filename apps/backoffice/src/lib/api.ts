@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import type { SettingKey, SettingValueMap } from '@tumaa/shared';
-import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminKpis, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedReferrals, PaginatedTracking, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
+import type { AdminAccount, AdminAccountRole, AdminJobOfferDetail, AdminKpis, AdminScoutDetail, AdminStats, AdminUserDetail, Employer, EmployerOffer, EmployerStats, HealthCheckResult, JobOffer, JobPollResult, PaginatedOffers, PaginatedOfferInteractions, PaginatedPullActivity, PaginatedPullHistory, PaginatedReferrals, PaginatedTracking, PaginatedUnknownCommands, PaginatedUsers, Scout, ScraperRunHistory, ScraperStatus, SyncAllResult, TemplateLog, TemplateUsage } from './types.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:2999';
 
@@ -96,6 +96,19 @@ export const adminApi = {
 	getTracking: (page = 1, filters: Record<string, string> = {}) => {
 		const params = new URLSearchParams({ page: String(page), ...filters });
 		return apiFetch<PaginatedTracking>(`/admin/tracking?${params}`);
+	},
+	getUnknownCommands: (page = 1, filters: Record<string, string> = {}) => {
+		const params = new URLSearchParams({ page: String(page), ...filters });
+		return apiFetch<PaginatedUnknownCommands>(`/admin/unknown-commands?${params}`);
+	},
+	exportUnknownCommands: async (week: string): Promise<Blob> => {
+		const adminToken = getAdminToken();
+		const res = await fetch(`${API_BASE}/admin/unknown-commands/export?week=${encodeURIComponent(week)}`, {
+			headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
+			credentials: 'include',
+		});
+		if (!res.ok) throw new Error(`API ${res.status}: export unknown-commands`);
+		return res.blob();
 	},
 	getMe: () => apiFetch<{ id: string; email: string; name: string; role: AdminAccountRole }>('/admin/auth/me'),
 	listAdminAccounts: () => apiFetch<AdminAccount[]>('/admin/admin-users'),

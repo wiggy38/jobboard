@@ -353,6 +353,24 @@ export interface PaginatedTracking {
   summary: { views: number; clicks: number; clickRate: number };
 }
 
+export interface UnknownCommandLogEntry {
+  id: string;
+  phoneNumber: string;
+  raw: string;
+  command: string;
+  country: string | null;
+  createdAt: string;
+}
+
+export interface PaginatedUnknownCommands {
+  data: UnknownCommandLogEntry[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+  period: { from: string; to: string };
+}
+
 export interface PullDeliveryOffer {
   id: string;
   title: string;

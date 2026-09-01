@@ -543,6 +543,26 @@ model AdminUser {
 }
 
 // ============================================================
+// COMMANDES WHATSAPP INCOMPRISES
+// ============================================================
+
+// Une ligne par commande reçue par le bot qui ne correspond à aucun handler
+// connu (voir apps/bot/src/commands/handlers/unknown.ts) — consultable et
+// exportable (JSONL hebdomadaire) depuis le backoffice admin.
+model UnknownCommandLog {
+  id          String   @id @default(cuid())
+  phoneNumber String
+  raw         String
+  command     String
+  country     String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([phoneNumber])
+}
+
+// ============================================================
 // PARAMÈTRES — configuration métier éditable en backoffice
 // ============================================================
 

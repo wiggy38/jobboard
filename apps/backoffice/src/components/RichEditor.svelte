@@ -16,7 +16,13 @@
 	let editorEl: HTMLDivElement;
 	let editor = $state<Editor | undefined>(undefined);
 	let tick = $state(0); // incremented on each transaction to force toolbar re-render
-	let skipEffect = false;
+	// Tracks the last value pushed to/pulled from the editor, so the sync effect
+	// below can tell "nothing new to apply" apart from "editor's HTML doesn't
+	// round-trip to an identical string" — some content (tables, certain nested
+	// markup) never re-serializes byte-for-byte, so diffing against
+	// editor.getHTML() every run causes setContent to fire forever and trips
+	// Svelte's effect_update_depth_exceeded, wedging the whole page.
+	let lastSyncedValue = value;
 
 	onMount(() => {
 		editor = new Editor({
@@ -28,9 +34,9 @@
 			],
 			content: value || '',
 			onUpdate({ editor: e }) {
-				skipEffect = true;
-				value = e.getHTML() === '<p></p>' ? '' : e.getHTML();
-				skipEffect = false;
+				const html = e.getHTML() === '<p></p>' ? '' : e.getHTML();
+				lastSyncedValue = html;
+				value = html;
 			},
 			onTransaction() {
 				tick++;
@@ -45,11 +51,9 @@
 	// Sync external value changes (e.g. form reset) into the editor
 	$effect(() => {
 		const v = value;
-		if (editor && !skipEffect) {
-			const current = editor.getHTML() === '<p></p>' ? '' : editor.getHTML();
-			if (v !== current) {
-				editor.commands.setContent(v || '', { emitUpdate: false });
-			}
+		if (editor && v !== lastSyncedValue) {
+			lastSyncedValue = v;
+			editor.commands.setContent(v || '', { emitUpdate: false });
 		}
 	});
 

@@ -3,6 +3,7 @@ import { InteractiveButtonMessage, InteractiveCtaUrlMessage, OutgoingMessage, Te
 import {
   formatJobMessage,
   formatNoMoreOffers,
+  formatNoOffersToday,
   formatPaginationPrompt,
   formatTeaserSummary,
 } from '../formatter';
@@ -120,15 +121,50 @@ describe('formatJobMessage', () => {
 // ── formatTeaserSummary ───────────────────────────────────────────────────────
 
 describe('formatTeaserSummary', () => {
-  it('returns a no-offers message when count is 0', () => {
-    const msg = formatTeaserSummary(0);
-    expect(msg.type).toBe('text');
-    expect(msg.text.body).toContain('Aucune nouvelle offre');
+  it('returns a text message including the count', () => {
+    for (let i = 0; i < 20; i++) {
+      const msg = formatTeaserSummary(3);
+      expect(msg.type).toBe('text');
+      expect(msg.text.body).toContain('3');
+      expect(msg.text.body).toMatch(/offres/);
+    }
   });
 
-  it('includes count in message body', () => {
-    const msg = formatTeaserSummary(3);
-    expect(msg.text.body).toContain('3 offre(s)');
+  it('inserts the display name when provided, without leaking it when absent', () => {
+    const withName = formatTeaserSummary(3, 'Awa');
+    expect(withName.text.body).toContain('Awa');
+
+    const withoutName = formatTeaserSummary(3, null);
+    expect(withoutName.text.body).not.toContain('null');
+    expect(withoutName.text.body).not.toContain('undefined');
+  });
+});
+
+// ── formatNoOffersToday ───────────────────────────────────────────────────────
+
+describe('formatNoOffersToday', () => {
+  it('returns a non-empty text message across variants (regular pool)', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const msg = formatNoOffersToday(undefined, false);
+      expect(msg.type).toBe('text');
+      expect(msg.text.body.length).toBeGreaterThan(0);
+      seen.add(msg.text.body);
+    }
+    // Sanity check that the pool actually rotates rather than always returning one variant.
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('uses the streak-specific message and mentions MODIFIER when longStreak is true', () => {
+    const msg = formatNoOffersToday('Awa', true);
+    expect(msg.text.body).toContain('Awa');
+    expect(msg.text.body).toContain('MODIFIER');
+  });
+
+  it('never leaks null/undefined when no display name is provided', () => {
+    const msg = formatNoOffersToday(null, false);
+    expect(msg.text.body).not.toContain('null');
+    expect(msg.text.body).not.toContain('undefined');
   });
 });
 
@@ -149,10 +185,17 @@ describe('formatPaginationPrompt', () => {
 // ── formatNoMoreOffers ────────────────────────────────────────────────────────
 
 describe('formatNoMoreOffers', () => {
-  it('mentions OFFRES and MODIFIER commands', () => {
-    const msg = formatNoMoreOffers();
-    expect(msg.text.body).toContain('OFFRES');
-    expect(msg.text.body).toContain('MODIFIER');
+  it('mentions OFFRES across variants', () => {
+    for (let i = 0; i < 20; i++) {
+      const msg = formatNoMoreOffers();
+      expect(msg.text.body).toContain('OFFRES');
+    }
+  });
+
+  it('never leaks null/undefined when no display name is provided', () => {
+    const msg = formatNoMoreOffers(null, 3);
+    expect(msg.text.body).not.toContain('null');
+    expect(msg.text.body).not.toContain('undefined');
   });
 });
 
@@ -161,17 +204,6 @@ describe('formatNoMoreOffers', () => {
 describe('deliverJobsBatch', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
-
-  it('sends only the teaser when job list is empty', async () => {
-    const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
-    const promise = deliverJobsBatch('user-1', 'db-user-1', [], UserPlan.PREMIUM, sendFn);
-    await jest.runAllTimersAsync();
-    await promise;
-
-    expect(sendFn).toHaveBeenCalledTimes(1);
-    const [, msg] = sendFn.mock.calls[0];
-    expect((msg as TextMessage).text.body).toContain('Aucune nouvelle offre');
-  });
 
   it('calls sendFn 9 times for 7 jobs: 1 summary + 7 jobs + 1 pagination', async () => {
     const jobs = Array.from({ length: 7 }, (_, i) => makeJob({ id: `job-${i}` }));

@@ -21,11 +21,11 @@ export async function handleSuite(cmd: ParsedCommand, db: PrismaClient): Promise
   const batch = sortedOffers.slice(offset, offset + batchSize);
 
   if (batch.length === 0) {
-    await sendMessage(cmd.userId, formatNoMoreOffers(), cmd.country);
+    await sendMessage(cmd.userId, formatNoMoreOffers(user.displayName), cmd.country);
     return;
   }
 
-  await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country);
+  await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country, user.displayName);
   await setOffset(cmd.userId, offset + batchSize);
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[suite] recordPullEvent:', err));

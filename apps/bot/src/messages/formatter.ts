@@ -1,6 +1,13 @@
 import { ContractType, JobOffer, UserPlan } from '@prisma/client';
 import { InteractiveButtonMessage, OutgoingMessage, TextMessage } from '../whatsapp/types';
 import { buildOfferUrl, generateOfferToken } from '../services/tokenService';
+import {
+  CLOSING_VARIANTS,
+  INTRO_VARIANTS,
+  NO_OFFERS_STREAK_VARIANT,
+  NO_OFFERS_VARIANTS,
+  pickRandom,
+} from './variants';
 
 const CONTRACT_LABELS: Record<ContractType, string> = {
   CDI: 'CDI',
@@ -81,23 +88,20 @@ export function formatJobMessage(
   };
 }
 
-export function formatTeaserSummary(count: number): TextMessage {
-  if (count === 0) {
-    return {
-      type: 'text',
-      text: {
-        body:
-          "😔 Aucune nouvelle offre ne correspond à votre profil aujourd'hui.\n" +
-          'Modifiez vos critères avec MODIFIER ou revenez demain !',
-      },
-    };
-  }
+export function formatTeaserSummary(count: number, prenom?: string | null): TextMessage {
+  return {
+    type: 'text',
+    text: { body: pickRandom(INTRO_VARIANTS)(prenom, count) },
+  };
+}
+
+// Zéro offre ne correspond au profil aujourd'hui (à distinguer de formatNoMoreOffers,
+// utilisée quand la pagination d'une liste déjà entamée est épuisée).
+export function formatNoOffersToday(prenom: string | null | undefined, longStreak: boolean): TextMessage {
   return {
     type: 'text',
     text: {
-      body:
-        `🎯 *${count} offre(s) correspondent à votre profil aujourd'hui.*\n` +
-        'Je vous les envoie une par une 👇',
+      body: longStreak ? NO_OFFERS_STREAK_VARIANT(prenom) : pickRandom(NO_OFFERS_VARIANTS)(prenom),
     },
   };
 }
@@ -120,13 +124,9 @@ export function formatPaginationPrompt(remaining: number): InteractiveButtonMess
   };
 }
 
-export function formatNoMoreOffers(): TextMessage {
+export function formatNoMoreOffers(prenom?: string | null, nb?: number): TextMessage {
   return {
     type: 'text',
-    text: {
-      body:
-        '✅ Vous avez vu toutes les offres disponibles pour votre profil.\n' +
-        'Revenez demain en tapant *OFFRES* ou modifiez vos critères : *MODIFIER*',
-    },
+    text: { body: pickRandom(CLOSING_VARIANTS)(prenom, nb) },
   };
 }

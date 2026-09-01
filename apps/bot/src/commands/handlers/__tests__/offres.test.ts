@@ -5,6 +5,7 @@ jest.mock('../../../services/pull', () => ({
   upsertUser: jest.fn().mockResolvedValue(undefined),
   recordPullEvent: jest.fn().mockResolvedValue(undefined),
   recordPullDelivery: jest.fn().mockResolvedValue(undefined),
+  hasZeroOfferStreak: jest.fn().mockResolvedValue(false),
 }));
 
 jest.mock('../../../session/pagination', () => ({
@@ -38,7 +39,7 @@ jest.mock('@tumaa/matching', () => ({
   ContractType: {},
 }));
 
-const { getUserWithProfile, recordPullEvent, recordPullDelivery } = require('../../../services/pull');
+const { getUserWithProfile, recordPullEvent, recordPullDelivery, hasZeroOfferStreak } = require('../../../services/pull');
 const { resetOffset, setOffset } = require('../../../session/pagination');
 const { openWindow } = require('../../../session/window');
 const { deliverJobsBatch } = require('../../../messages/delivery');
@@ -161,10 +162,15 @@ describe('handleOffres — pagination', () => {
 // ── Livraison des offres ──────────────────────────────────────────────────────
 
 describe('handleOffres — livraison', () => {
-  it('aucune offre active → sendMessage formatNoMoreOffers, pas de deliverJobsBatch', async () => {
+  it('aucune offre active → sendMessage formatNoOffersToday, pas de deliverJobsBatch', async () => {
     await handleOffres(cmd(), makeDb([]));
     expect(sendMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ type: 'text' }), undefined);
     expect(deliverJobsBatch).not.toHaveBeenCalled();
+  });
+
+  it('aucune offre active → vérifie le streak de jours sans offre', async () => {
+    await handleOffres(cmd(), makeDb([]));
+    expect(hasZeroOfferStreak).toHaveBeenCalledWith(FREEMIUM_USER.id, 4);
   });
 
   it('des offres disponibles → deliverJobsBatch avec userId et plan FREEMIUM', async () => {
@@ -175,6 +181,7 @@ describe('handleOffres — livraison', () => {
       expect.any(Array),
       'FREEMIUM',
       expect.any(Function),
+      undefined,
       undefined,
     );
   });

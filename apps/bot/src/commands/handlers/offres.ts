@@ -1,13 +1,13 @@
 import { PrismaClient, UserPlan } from '@prisma/client';
 import { ParsedCommand } from '../../whatsapp/types';
-import { getUserWithProfile, upsertUser, recordPullEvent, recordPullDelivery } from '../../services/pull';
+import { getUserWithProfile, upsertUser, recordPullEvent, recordPullDelivery, hasZeroOfferStreak } from '../../services/pull';
 import { getMatchedOffers } from '../../services/matching';
 import { getOffset, setOffset, resetOffset, getPullBatchSize } from '../../session/pagination';
 import { openWindow } from '../../session/window';
 import { deliverJobsBatch } from '../../messages/delivery';
 import { sendMessage } from '../../whatsapp/client';
 import { sendText } from '../../services/whatsapp';
-import { formatNoMoreOffers } from '../../messages/formatter';
+import { formatNoOffersToday } from '../../messages/formatter';
 
 async function handleOnboarding(phone: string, country?: string, referralCode?: string): Promise<void> {
   await upsertUser(phone, referralCode);
@@ -42,9 +42,10 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
   const batch = sortedOffers.slice(offset, offset + batchSize);
 
   if (batch.length === 0) {
-    await sendMessage(cmd.userId, formatNoMoreOffers(), cmd.country);
+    const longStreak = await hasZeroOfferStreak(user.id, 4);
+    await sendMessage(cmd.userId, formatNoOffersToday(user.displayName, longStreak), cmd.country);
   } else {
-    await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country);
+    await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country, user.displayName);
     await setOffset(cmd.userId, offset + batchSize);
   }
 

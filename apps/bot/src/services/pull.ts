@@ -83,11 +83,22 @@ export async function recordPullDelivery(
   });
 }
 
+export async function hasZeroOfferStreak(userId: string, priorDays: number): Promise<boolean> {
+  const events = await prisma.pullEvent.findMany({
+    where: { userId },
+    orderBy: { date: 'desc' },
+    take: priorDays,
+    select: { offersCount: true },
+  });
+  return events.length === priorDays && events.every((e) => e.offersCount === 0);
+}
+
 export async function getUserWithProfile(phone: string): Promise<{
   id: string;
   plan: string;
   status: string;
   countries: string[];
+  displayName: string | null;
   profile: {
     cities: string[];
     sectors: string[];
@@ -105,6 +116,7 @@ export async function getUserWithProfile(phone: string): Promise<{
       plan: true,
       status: true,
       countries: true,
+      displayName: true,
       profile: {
         select: {
           cities: true,
@@ -126,6 +138,7 @@ export async function getUserWithProfile(phone: string): Promise<{
     plan: user.plan,
     status: user.status,
     countries: user.countries,
+    displayName: user.displayName,
     profile: user.profile,
   };
 }

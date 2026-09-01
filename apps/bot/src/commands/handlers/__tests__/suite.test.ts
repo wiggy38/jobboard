@@ -185,6 +185,7 @@ describe('handleSuite — livraison', () => {
       'FREEMIUM',
       expect.any(Function),
       undefined,
+      undefined,
     );
   });
 

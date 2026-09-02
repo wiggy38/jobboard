@@ -4,7 +4,7 @@
 	import { adminApi } from '$lib/api.js';
 	import RichEditor from '../../../components/RichEditor.svelte';
 	import Combobox from '../../../components/Combobox.svelte';
-	import { CITY_OPTIONS, SECTOR_OPTIONS, LEVEL_OPTIONS } from '@tumaa/shared';
+	import { CITY_OPTIONS, LEVEL_OPTIONS } from '@tumaa/shared';
 
 	let { data }: { data: PageData } = $props();
 
@@ -320,7 +320,7 @@
 					</label>
 					<label class="form-field">
 						<span>Secteur</span>
-						<Combobox options={SECTOR_OPTIONS} bind:value={createForm.sector} placeholder="Ex : Informatique" />
+						<Combobox options={data.sectors} bind:value={createForm.sector} placeholder="Ex : Informatique" />
 					</label>
 					<label class="form-field">
 						<span>Niveau</span>

@@ -1,6 +1,7 @@
 import type { PageLoad } from './$types.js';
 import { adminApi } from '$lib/api.js';
 import type { JobOffer, ScraperStatus } from '$lib/types.js';
+import { SETTING_KEYS, SECTOR_OPTIONS, type ProfileOption } from '@tumaa/shared';
 
 const MOCK_OFFERS: JobOffer[] = [
 	{ id: '1', title: 'Développeur Full-Stack', organization: 'Société Burkina Tech', city: 'Ouagadougou', country: 'BF', sector: 'Informatique', level: 'Confirmé', contractType: 'CDI', deadline: null, isSponsored: false, isFeatured: false, scoreConfidence: 0.92, status: 'ACTIVE' },
@@ -43,12 +44,17 @@ export const load: PageLoad = async ({ url }) => {
 	if (country) filters.country = country;
 	if (city) filters.city = city;
 
-	const [offersRes, scrapersRes] = await Promise.allSettled([
+	const [offersRes, scrapersRes, settingsRes] = await Promise.allSettled([
 		adminApi.getOffers(page, filters),
 		adminApi.getScrapers(),
+		adminApi.getSettings(),
 	]);
 
 	const scrapers = scrapersRes.status === 'fulfilled' ? scrapersRes.value : MOCK_SCRAPERS;
+	// Secteurs édités en backoffice (/admin/parametres) — repli sur la liste
+	// statique si l'API est indisponible, pour ne pas bloquer le formulaire.
+	const sectors: ProfileOption[] =
+		settingsRes.status === 'fulfilled' ? settingsRes.value[SETTING_KEYS.REFERENCE_SECTORS] : SECTOR_OPTIONS;
 
 	if (offersRes.status === 'fulfilled') {
 		const raw = offersRes.value as unknown;
@@ -57,7 +63,7 @@ export const load: PageLoad = async ({ url }) => {
 		const total = Array.isArray(raw) ? raw.length : (raw as { total: number }).total ?? offers.length;
 		const perPage = Array.isArray(raw) ? 20 : (raw as { perPage: number }).perPage ?? 20;
 		const totalPages = Array.isArray(raw) ? 1 : (raw as { totalPages: number }).totalPages ?? 1;
-		return { offers, total, perPage, totalPages, scrapers, page, filters, error: null };
+		return { offers, total, perPage, totalPages, scrapers, sectors, page, filters, error: null };
 	}
 
 	const msg = offersRes.reason instanceof Error ? offersRes.reason.message : String(offersRes.reason);
@@ -74,5 +80,5 @@ export const load: PageLoad = async ({ url }) => {
 		if (filters.city && !o.city.toLowerCase().includes(filters.city.toLowerCase())) return false;
 		return true;
 	});
-	return { offers: filtered, total: filtered.length, perPage: 20, totalPages: 1, scrapers, page, filters, error: msg };
+	return { offers: filtered, total: filtered.length, perPage: 20, totalPages: 1, scrapers, sectors, page, filters, error: msg };
 };

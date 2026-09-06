@@ -40,7 +40,7 @@
 	let createForm = $state({
 		title: '', organization: '', city: '', sector: '', level: '',
 		contractType: 'CDI', country: 'BF', description: '', requirements: '',
-		contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '', deadlineTime: '23:59',
+		contactEmail: '', contactPhone: '', applicationUrl: '', sourceUrl: '', deadline: '', deadlineTime: '23:59',
 		isSponsored: false, isFeatured: false, status: 'ACTIVE',
 	});
 
@@ -48,7 +48,7 @@
 		createForm = {
 			title: '', organization: '', city: '', sector: '', level: '',
 			contractType: 'CDI', country: 'BF', description: '', requirements: '',
-			contactEmail: '', contactPhone: '', applicationUrl: '', deadline: '', deadlineTime: '23:59',
+			contactEmail: '', contactPhone: '', applicationUrl: '', sourceUrl: '', deadline: '', deadlineTime: '23:59',
 			isSponsored: false, isFeatured: false, status: 'ACTIVE',
 		};
 		showCreate = true;
@@ -74,6 +74,7 @@
 				contactEmail: createForm.contactEmail || undefined,
 				contactPhone: createForm.contactPhone || undefined,
 				applicationUrl: createForm.applicationUrl || undefined,
+				sourceUrl: createForm.sourceUrl || undefined,
 				deadline: createForm.deadline ? `${createForm.deadline}T${createForm.deadlineTime || '23:59'}` : null,
 				isSponsored: createForm.isSponsored,
 				isFeatured: createForm.isFeatured,
@@ -378,6 +379,10 @@
 					<label class="form-field form-field--full">
 						<span>URL candidature</span>
 						<input type="url" bind:value={createForm.applicationUrl} placeholder="https://…" />
+					</label>
+					<label class="form-field form-field--full">
+						<span>URL source</span>
+						<input type="url" bind:value={createForm.sourceUrl} placeholder="https://…" />
 					</label>
 				</div>
 

@@ -1,4 +1,4 @@
-import { parseAIResponse } from '../src/lib/ai-normalizer'
+import { parseAIResponse, parseAIResponseBatch } from '../src/lib/ai-normalizer'
 import { SECTOR_OPTIONS } from '@tumaa/shared'
 
 const allowedSectors = SECTOR_OPTIONS.map(o => o.value)
@@ -56,5 +56,53 @@ describe('parseAIResponse — JSON invalide', () => {
 
   it('retourne un objet vide si JSON malformé', () => {
     expect(parseAIResponse('{"sector": "Transport/Logistique"', allowedSectors)).toEqual({})
+  })
+})
+
+describe('parseAIResponseBatch', () => {
+  it('ré-aligne correctement par index, y compris hors ordre', () => {
+    const text = '[{"index":2,"sector":"Santé"},{"index":0,"title":"Comptable"}]'
+    const result = parseAIResponseBatch(text, 3, allowedSectors)
+
+    expect(result.size).toBe(2)
+    expect(result.get(0)).toEqual({ title: 'Comptable' })
+    expect(result.get(2)).toEqual({ sector: 'Santé' })
+    expect(result.has(1)).toBe(false) // offre non retournée par Haiku → fallback règle-based
+  })
+
+  it('index hors-bornes est ignoré sans crash', () => {
+    const text = '[{"index":5,"title":"Hors bornes"},{"index":0,"title":"Valide"}]'
+    const result = parseAIResponseBatch(text, 2, allowedSectors)
+
+    expect(result.size).toBe(1)
+    expect(result.get(0)).toEqual({ title: 'Valide' })
+  })
+
+  it('index dupliqué : le premier est gardé, le doublon est ignoré', () => {
+    const text = '[{"index":0,"title":"Premier"},{"index":0,"title":"Doublon"}]'
+    const result = parseAIResponseBatch(text, 1, allowedSectors)
+
+    expect(result.size).toBe(1)
+    expect(result.get(0)).toEqual({ title: 'Premier' })
+  })
+
+  it('élément sans champ index est ignoré', () => {
+    const text = '[{"title":"Sans index"},{"index":1,"title":"Avec index"}]'
+    const result = parseAIResponseBatch(text, 2, allowedSectors)
+
+    expect(result.size).toBe(1)
+    expect(result.get(1)).toEqual({ title: 'Avec index' })
+  })
+
+  it('tableau vide → Map vide (aucune offre du lot ne nécessitait de correction)', () => {
+    expect(parseAIResponseBatch('[]', 5, allowedSectors).size).toBe(0)
+  })
+
+  it('retourne une Map vide si aucun JSON tableau trouvé', () => {
+    expect(parseAIResponseBatch('pas de json ici', 3, allowedSectors).size).toBe(0)
+  })
+
+  it('retourne une Map vide si JSON malformé', () => {
+    expect(parseAIResponseBatch('[{"index":0,"title":"Test"', 1, allowedSectors).size).toBe(0)
   })
 })

@@ -18,7 +18,13 @@
 
 import { RawJobOffer, NormalizedJobOffer, SETTING_KEYS, SECTOR_OPTIONS } from '@tumaa/shared'
 import { createHash } from './deduplicator'
-import { aiNormalizeOffer, needsAIEnrichment } from './ai-normalizer'
+import {
+  aiNormalizeOffer,
+  aiNormalizeOffers,
+  needsAIEnrichment,
+  AINormalizationResult,
+  AI_NORMALIZE_BATCH_SIZE,
+} from './ai-normalizer'
 import { endOfDay } from './ai-extractor'
 import { getSetting } from './settings'
 
@@ -125,6 +131,28 @@ function normalizeContractType(contractType?: string): string {
   return CONTRACT_MAP[contractType.toLowerCase().trim()] ?? contractType
 }
 
+/**
+ * Longueur maximale de la description stockée pour une offre scrapée.
+ * L'utilisateur est redirigé vers `url_source` pour le détail complet
+ * (voir CLAUDE.md, règle 2 "Freemium/Premium/Elite") — cette description
+ * n'est qu'une amorce, jamais le contenu complet de l'annonce.
+ */
+const DESCRIPTION_MAX_LENGTH = 100
+
+/**
+ * Tronque la description brute issue du scraper à DESCRIPTION_MAX_LENGTH
+ * caractères. Chaque scraper applique déjà sa propre limite ad hoc côté
+ * HTML (ex: 500 caractères) : cette fonction garantit une limite commune,
+ * appliquée une seule fois, indépendamment de la source.
+ */
+function truncateDescription(description?: string): string | undefined {
+  if (!description) return description
+  const trimmed = description.trim()
+  return trimmed.length > DESCRIPTION_MAX_LENGTH
+    ? trimmed.slice(0, DESCRIPTION_MAX_LENGTH).trimEnd() + '…'
+    : trimmed
+}
+
 // ─── Normalisation synchrone (règle-based) ───────────────────────────────────
 
 /**
@@ -140,6 +168,7 @@ function normalizeContractType(contractType?: string): string {
 export function normalize(offer: RawJobOffer, scoreConfidence = 1): NormalizedJobOffer {
   return {
     ...offer,
+    description: truncateDescription(offer.description),
     city: normalizeCity(offer.city),
     country: offer.country ?? 'BF',
     // Fallback "Non précisé" si le secteur n'a pas été extrait par le scraper
@@ -157,6 +186,46 @@ export function normalize(offer: RawJobOffer, scoreConfidence = 1): NormalizedJo
 }
 
 // ─── Normalisation enrichie par l'IA (asynchrone) ────────────────────────────
+
+/**
+ * Fusionne un résultat IA (partiel) avec la base règle-based, selon le
+ * principe de fusion conservatrice : on n'écrase la valeur règle-based que si
+ * l'IA retourne quelque chose de non-vide. Extraite en fonction partagée pour
+ * être réutilisée offre par offre par `normalizeWithAI` (une offre) et
+ * `normalizeWithAIBatch` (un lot d'offres, résultats indexés dans une Map).
+ */
+function mergeAIResult(
+  base: NormalizedJobOffer,
+  aiResult: AINormalizationResult,
+  offer: RawJobOffer,
+  allowedSectors: readonly string[]
+): NormalizedJobOffer {
+  const merged = {
+    ...base,
+    // L'IA nettoie l'intitulé du poste (supprime préfixes de recrutement, orga, ville)
+    ...(aiResult.title !== undefined ? { title: aiResult.title } : {}),
+    // L'IA peut retourner "BAC+3, BAC+5" pour une offre bi-niveau :
+    // dans ce cas on remplace la valeur règle-based qui n'aurait vu qu'un seul niveau
+    ...(aiResult.level !== undefined ? { level: aiResult.level } : {}),
+    // Le secteur est presque toujours inféré par l'IA (rarement extrait par le scraper)
+    ...(aiResult.sector !== undefined ? { sector: aiResult.sector } : {}),
+    // Le contractType IA prend le dessus si la règle a échoué ("Non précisé")
+    ...(aiResult.contractType !== undefined && base.contractType === 'Non précisé'
+      ? { contractType: aiResult.contractType }
+      : {}),
+    // La ville IA est utilisée uniquement si la règle n'a pas trouvé de correspondance
+    ...(aiResult.city !== undefined && !CITY_MAP[offer.city?.toLowerCase().trim() ?? '']
+      ? { city: aiResult.city }
+      : {}),
+  }
+
+  // Filet de sécurité : quelle que soit l'origine du secteur retenu (règle-based,
+  // extracteur, ou Haiku), il doit rester dans la liste blanche une fois en base.
+  return {
+    ...merged,
+    sector: allowedSectors.includes(merged.sector) ? merged.sector : 'Non précisé',
+  }
+}
 
 /**
  * Normalise une offre en deux passes : règles statiques + enrichissement Haiku.
@@ -194,31 +263,64 @@ export async function normalizeWithAI(
   // Passe 2 : enrichissement IA (asynchrone, peut échouer silencieusement)
   const aiResult = await aiNormalizeOffer(offer, allowedSectors)
 
-  // Fusion conservatrice : on n'écrase la valeur règle-based que si
-  // l'IA retourne quelque chose de non-vide.
-  const merged = {
-    ...base,
-    // L'IA nettoie l'intitulé du poste (supprime préfixes de recrutement, orga, ville)
-    ...(aiResult.title !== undefined ? { title: aiResult.title } : {}),
-    // L'IA peut retourner "BAC+3, BAC+5" pour une offre bi-niveau :
-    // dans ce cas on remplace la valeur règle-based qui n'aurait vu qu'un seul niveau
-    ...(aiResult.level !== undefined ? { level: aiResult.level } : {}),
-    // Le secteur est presque toujours inféré par l'IA (rarement extrait par le scraper)
-    ...(aiResult.sector !== undefined ? { sector: aiResult.sector } : {}),
-    // Le contractType IA prend le dessus si la règle a échoué ("Non précisé")
-    ...(aiResult.contractType !== undefined && base.contractType === 'Non précisé'
-      ? { contractType: aiResult.contractType }
-      : {}),
-    // La ville IA est utilisée uniquement si la règle n'a pas trouvé de correspondance
-    ...(aiResult.city !== undefined && !CITY_MAP[offer.city?.toLowerCase().trim() ?? '']
-      ? { city: aiResult.city }
-      : {}),
+  return mergeAIResult(base, aiResult, offer, allowedSectors)
+}
+
+/**
+ * Normalise un lot d'offres en deux passes (règles + enrichissement Haiku),
+ * en regroupant les appels IA par lots de `AI_NORMALIZE_BATCH_SIZE` offres
+ * au lieu d'un appel Haiku par offre — voir `aiNormalizeOffers`.
+ *
+ * Flux, pour tout le lot :
+ *   1. `normalize()` sur chaque offre → base règle-based (comme `normalizeWithAI`).
+ *   2. `allowedSectors` récupéré UNE SEULE FOIS pour tout le lot (au lieu
+ *      d'une fois par offre).
+ *   3. Partitionnement : seules les offres où `needsAIEnrichment()` est vrai
+ *      sont envoyées à Haiku ; les autres restent sur leur base règle-based.
+ *   4. Le sous-ensemble "needsAI" est découpé en chunks de
+ *      `AI_NORMALIZE_BATCH_SIZE`, chaque chunk = un appel Haiku (séquentiels,
+ *      pas en parallèle, pour éviter les pics de rate-limit).
+ *   5. Fusion conservatrice identique à `normalizeWithAI`, appliquée
+ *      offre par offre avec son résultat (ou `{}` si Haiku ne l'a pas
+ *      retournée — fallback règle-based, comportement inchangé).
+ *
+ * @param offers            Les offres brutes issues du scraper, dans un ordre quelconque
+ * @param scoreConfidences  Un score de qualité (0–1) par offre, même index que `offers`
+ * @returns Le tableau normalisé, dans le MÊME ORDRE que `offers` en entrée.
+ */
+export async function normalizeWithAIBatch(
+  offers: RawJobOffer[],
+  scoreConfidences: number[]
+): Promise<NormalizedJobOffer[]> {
+  if (offers.length === 0) return []
+
+  // Passe 1 : normalisation règle-based pour toutes les offres (instantanée)
+  const bases = offers.map((offer, i) => normalize(offer, scoreConfidences[i]))
+
+  const allowedSectors = await getSetting(SETTING_KEYS.REFERENCE_SECTORS)
+    .then(options => options.map(o => o.value))
+    .catch(() => SECTOR_OPTIONS.map(o => o.value))
+
+  // Partitionnement : indices des offres qui nécessitent un enrichissement IA
+  const needsAIIndices = offers
+    .map((offer, i) => i)
+    .filter(i => needsAIEnrichment(offers[i], allowedSectors))
+
+  const results = [...bases]
+
+  // Chunking : un appel Haiku par groupe de AI_NORMALIZE_BATCH_SIZE offres,
+  // séquentiel (pas de Promise.all entre chunks — évite les pics de rate-limit).
+  for (let start = 0; start < needsAIIndices.length; start += AI_NORMALIZE_BATCH_SIZE) {
+    const chunkIndices = needsAIIndices.slice(start, start + AI_NORMALIZE_BATCH_SIZE)
+    const chunkOffers = chunkIndices.map(i => offers[i])
+
+    const aiResults = await aiNormalizeOffers(chunkOffers, allowedSectors)
+
+    chunkIndices.forEach((originalIndex, chunkPosition) => {
+      const aiResult = aiResults.get(chunkPosition) ?? {}
+      results[originalIndex] = mergeAIResult(results[originalIndex], aiResult, offers[originalIndex], allowedSectors)
+    })
   }
 
-  // Filet de sécurité : quelle que soit l'origine du secteur retenu (règle-based,
-  // extracteur, ou Haiku), il doit rester dans la liste blanche une fois en base.
-  return {
-    ...merged,
-    sector: allowedSectors.includes(merged.sector) ? merged.sector : 'Non précisé',
-  }
+  return results
 }

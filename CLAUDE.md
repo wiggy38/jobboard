@@ -82,7 +82,8 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 - Envoyer le texte brut de la fiche à Haiku
 - Haiku retourne un objet JSON normalisé :
   `{ titre, organisation, lieu, date_publication, date_cloture, description, salaire, url_source, pays }`
-- `description` est une **ébauche courte** (≤ ~250 caractères — rôle + 1-2 points clés), pas le
+- `description` est une **ébauche courte** (≤ 100 caractères, tronquée de façon centrale dans
+  `apps/scraper/src/lib/normalizer.ts::truncateDescription()`), pas le
   détail complet de l'annonce : l'utilisateur est redirigé vers `url_source` pour le reste (voir
   règle 2 sous "Règles Freemium/Premium/Elite"). Le champ `requirements` n'est plus extrait pour
   les offres scrapées.
@@ -92,12 +93,53 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 **Pourquoi cette architecture**
 - Résistante aux refactors HTML des sites sources (pas de sélecteurs CSS fragiles)
 - Un prompt générique couvre la majorité des sources sans code spécifique par site
-- Coût négligeable : ~$0.000003 par fiche à l'échelle Haiku
+- Coût réel mesuré (2026-09-06, sur 2 jours de scraping) : ~0,006-0,011 $ par offre
+  *insérée* — très loin de l'estimation initiale de $0.000003/fiche (erreur d'un facteur
+  ~1000, probablement due à une hypothèse de prompt/volume irréaliste au moment de la
+  conception). Voir "Coûts Haiku — état des lieux" ci-dessous pour le détail et les
+  correctifs déjà appliqués.
 
 **Validation obligatoire après extraction**
 - Vérifier la présence des champs `titre`, `organisation`, `url_source`, `pays`
 - Toute fiche avec champs critiques manquants → rejet silencieux (pas d'insertion, pas d'erreur fatale)
 - Ne jamais insérer une fiche non validée en DB
+
+## Coûts Haiku — état des lieux (résolu partiellement 2026-09-06)
+
+**Constat initial** : 5,39 $ de coût API Haiku sur 2 jours de scraping
+(02-03/09/2026) pour 490 + 236 offres réellement insérées, soit ~0,006-0,011 $/offre
+insérée — un ratio instable d'un jour à l'autre (quasi doublement le 03/09), signe que
+le coût n'était pas proportionnel au travail utile.
+
+**Cause identifiée** : `apps/scraper/src/pipeline.ts` appelait `normalizeWithAI()`
+(enrichissement Haiku, `ai-normalizer.ts`) sur **toutes** les offres scrapées, **avant**
+la déduplication SHA-256. Le hash de dédup ne dépend d'aucun champ produit par l'IA — il
+était donc possible de dédupliquer d'abord et de n'enrichir que les survivants. Résultat
+avant correctif : Haiku était payé pour normaliser des fiches ensuite jetées comme
+doublons, sans jamais être insérées.
+
+**Effet de bord découvert** : le mode `--dry-run` appelait aussi Haiku sur 100% des
+offres à chaque test, sans jamais toucher la DB — un coût invisible à chaque debug/test
+de nouvelle source, corrigé par la même occasion.
+
+**Correctif appliqué** : `runPipeline()` réordonné —
+scraping → filtrage offres expirées → hash + déduplication (intra-batch en dry-run,
+contre la DB en run réel) → `normalizeWithAI` uniquement sur les survivants → insertion
+→ TTL. Le dry-run retourne désormais avant tout appel IA. Tests de non-régression +
+2 tests dédiés (Haiku jamais appelé sur un hash déjà en DB, appelé exactement une fois
+sur le seul survivant d'un lot filtré) — tous passants.
+
+**Piste non implémentée (cache_control)** : `ai-normalizer.ts` pose déjà un marqueur
+`cache_control: { type: 'ephemeral' }` sur le `SYSTEM_PROMPT`, mais celui-ci ne fait
+qu'environ 900 tokens — sous le seuil minimum de 4096 tokens requis par Haiku 4.5 pour
+que le cache s'active. Le marqueur est donc actuellement un no-op (confirmé par le CSV
+de coûts : 100% des appels en `input_no_cache`). À revisiter uniquement si le prompt
+système grossit significativement (ex: ajout de règles de classification supplémentaires).
+
+**Reste à mesurer** : comparer un nouveau relevé de coûts (post-correctif) au relevé du
+02-03/09 pour chiffrer le % réel d'appels Haiku économisés — nécessite `totalScraped`/
+`totalDuplicates` par run (visibles dans `ScraperRun`/logs), non disponibles au moment
+du diagnostic initial.
 
 ## Documents de référence (dans /docs/)
 - `docs/collecte_offres.md` → 9 sources, 7 challenges, 3 niveaux d'architecture
@@ -148,7 +190,7 @@ ad hoc à partir de `user.plan`.
    réglage backoffice `OFFER_FULL_ACCESS` (`/admin/parametres`) ont été retirés du code
    (`apps/api/src/offre.routes.ts`, `packages/shared/src/settings.ts`) plutôt que laissés en
    toggle réversible. Le contenu affiché pour une offre scrapée reste une ébauche courte
-   (`description` ≤ ~250 caractères, `requirements` toujours `null`, cf. règle scraping
+   (`description` ≤ 100 caractères, `requirements` toujours `null`, cf. règle scraping
    ci-dessous) — l'utilisateur est redirigé vers `url_source` pour le détail complet, comme avant.
    Les offres B2B insérées manuellement (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne
    sont pas concernées : leur `description`/`requirements` sont saisis en clair par l'admin et

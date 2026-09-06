@@ -62,6 +62,30 @@ describe('normalizer — contractType', () => {
   })
 })
 
+describe('normalizer — description', () => {
+  it('description longue (500 caractères) est tronquée à 100 caractères + "…"', () => {
+    const long = 'A'.repeat(500)
+    const result = normalize({ ...base, description: long })
+    expect(result.description).toHaveLength(101)
+    expect(result.description).toBe('A'.repeat(100) + '…')
+  })
+
+  it('description déjà courte reste inchangée', () => {
+    const short = 'Poste de développeur junior à Ouagadougou.'
+    expect(normalize({ ...base, description: short }).description).toBe(short)
+  })
+
+  it('description absente reste undefined', () => {
+    expect(normalize({ ...base }).description).toBeUndefined()
+  })
+
+  it('description avec espaces en début/fin est trim avant/après troncature', () => {
+    const padded = `  ${'B'.repeat(120)}  `
+    const result = normalize({ ...base, description: padded })
+    expect(result.description).toBe('B'.repeat(100) + '…')
+  })
+})
+
 describe('normalizer — valeurs inconnues sans erreur', () => {
   it('level et contractType inconnus ne lancent pas d\'exception', () => {
     expect(() =>

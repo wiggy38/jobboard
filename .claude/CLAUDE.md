@@ -82,7 +82,8 @@ Chaque scraper suit un pipeline en deux phases strictement séparées :
 - Envoyer le texte brut de la fiche à Haiku
 - Haiku retourne un objet JSON normalisé :
   `{ titre, organisation, lieu, date_publication, date_cloture, description, salaire, url_source, pays }`
-- `description` est une **ébauche courte** (≤ ~250 caractères — rôle + 1-2 points clés), pas le
+- `description` est une **ébauche courte** (≤ 100 caractères, tronquée de façon centrale dans
+  `apps/scraper/src/lib/normalizer.ts::truncateDescription()`), pas le
   détail complet de l'annonce : l'utilisateur est redirigé vers `url_source` pour le reste (voir
   règle 2 sous "Règles Freemium/Premium/Elite"). Le champ `requirements` n'est plus extrait pour
   les offres scrapées.
@@ -148,7 +149,7 @@ ad hoc à partir de `user.plan`.
    réglage backoffice `OFFER_FULL_ACCESS` (`/admin/parametres`) ont été retirés du code
    (`apps/api/src/offre.routes.ts`, `packages/shared/src/settings.ts`) plutôt que laissés en
    toggle réversible. Le contenu affiché pour une offre scrapée reste une ébauche courte
-   (`description` ≤ ~250 caractères, `requirements` toujours `null`, cf. règle scraping
+   (`description` ≤ 100 caractères, `requirements` toujours `null`, cf. règle scraping
    ci-dessous) — l'utilisateur est redirigé vers `url_source` pour le détail complet, comme avant.
    Les offres B2B insérées manuellement (`Source.type === 'B2B_DIRECT'`, voir Sponsored Alerts) ne
    sont pas concernées : leur `description`/`requirements` sont saisis en clair par l'admin et

@@ -1,7 +1,8 @@
 import { PrismaClient, JobOfferStatus, ScraperRunStatus, ContractType as PrismaContractType } from '@prisma/client'
 import { RawJobOffer, SETTING_KEYS } from '@tumaa/shared'
-import { normalizeWithAI } from './lib/normalizer'
+import { normalizeWithAIBatch } from './lib/normalizer'
 import { createHash } from './lib/deduplicator'
+import { endOfDay } from './lib/ai-extractor'
 import { info, warn, error as logError, success } from './lib/logger'
 import { sendMail } from './lib/mailer'
 import { getSetting } from './lib/settings'
@@ -132,7 +133,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     }
   }
 
-  info(SOURCE, `[1/5] Scraping ${scraperName}${dryRun ? ' (dry-run)' : ''}...`)
+  info(SOURCE, `[1/6] Scraping ${scraperName}${dryRun ? ' (dry-run)' : ''}...`)
   let result: Awaited<ReturnType<typeof scraper.scrape>>
   try {
     result = await scraper.scrape(seenSourceUrls)
@@ -183,42 +184,37 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
   // Stamp le pays depuis la métadonnée du scraper sur chaque offre
   const stampedOffers = result.offers.map(o => ({ ...o, country: o.country ?? scraper.country }))
 
-  // ÉTAPE 2 — Normalisation règle-based + enrichissement IA (Haiku)
-  // normalizeWithAI() appelle Haiku uniquement pour les offres ambiguës
-  // (secteur absent, niveau multi-diplôme…). Les autres passent en règle-based seul.
-  info(SOURCE, `[2/5] Normalizing ${stampedOffers.length} offers (with AI enrichment)...`)
-  const normalized = await Promise.all(
-    stampedOffers.map(async offer => ({
-      offer: await normalizeWithAI(offer, computeScoreConfidence(offer)),
-      hash: createHash(offer),
-    }))
-  )
-
-  // ÉTAPE 3 — Déduplication
-  info(SOURCE, `[3/5] Deduplicating...`)
-
   let totalInserted = 0
   let totalDuplicates = 0
   let totalExpired = 0
   let totalErrors = result.errors.length
 
-  // Une offre dont la deadline est déjà passée ne doit jamais être importée
-  // (ni en dry-run, ni en insertion réelle) — inutile de la faire vivre en
-  // base pour la marquer EXPIRED juste après.
+  // ÉTAPE 2 — Filtrage des offres expirées, AVANT tout appel IA : inutile
+  // d'enrichir (et de payer) une offre dont la deadline est déjà passée,
+  // elle ne sera de toute façon jamais insérée.
+  info(SOURCE, `[2/6] Filtering expired offers...`)
   const now0 = new Date()
-  const notExpired = normalized.filter(({ offer }) => {
-    const expired = offer.deadline != null && offer.deadline < now0
+  const notExpiredRaw = stampedOffers.filter(offer => {
+    const deadline = endOfDay(offer.deadline)
+    const expired = deadline != null && deadline < now0
     if (expired) totalExpired++
     return !expired
   })
 
+  // ÉTAPE 3 — Déduplication (hash calculé sur l'offre brute, avant IA)
+  // Le hash ne dépend d'aucun champ produit par la normalisation IA — il
+  // peut donc être calculé et vérifié avant d'appeler Haiku, pour ne jamais
+  // enrichir une offre qui sera de toute façon jetée comme doublon.
+  info(SOURCE, `[3/6] Deduplicating...`)
+  const withHash = notExpiredRaw.map(offer => ({ offer, hash: createHash(offer) }))
+
   if (dryRun) {
     const seen = new Set<string>()
-    for (const { hash } of notExpired) {
+    for (const { hash } of withHash) {
       if (seen.has(hash)) totalDuplicates++
       else seen.add(hash)
     }
-    totalInserted = notExpired.length - totalDuplicates
+    totalInserted = withHash.length - totalDuplicates
     info(SOURCE, `[dry-run] Would insert ${totalInserted} offers, ${totalDuplicates} in-batch duplicates, ${totalExpired} skipped (deadline passée)`)
 
     const duration = Date.now() - startTime
@@ -250,12 +246,26 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     })
     const existingHashes = new Set(activeHashes.map(h => h.hash))
 
-    const newOffers = notExpired.filter(({ hash }) => !existingHashes.has(hash))
-    totalDuplicates = notExpired.length - newOffers.length
-    info(SOURCE, `${newOffers.length} new, ${totalDuplicates} duplicates (vs DB), ${totalExpired} skipped (deadline passée)`)
+    const newRaw = withHash.filter(({ hash }) => !existingHashes.has(hash))
+    totalDuplicates = withHash.length - newRaw.length
+    info(SOURCE, `${newRaw.length} new, ${totalDuplicates} duplicates (vs DB), ${totalExpired} skipped (deadline passée)`)
 
-    // ÉTAPE 4 — Insertion DB
-    info(SOURCE, `[4/5] Inserting ${newOffers.length} offers...`)
+    // ÉTAPE 4 — Normalisation règle-based + enrichissement IA (Haiku),
+    // uniquement sur les offres qui ont survécu au filtrage des expirées et
+    // à la déduplication. normalizeWithAI() appelle Haiku uniquement pour
+    // les offres ambiguës (secteur absent, niveau multi-diplôme…) ; les
+    // autres passent en règle-based seul.
+    info(SOURCE, `[4/6] Normalizing ${newRaw.length} offers (with AI enrichment)...`)
+    const newOffers =
+      newRaw.length === 0
+        ? []
+        : await normalizeWithAIBatch(
+            newRaw.map(({ offer }) => offer),
+            newRaw.map(({ offer }) => computeScoreConfidence(offer))
+          ).then(normalized => newRaw.map(({ hash }, i) => ({ offer: normalized[i], hash })))
+
+    // ÉTAPE 5 — Insertion DB
+    info(SOURCE, `[5/6] Inserting ${newOffers.length} offers...`)
 
     // Upsert de la source (création auto si elle n'existe pas)
     const sourceRecord = await prisma.source.upsert({
@@ -351,7 +361,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     }
 
     // ÉTAPE 5 — TTL : expirer les offres périmées
-    info(SOURCE, `[5/5] Expiring stale offers...`)
+    info(SOURCE, `[6/6] Expiring stale offers...`)
     const now = new Date()
 
     const byDeadline = await prisma.jobOffer.updateMany({

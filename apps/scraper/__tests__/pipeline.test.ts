@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { runPipeline } from '../src/pipeline'
+import { normalizeWithAIBatch } from '../src/lib/normalizer'
 import sources from '../src/sources'
 
 // Mock @prisma/client — factory runs before imports due to hoisting
@@ -12,6 +13,22 @@ jest.mock('@prisma/client', () => ({
     ALTERNANCE: 'ALTERNANCE', FREELANCE: 'FREELANCE',
     BENEVOLE: 'BENEVOLE', AUTRE: 'AUTRE',
   },
+}))
+
+// Mock la normalisation IA : on ne veut pas dépendre d'un vrai appel Haiku
+// dans les tests, et on a besoin de pouvoir vérifier que la dédup s'exécute
+// bien AVANT normalizeWithAIBatch, et avec quelles offres (cf. describe plus bas).
+jest.mock('../src/lib/normalizer', () => ({
+  normalizeWithAIBatch: jest.fn(async (offers: any[]) =>
+    offers.map(offer => ({
+      ...offer,
+      country: offer.country ?? 'BF',
+      sector: offer.sector ?? 'Informatique',
+      level: offer.level ?? 'Non précisé',
+      contractType: offer.contractType ?? 'CDI',
+      scoreConfidence: 1,
+    }))
+  ),
 }))
 
 // Mock sources module — __esModule:true required for default export interop with ts-jest
@@ -116,6 +133,68 @@ describe('runPipeline', () => {
       expect(result.totalInserted).toBe(0)
       expect(result.totalDuplicates).toBe(1)
       expect(mockPrisma.jobOffer.create).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('ordre dédup / normalisation IA', () => {
+    it("n'appelle pas normalizeWithAIBatch pour une offre dont le hash existe déjà en DB", async () => {
+      mockScraper.scrape.mockResolvedValue({
+        source: 'lefaso',
+        offers: [SAMPLE_OFFER],
+        errors: [],
+        scrapedAt: new Date(),
+      })
+
+      const { createHash } = await import('../src/lib/deduplicator')
+      const existingHash = createHash(SAMPLE_OFFER as any)
+
+      mockPrisma.jobOffer.findMany
+        .mockResolvedValueOnce([]) // seenSourceUrls query
+        .mockResolvedValueOnce([{ hash: existingHash }]) // hash already exists in DB
+        .mockResolvedValueOnce([]) // TTL candidates
+      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 0 })
+
+      const result = await runPipeline('lefaso')
+
+      expect(result.totalDuplicates).toBe(1)
+      expect(result.totalInserted).toBe(0)
+      expect(normalizeWithAIBatch).not.toHaveBeenCalled()
+      expect(mockPrisma.jobOffer.create).not.toHaveBeenCalled()
+    })
+
+    it('appelle normalizeWithAIBatch uniquement avec les offres nouvelles (non-doublon, non-expirées)', async () => {
+      const newOffer = {
+        ...SAMPLE_OFFER,
+        title: 'Chef de Projet Digital',
+        sourceUrl: 'https://lefaso.net/spip.php?article456',
+      }
+      mockScraper.scrape.mockResolvedValue({
+        source: 'lefaso',
+        offers: [SAMPLE_OFFER, { ...SAMPLE_OFFER, deadline: PAST_DATE }, newOffer],
+        errors: [],
+        scrapedAt: new Date(),
+      })
+
+      const { createHash } = await import('../src/lib/deduplicator')
+      const existingHash = createHash(SAMPLE_OFFER as any)
+
+      mockPrisma.jobOffer.findMany
+        .mockResolvedValueOnce([]) // seenSourceUrls query
+        .mockResolvedValueOnce([{ hash: existingHash }]) // SAMPLE_OFFER already in DB
+        .mockResolvedValueOnce([]) // TTL candidates
+      mockPrisma.jobOffer.create.mockResolvedValue({ id: 'job-003' })
+      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 0 })
+
+      const result = await runPipeline('lefaso')
+
+      // Seule `newOffer` survit à l'expiration + la dédup → un seul appel batch,
+      // avec un tableau contenant uniquement cette offre (pas SAMPLE_OFFER ni l'expirée)
+      expect(normalizeWithAIBatch).toHaveBeenCalledTimes(1)
+      expect(normalizeWithAIBatch.mock.calls[0][0]).toHaveLength(1)
+      expect(normalizeWithAIBatch.mock.calls[0][0][0].title).toBe('Chef de Projet Digital')
+      expect(result.totalInserted).toBe(1)
+      expect(result.totalDuplicates).toBe(1)
+      expect(result.totalExpired).toBe(1)
     })
   })
 

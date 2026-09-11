@@ -98,57 +98,57 @@ export function canonicalLevel(level: string): string {
 // Fenêtre de correspondance par niveau max de profil : liste des niveaux d'offre
 // acceptés et leur score, ordonnée du plus proche au plus éloigné. Un niveau d'offre
 // absent de la fenêtre du profil (ex. BAC+4, ou un niveau supérieur au profil) score 0.
-// Exact = 25, puis dégressif par palier de 5. Table validée manuellement avec le métier —
+// Exact = 20, puis dégressif par palier de 5. Table validée manuellement avec le métier —
 // n'est pas dérivable d'une formule générique sur les rangs (quelques fenêtres ont des
 // tailles ou des sauts différents).
 export const LEVEL_MATCH_WINDOWS: Record<string, { level: string; score: number }[]> = {
   'CEP': [
-    { level: 'CEP', score: 25 },
+    { level: 'CEP', score: 20 },
   ],
   'Sans diplôme': [
-    { level: 'Sans diplôme', score: 25 },
-    { level: 'CEP', score: 20 },
+    { level: 'Sans diplôme', score: 20 },
+    { level: 'CEP', score: 15 },
   ],
   'BEPC': [
-    { level: 'BEPC', score: 25 },
-    { level: 'CEP', score: 20 },
-    { level: 'Sans diplôme', score: 15 },
-  ],
-  'BAC': [
-    { level: 'BAC', score: 25 },
     { level: 'BEPC', score: 20 },
     { level: 'CEP', score: 15 },
     { level: 'Sans diplôme', score: 10 },
   ],
-  'BAC+1': [
-    { level: 'BAC+1', score: 25 },
+  'BAC': [
     { level: 'BAC', score: 20 },
     { level: 'BEPC', score: 15 },
     { level: 'CEP', score: 10 },
+    { level: 'Sans diplôme', score: 5 },
   ],
-  'BAC+2': [
-    { level: 'BAC+2', score: 25 },
+  'BAC+1': [
     { level: 'BAC+1', score: 20 },
     { level: 'BAC', score: 15 },
     { level: 'BEPC', score: 10 },
+    { level: 'CEP', score: 5 },
   ],
-  'Licence': [
-    { level: 'Licence', score: 25 },
+  'BAC+2': [
     { level: 'BAC+2', score: 20 },
     { level: 'BAC+1', score: 15 },
     { level: 'BAC', score: 10 },
+    { level: 'BEPC', score: 5 },
   ],
-  'Master': [
-    { level: 'Master', score: 25 },
+  'Licence': [
     { level: 'Licence', score: 20 },
     { level: 'BAC+2', score: 15 },
     { level: 'BAC+1', score: 10 },
     { level: 'BAC', score: 5 },
   ],
-  'Doctorat': [
-    { level: 'Doctorat', score: 25 },
+  'Master': [
     { level: 'Master', score: 20 },
     { level: 'Licence', score: 15 },
     { level: 'BAC+2', score: 10 },
+    { level: 'BAC+1', score: 5 },
+    { level: 'BAC', score: 0 },
+  ],
+  'Doctorat': [
+    { level: 'Doctorat', score: 20 },
+    { level: 'Master', score: 15 },
+    { level: 'Licence', score: 10 },
+    { level: 'BAC+2', score: 5 },
   ],
 };

@@ -6,7 +6,7 @@ import {
   UserProfile,
 } from '@tumaa/matching';
 
-export const MATCH_SCORE_THRESHOLD = 75;
+export const MATCH_SCORE_THRESHOLD = 70;
 
 type ProfileLike = {
   cities: string[];

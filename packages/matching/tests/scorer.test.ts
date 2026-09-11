@@ -16,9 +16,9 @@ describe('scoreJob — city', () => {
 });
 
 describe('scoreJob — sector', () => {
-  it('scores 25 when sector matches', () => {
+  it('scores 30 when sector matches', () => {
     const result = scoreJob(jobIT, profileFreemium);
-    expect(result.breakdown.sector).toBe(25);
+    expect(result.breakdown.sector).toBe(30);
   });
 
   it('scores 0 when sector does not match', () => {
@@ -29,22 +29,22 @@ describe('scoreJob — sector', () => {
 
 // profile.levels représente le niveau d'études MAXIMUM recherché par l'utilisateur.
 // Le score dépend de la fenêtre de correspondance LEVEL_MATCH_WINDOWS associée à ce
-// niveau max (voir packages/matching/src/types.ts) : exact = 25, puis score dégressif
+// niveau max (voir packages/matching/src/types.ts) : exact = 20, puis score dégressif
 // par palier de 5 pour les niveaux d'offre inférieurs listés dans la fenêtre, 0 en dehors.
 describe('scoreJob — level', () => {
-  it('scores 25 for exact level match', () => {
+  it('scores 20 for exact level match', () => {
     const result = scoreJob(jobIT, profileFreemium);
-    expect(result.breakdown.level).toBe(25);
-  });
-
-  it('scores 25 when job level equals the profile max level', () => {
-    const result = scoreJob(jobStage, profileEssentiel);
-    expect(result.breakdown.level).toBe(25);
-  });
-
-  it('scores 20 when job level is one step below the profile max level (BAC+2 vs Licence)', () => {
-    const result = scoreJob(jobStage, profileFreemium);
     expect(result.breakdown.level).toBe(20);
+  });
+
+  it('scores 20 when job level equals the profile max level', () => {
+    const result = scoreJob(jobStage, profileEssentiel);
+    expect(result.breakdown.level).toBe(20);
+  });
+
+  it('scores 15 when job level is one step below the profile max level (BAC+2 vs Licence)', () => {
+    const result = scoreJob(jobStage, profileFreemium);
+    expect(result.breakdown.level).toBe(15);
   });
 
   it('scores 0 when job level is above the profile max level (Master vs Licence)', () => {
@@ -71,47 +71,47 @@ describe('scoreJob — level', () => {
 
     const profileMulti = { ...profileFreemium, levels: ['Licence', 'Master'] };
     const result = scoreJob(jobIT, profileMulti); // jobIT.level === 'Licence', profile max === Master
-    expect(result.breakdown.level).toBe(20); // Licence is one step below Master in Master's window
+    expect(result.breakdown.level).toBe(15); // Licence is one step below Master in Master's window
   });
 
   it('BAC window reaches down to CEP with no gap', () => {
     const profileBac = { ...profileFreemium, levels: ['BAC'] };
-    expect(scoreJob({ ...jobIT, level: 'BEPC' }, profileBac).breakdown.level).toBe(20);
-    expect(scoreJob({ ...jobIT, level: 'CEP' }, profileBac).breakdown.level).toBe(15);
-    expect(scoreJob({ ...jobIT, level: 'Sans diplôme' }, profileBac).breakdown.level).toBe(10);
+    expect(scoreJob({ ...jobIT, level: 'BEPC' }, profileBac).breakdown.level).toBe(15);
+    expect(scoreJob({ ...jobIT, level: 'CEP' }, profileBac).breakdown.level).toBe(10);
+    expect(scoreJob({ ...jobIT, level: 'Sans diplôme' }, profileBac).breakdown.level).toBe(5);
   });
 
   it('BAC+1 window deliberately skips Sans diplôme', () => {
     const profileBac1 = { ...profileFreemium, levels: ['BAC+1'] };
-    expect(scoreJob({ ...jobIT, level: 'CEP' }, profileBac1).breakdown.level).toBe(10);
+    expect(scoreJob({ ...jobIT, level: 'CEP' }, profileBac1).breakdown.level).toBe(5);
     expect(scoreJob({ ...jobIT, level: 'Sans diplôme' }, profileBac1).breakdown.level).toBe(0);
   });
 
   it('Doctorat window stops at BAC+2 (does not reach BAC+1)', () => {
     const profileDoctorat = { ...profileFreemium, levels: ['Doctorat'] };
-    expect(scoreJob({ ...jobIT, level: 'BAC+2' }, profileDoctorat).breakdown.level).toBe(10);
+    expect(scoreJob({ ...jobIT, level: 'BAC+2' }, profileDoctorat).breakdown.level).toBe(5);
     expect(scoreJob({ ...jobIT, level: 'BAC+1' }, profileDoctorat).breakdown.level).toBe(0);
   });
 
   it('resolves job-side synonyms to their canonical level (BTS/DUT/BAC+3/BAC+5/DEA/DESS/PhD)', () => {
     const profileLicence = { ...profileFreemium, levels: ['Licence'] };
-    expect(scoreJob({ ...jobIT, level: 'BTS' }, profileLicence).breakdown.level).toBe(20);
-    expect(scoreJob({ ...jobIT, level: 'DUT' }, profileLicence).breakdown.level).toBe(20);
+    expect(scoreJob({ ...jobIT, level: 'BTS' }, profileLicence).breakdown.level).toBe(15);
+    expect(scoreJob({ ...jobIT, level: 'DUT' }, profileLicence).breakdown.level).toBe(15);
 
     const profileMasterLevel = { ...profileFreemium, levels: ['Master'] };
-    expect(scoreJob({ ...jobIT, level: 'BAC+3' }, profileMasterLevel).breakdown.level).toBe(20);
+    expect(scoreJob({ ...jobIT, level: 'BAC+3' }, profileMasterLevel).breakdown.level).toBe(15);
 
     const profileDoctorat = { ...profileFreemium, levels: ['Doctorat'] };
-    expect(scoreJob({ ...jobIT, level: 'BAC+5' }, profileDoctorat).breakdown.level).toBe(20);
-    expect(scoreJob({ ...jobIT, level: 'DEA' }, profileDoctorat).breakdown.level).toBe(20);
-    expect(scoreJob({ ...jobIT, level: 'DESS' }, profileDoctorat).breakdown.level).toBe(20);
-    expect(scoreJob({ ...jobIT, level: 'PhD' }, profileDoctorat).breakdown.level).toBe(25);
+    expect(scoreJob({ ...jobIT, level: 'BAC+5' }, profileDoctorat).breakdown.level).toBe(15);
+    expect(scoreJob({ ...jobIT, level: 'DEA' }, profileDoctorat).breakdown.level).toBe(15);
+    expect(scoreJob({ ...jobIT, level: 'DESS' }, profileDoctorat).breakdown.level).toBe(15);
+    expect(scoreJob({ ...jobIT, level: 'PhD' }, profileDoctorat).breakdown.level).toBe(20);
   });
 
   it('resolves profile-side synonym levels the same way (BTS profile behaves like BAC+2)', () => {
     const profileBts = { ...profileFreemium, levels: ['BTS'] };
     const result = scoreJob({ ...jobIT, level: 'BAC+1' }, profileBts);
-    expect(result.breakdown.level).toBe(20);
+    expect(result.breakdown.level).toBe(15);
   });
 
   it('scores 0 for BAC+4, which has no equivalent in any profile window', () => {
@@ -158,13 +158,13 @@ describe('scoreJob — sponsored', () => {
 });
 
 describe('scoreJob — isMatchPerfait', () => {
-  it('is true when total >= 95 (city + sector + level + contrat + sponsorisé)', () => {
+  it('is true when total >= 90 (city + sector + level + contrat + sponsorisé)', () => {
     const result = scoreJob(jobSponsored, profileMaster);
-    expect(result.score).toBeGreaterThanOrEqual(95);
+    expect(result.score).toBeGreaterThanOrEqual(90);
     expect(result.isMatchPerfait).toBe(true);
   });
 
-  it('is false when total < 95', () => {
+  it('is false when total < 90', () => {
     const result = scoreJob(jobStage, profileFreemium);
     expect(result.isMatchPerfait).toBe(false);
   });

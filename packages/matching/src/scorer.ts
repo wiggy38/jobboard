@@ -14,7 +14,7 @@ export function scoreCity(job: JobOffer, profile: UserProfile): number {
 
 export function scoreSector(job: JobOffer, profile: UserProfile): number {
   const jobSector = job.sector.trim().toLowerCase();
-  return profile.sectors.some((s) => s.trim().toLowerCase() === jobSector) ? 25 : 0;
+  return profile.sectors.some((s) => s.trim().toLowerCase() === jobSector) ? 30 : 0;
 }
 
 // profile.levels représente le niveau d'études MAXIMUM recherché par l'utilisateur.
@@ -79,7 +79,7 @@ export function computeScore(job: JobOffer, profile: UserProfile): ScoreBreakdow
 }
 
 export function isMatchPerfait(score: number): boolean {
-  return score >= 95;
+  return score >= 90;
 }
 
 export function scoreJob(

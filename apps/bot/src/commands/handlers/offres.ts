@@ -45,7 +45,19 @@ export async function handleOffres(cmd: ParsedCommand, db: PrismaClient): Promis
     const longStreak = await hasZeroOfferStreak(user.id, 4);
     await sendMessage(cmd.userId, formatNoOffersToday(user.displayName, longStreak), cmd.country);
   } else {
-    await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country, user.displayName);
+    const totalRemaining = sortedOffers.length - (offset + batch.length);
+    await deliverJobsBatch(
+      cmd.userId,
+      user.id,
+      batch,
+      userPlan,
+      sendMessage,
+      cmd.country,
+      user.displayName,
+      true,
+      totalRemaining,
+      sortedOffers.length,
+    );
     await setOffset(cmd.userId, offset + batchSize);
   }
 

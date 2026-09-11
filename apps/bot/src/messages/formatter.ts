@@ -106,12 +106,19 @@ export function formatNoOffersToday(prenom: string | null | undefined, longStrea
   };
 }
 
-export function formatPaginationPrompt(remaining: number): InteractiveButtonMessage {
+export function formatPaginationPrompt(
+  sent: number,
+  remaining: number,
+  isFirstBatch: boolean,
+): InteractiveButtonMessage {
+  const summary = isFirstBatch
+    ? `Voici les ${sent} premières offres.`
+    : `Voici ${sent} offres suivantes.`;
   return {
     type: 'interactive',
     interactive: {
       type: 'button',
-      body: { text: `✅ Voici les 5 premières offres. Il en reste *${remaining}*.` },
+      body: { text: `✅ ${summary} Il en reste *${remaining}*.` },
       action: {
         buttons: [
           {

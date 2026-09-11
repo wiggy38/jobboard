@@ -171,13 +171,25 @@ describe('formatNoOffersToday', () => {
 // ── formatPaginationPrompt ────────────────────────────────────────────────────
 
 describe('formatPaginationPrompt', () => {
-  it('includes remaining count in body text', () => {
-    const msg = formatPaginationPrompt(2);
-    expect(msg.interactive.body.text).toContain('2');
+  it('includes the sent and remaining counts in body text', () => {
+    const msg = formatPaginationPrompt(10, 8, true);
+    expect(msg.interactive.body.text).toContain('10');
+    expect(msg.interactive.body.text).toContain('8');
+  });
+
+  it('uses "premières" wording for the first batch', () => {
+    const msg = formatPaginationPrompt(10, 8, true);
+    expect(msg.interactive.body.text).toContain('premières');
+  });
+
+  it('uses "suivantes" wording for later (SUITE) batches', () => {
+    const msg = formatPaginationPrompt(8, 3, false);
+    expect(msg.interactive.body.text).not.toContain('premières');
+    expect(msg.interactive.body.text).toContain('suivantes');
   });
 
   it('pagination button has id "suite"', () => {
-    const msg = formatPaginationPrompt(2);
+    const msg = formatPaginationPrompt(10, 8, true);
     expect(msg.interactive.action.buttons[0].reply.id).toBe('suite');
   });
 });
@@ -205,7 +217,7 @@ describe('deliverJobsBatch', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('calls sendFn 9 times for 7 jobs: 1 summary + 7 jobs + 1 pagination', async () => {
+  it('calls sendFn 9 times for 7 jobs with no remainder: 1 summary + 7 jobs + 1 no-more', async () => {
     const jobs = Array.from({ length: 7 }, (_, i) => makeJob({ id: `job-${i}` }));
     const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
 
@@ -216,7 +228,7 @@ describe('deliverJobsBatch', () => {
     expect(sendFn).toHaveBeenCalledTimes(9);
   });
 
-  it('sends formatNoMoreOffers for ≤5 jobs', async () => {
+  it('sends formatNoMoreOffers when totalRemaining is 0', async () => {
     const jobs = [makeJob({ id: 'job-0' }), makeJob({ id: 'job-1' })];
     const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
 
@@ -230,17 +242,33 @@ describe('deliverJobsBatch', () => {
     expect(lastMsg.text.body).toContain('OFFRES');
   });
 
-  it('sends pagination prompt for >5 jobs', async () => {
-    const jobs = Array.from({ length: 6 }, (_, i) => makeJob({ id: `job-${i}` }));
+  it('sends pagination prompt with the real sent/remaining counts when totalRemaining > 0', async () => {
+    const jobs = Array.from({ length: 10 }, (_, i) => makeJob({ id: `job-${i}` }));
     const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
 
-    const promise = deliverJobsBatch('user-1', 'db-user-1', jobs, UserPlan.PREMIUM, sendFn);
+    const promise = deliverJobsBatch(
+      'user-1',
+      'db-user-1',
+      jobs,
+      UserPlan.PREMIUM,
+      sendFn,
+      undefined,
+      undefined,
+      true,
+      8,
+      18,
+    );
     await jest.runAllTimersAsync();
     await promise;
 
     const lastMsg = sendFn.mock.calls.at(-1)![1] as InteractiveButtonMessage;
     expect(lastMsg.type).toBe('interactive');
     expect(lastMsg.interactive.action.buttons[0].reply.id).toBe('suite');
+    expect(lastMsg.interactive.body.text).toContain('10');
+    expect(lastMsg.interactive.body.text).toContain('8');
+
+    const summaryMsg = sendFn.mock.calls[0][1] as TextMessage;
+    expect(summaryMsg.text.body).toContain('18');
   });
 
   it('uses 800ms delay between job messages', async () => {

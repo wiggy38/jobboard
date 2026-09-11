@@ -187,7 +187,17 @@ describe('handleSuite — livraison', () => {
       undefined,
       undefined,
       false,
+      0,
     );
+  });
+
+  it('totalRemaining reflète le nombre d\'offres non livrées dans ce lot', async () => {
+    getOffset.mockResolvedValue(10);
+    const offers = Array.from({ length: 24 }, (_, i) => makeOffer(`o${i}`));
+    await handleSuite(cmd(), makeDb(offers));
+    const call = deliverJobsBatch.mock.calls[0];
+    // 24 offres au total, offset 10, batch de 10 (slice 10..20) → il en reste 4
+    expect(call[8]).toBe(4);
   });
 
   it('utilisateur PREMIUM → plan PREMIUM transmis à deliverJobsBatch', async () => {

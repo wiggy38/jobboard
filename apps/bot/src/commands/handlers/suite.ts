@@ -25,7 +25,18 @@ export async function handleSuite(cmd: ParsedCommand, db: PrismaClient): Promise
     return;
   }
 
-  await deliverJobsBatch(cmd.userId, user.id, batch, userPlan, sendMessage, cmd.country, user.displayName, false);
+  const totalRemaining = sortedOffers.length - (offset + batch.length);
+  await deliverJobsBatch(
+    cmd.userId,
+    user.id,
+    batch,
+    userPlan,
+    sendMessage,
+    cmd.country,
+    user.displayName,
+    false,
+    totalRemaining,
+  );
   await setOffset(cmd.userId, offset + batchSize);
 
   recordPullEvent(user.id, batch.length).catch((err) => console.warn('[suite] recordPullEvent:', err));

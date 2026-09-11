@@ -183,7 +183,19 @@ describe('handleOffres — livraison', () => {
       expect.any(Function),
       undefined,
       undefined,
+      true,
+      0,
+      1,
     );
+  });
+
+  it('totalRemaining reflète le nombre d\'offres non livrées dans ce lot', async () => {
+    const offers = Array.from({ length: 15 }, (_, i) => makeOffer(`o${i}`));
+    await handleOffres(cmd(), makeDb(offers));
+    const call = deliverJobsBatch.mock.calls[0];
+    // 15 offres au total, batch de 10 → il en reste 5
+    expect(call[8]).toBe(5);
+    expect(call[9]).toBe(15);
   });
 
   it('utilisateur PREMIUM → deliverJobsBatch avec plan PREMIUM', async () => {

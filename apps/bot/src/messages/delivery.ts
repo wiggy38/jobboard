@@ -7,7 +7,6 @@ import {
   formatTeaserSummary,
 } from './formatter';
 
-const BATCH_SIZE = 5;
 const MESSAGE_DELAY_MS = 800;
 
 function delay(ms: number): Promise<void> {
@@ -23,9 +22,11 @@ export async function deliverJobsBatch(
   country?: string,
   displayName?: string | null,
   showIntro = true,
+  totalRemaining = 0,
+  totalMatched?: number,
 ): Promise<void> {
   if (showIntro) {
-    await sendFn(phone, formatTeaserSummary(jobs.length, displayName), country);
+    await sendFn(phone, formatTeaserSummary(totalMatched ?? jobs.length, displayName), country);
   }
 
   for (const job of jobs) {
@@ -33,8 +34,8 @@ export async function deliverJobsBatch(
     await sendFn(phone, formatJobMessage(job, userPlan, dbUserId), country);
   }
 
-  if (jobs.length > BATCH_SIZE) {
-    await sendFn(phone, formatPaginationPrompt(jobs.length - BATCH_SIZE), country);
+  if (totalRemaining > 0) {
+    await sendFn(phone, formatPaginationPrompt(jobs.length, totalRemaining, showIntro), country);
   } else {
     await sendFn(phone, formatNoMoreOffers(displayName, jobs.length), country);
   }

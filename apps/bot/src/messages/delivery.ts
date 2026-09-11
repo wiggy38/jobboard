@@ -1,6 +1,7 @@
 import { JobOffer, UserPlan } from '@prisma/client';
 import { OutgoingMessage } from '../whatsapp/types';
 import {
+  formatDailyQuote,
   formatJobMessage,
   formatNoMoreOffers,
   formatPaginationPrompt,
@@ -26,6 +27,8 @@ export async function deliverJobsBatch(
   totalMatched?: number,
 ): Promise<void> {
   if (showIntro) {
+    await sendFn(phone, formatDailyQuote(), country);
+    await delay(MESSAGE_DELAY_MS);
     await sendFn(phone, formatTeaserSummary(totalMatched ?? jobs.length, displayName), country);
   }
 

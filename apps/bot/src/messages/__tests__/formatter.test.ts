@@ -1,6 +1,7 @@
 import { ContractType, JobOffer, JobOfferStatus, UserPlan } from '@prisma/client';
 import { InteractiveButtonMessage, InteractiveCtaUrlMessage, OutgoingMessage, TextMessage } from '../../whatsapp/types';
 import {
+  formatDailyQuote,
   formatJobMessage,
   formatNoMoreOffers,
   formatNoOffersToday,
@@ -118,6 +119,27 @@ describe('formatJobMessage', () => {
   });
 });
 
+// ── formatDailyQuote ──────────────────────────────────────────────────────────
+
+describe('formatDailyQuote', () => {
+  it('returns a text message with the "Pensée du jour" header and an italicized quote', () => {
+    for (let i = 0; i < 20; i++) {
+      const msg = formatDailyQuote();
+      expect(msg.type).toBe('text');
+      expect(msg.text.body).toContain('Pensée du jour');
+      expect(msg.text.body).toMatch(/\n\n_.+_$/);
+    }
+  });
+
+  it('rotates across the quote pool', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      seen.add(formatDailyQuote().text.body);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
 // ── formatTeaserSummary ───────────────────────────────────────────────────────
 
 describe('formatTeaserSummary', () => {
@@ -209,6 +231,13 @@ describe('formatNoMoreOffers', () => {
     expect(msg.text.body).not.toContain('null');
     expect(msg.text.body).not.toContain('undefined');
   });
+
+  it('appends an italicized encouragement line after the closing text', () => {
+    for (let i = 0; i < 20; i++) {
+      const msg = formatNoMoreOffers();
+      expect(msg.text.body).toMatch(/\n\n_.+_$/);
+    }
+  });
 });
 
 // ── deliverJobsBatch ──────────────────────────────────────────────────────────
@@ -217,7 +246,7 @@ describe('deliverJobsBatch', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('calls sendFn 9 times for 7 jobs with no remainder: 1 summary + 7 jobs + 1 no-more', async () => {
+  it('calls sendFn 10 times for 7 jobs with no remainder: 1 quote + 1 summary + 7 jobs + 1 no-more', async () => {
     const jobs = Array.from({ length: 7 }, (_, i) => makeJob({ id: `job-${i}` }));
     const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
 
@@ -225,7 +254,7 @@ describe('deliverJobsBatch', () => {
     await jest.runAllTimersAsync();
     await promise;
 
-    expect(sendFn).toHaveBeenCalledTimes(9);
+    expect(sendFn).toHaveBeenCalledTimes(10);
   });
 
   it('sends formatNoMoreOffers when totalRemaining is 0', async () => {
@@ -236,8 +265,8 @@ describe('deliverJobsBatch', () => {
     await jest.runAllTimersAsync();
     await promise;
 
-    // 1 summary + 2 jobs + 1 no-more = 4
-    expect(sendFn).toHaveBeenCalledTimes(4);
+    // 1 quote + 1 summary + 2 jobs + 1 no-more = 5
+    expect(sendFn).toHaveBeenCalledTimes(5);
     const lastMsg = sendFn.mock.calls.at(-1)![1] as TextMessage;
     expect(lastMsg.text.body).toContain('OFFRES');
   });
@@ -267,11 +296,12 @@ describe('deliverJobsBatch', () => {
     expect(lastMsg.interactive.body.text).toContain('10');
     expect(lastMsg.interactive.body.text).toContain('8');
 
-    const summaryMsg = sendFn.mock.calls[0][1] as TextMessage;
+    // call[0] = quote, call[1] = summary
+    const summaryMsg = sendFn.mock.calls[1][1] as TextMessage;
     expect(summaryMsg.text.body).toContain('18');
   });
 
-  it('uses 800ms delay between job messages', async () => {
+  it('uses 800ms delay between messages (quote→summary, then per job)', async () => {
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
     const jobs = [makeJob({ id: 'job-0' }), makeJob({ id: 'job-1' })];
     const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
@@ -283,8 +313,8 @@ describe('deliverJobsBatch', () => {
     const delayMs = setTimeoutSpy.mock.calls
       .map(([, ms]) => ms as number)
       .filter((ms) => ms === 800);
-    // One 800ms delay per job message
-    expect(delayMs).toHaveLength(2);
+    // 1 delay before the summary + 1 per job message
+    expect(delayMs).toHaveLength(3);
   });
 
   it('job messages use the correct plan format (FREEMIUM → interactive)', async () => {
@@ -295,8 +325,8 @@ describe('deliverJobsBatch', () => {
     await jest.runAllTimersAsync();
     await promise;
 
-    // call[0] = summary (text), call[1] = job (interactive), call[2] = no-more (text)
-    const jobMsg = sendFn.mock.calls[1][1];
+    // call[0] = quote (text), call[1] = summary (text), call[2] = job (interactive), call[3] = no-more (text)
+    const jobMsg = sendFn.mock.calls[2][1];
     expect(jobMsg.type).toBe('interactive');
   });
 

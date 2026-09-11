@@ -2,7 +2,9 @@ import { ContractType, JobOffer, UserPlan } from '@prisma/client';
 import { InteractiveButtonMessage, OutgoingMessage, TextMessage } from '../whatsapp/types';
 import { buildOfferUrl, generateOfferToken } from '../services/tokenService';
 import {
+  CLOSING_ENCOURAGEMENT_VARIANTS,
   CLOSING_VARIANTS,
+  DAILY_QUOTE_VARIANTS,
   INTRO_VARIANTS,
   NO_OFFERS_STREAK_VARIANT,
   NO_OFFERS_VARIANTS,
@@ -88,6 +90,15 @@ export function formatJobMessage(
   };
 }
 
+// Envoyée en message séparé juste avant l'intro (formatTeaserSummary), pour encourager
+// l'abonné avant de lui montrer les offres du jour.
+export function formatDailyQuote(): TextMessage {
+  return {
+    type: 'text',
+    text: { body: `🌅 Pensée du jour\n\n_${pickRandom(DAILY_QUOTE_VARIANTS)}_` },
+  };
+}
+
 export function formatTeaserSummary(count: number, prenom?: string | null): TextMessage {
   return {
     type: 'text',
@@ -132,8 +143,10 @@ export function formatPaginationPrompt(
 }
 
 export function formatNoMoreOffers(prenom?: string | null, nb?: number): TextMessage {
+  const closing = pickRandom(CLOSING_VARIANTS)(prenom, nb);
+  const encouragement = pickRandom(CLOSING_ENCOURAGEMENT_VARIANTS);
   return {
     type: 'text',
-    text: { body: pickRandom(CLOSING_VARIANTS)(prenom, nb) },
+    text: { body: `${closing}\n\n_${encouragement}_` },
   };
 }

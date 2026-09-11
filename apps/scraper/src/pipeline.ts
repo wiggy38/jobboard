@@ -1,6 +1,7 @@
 import { PrismaClient, JobOfferStatus, ScraperRunStatus, ContractType as PrismaContractType } from '@prisma/client'
 import { RawJobOffer, SETTING_KEYS } from '@tumaa/shared'
 import { normalizeWithAIBatch } from './lib/normalizer'
+import { expireStaleOffers } from './lib/expireOffers'
 import { createHash } from './lib/deduplicator'
 import { endOfDay } from './lib/ai-extractor'
 import { info, warn, error as logError, success } from './lib/logger'
@@ -360,36 +361,11 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       })
     }
 
-    // ÉTAPE 5 — TTL : expirer les offres périmées
+    // ÉTAPE 5 — TTL : expirer les offres périmées (aussi couvert
+    // indépendamment par le job cron `expire-offers`, voir scheduler.ts)
     info(SOURCE, `[6/6] Expiring stale offers...`)
-    const now = new Date()
-
-    const byDeadline = await prisma.jobOffer.updateMany({
-      where: { status: JobOfferStatus.ACTIVE, deadline: { lt: now } },
-      data: { status: JobOfferStatus.EXPIRED },
-    })
-
-    // Offres sans deadline : on respecte le ttlDays par offre
-    const noDeadlineCandidates = await prisma.jobOffer.findMany({
-      where: { status: JobOfferStatus.ACTIVE, deadline: null },
-      select: { id: true, createdAt: true, ttlDays: true },
-    })
-    const staleIds = noDeadlineCandidates
-      .filter(j => {
-        const expiry = new Date(j.createdAt)
-        expiry.setDate(expiry.getDate() + j.ttlDays)
-        return expiry < now
-      })
-      .map(j => j.id)
-
-    if (staleIds.length > 0) {
-      await prisma.jobOffer.updateMany({
-        where: { id: { in: staleIds } },
-        data: { status: JobOfferStatus.EXPIRED },
-      })
-    }
-
-    info(SOURCE, `Expired ${byDeadline.count} by deadline, ${staleIds.length} by TTL`)
+    const { byDeadline, byTtl } = await expireStaleOffers(prisma)
+    info(SOURCE, `Expired ${byDeadline} by deadline, ${byTtl} by TTL`)
   } catch (err) {
     const duration = Date.now() - startTime
     if (sourceId) {

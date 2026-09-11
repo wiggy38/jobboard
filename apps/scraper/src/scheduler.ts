@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq'
+import { PrismaClient } from '@prisma/client'
 import dotenv from 'dotenv'
 import path from 'path'
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
@@ -6,6 +7,7 @@ import { SETTING_KEYS } from '@tumaa/shared'
 import { runPipeline } from './pipeline'
 import { checkSourceHealth } from './lib/monitor'
 import { buildDailyReport, formatReportText, formatReportHtml } from './lib/report'
+import { expireStaleOffers } from './lib/expireOffers'
 import { sendMail } from './lib/mailer'
 import { info, error as logError, success, warn } from './lib/logger'
 import { syncSources } from './lib/sync-sources'
@@ -28,6 +30,13 @@ const HEALTH_JOB = { name: 'health-check', pattern: '0 */6 * * *' }
 
 // 00h15 — après la vague unique de scraping (23h00-00h05)
 const DAILY_REPORT_JOB = { name: 'daily-report', pattern: '15 0 * * *' }
+
+// 00h10 — après la vague de scraping (23h00-00h05), avant le rapport
+// quotidien (00h15). Indépendant de tout run de scraper : l'expiration par
+// deadline/ttlDays est sinon un effet de bord de runPipeline() (voir
+// pipeline.ts ÉTAPE 5), qui ne se déclenche pas si une source est
+// désactivée/en erreur — ce job garantit qu'elle tourne tous les jours.
+const EXPIRE_OFFERS_JOB = { name: 'expire-offers', pattern: '10 0 * * *' }
 
 async function registerJobs(): Promise<void> {
   // Programmation des scrapers (SETTING_KEYS.SCRAPER_SCHEDULE) éditable depuis le
@@ -52,6 +61,9 @@ async function registerJobs(): Promise<void> {
 
   await queue.add(DAILY_REPORT_JOB.name, {}, { repeat: { pattern: DAILY_REPORT_JOB.pattern }, ...retryOpts })
   info(NAME, `Registered: ${DAILY_REPORT_JOB.name} (${DAILY_REPORT_JOB.pattern})`)
+
+  await queue.add(EXPIRE_OFFERS_JOB.name, {}, { repeat: { pattern: EXPIRE_OFFERS_JOB.pattern }, ...retryOpts })
+  info(NAME, `Registered: ${EXPIRE_OFFERS_JOB.name} (${EXPIRE_OFFERS_JOB.pattern})`)
 }
 
 const worker = new Worker(
@@ -82,6 +94,17 @@ const worker = new Worker(
         warn(NAME, `Échec envoi rapport quotidien : ${msg}`)
       }
       return { totals: report.totals, alerts: report.alerts.length }
+    }
+
+    if (job.name === EXPIRE_OFFERS_JOB.name) {
+      const prisma = new PrismaClient()
+      try {
+        const { byDeadline, byTtl } = await expireStaleOffers(prisma)
+        success(NAME, `Expire-offers — ${byDeadline} par deadline, ${byTtl} par TTL`)
+        return { byDeadline, byTtl }
+      } finally {
+        await prisma.$disconnect()
+      }
     }
 
     const scraperKey: string = job.data.scraperKey ?? job.name.replace('-daily', '')

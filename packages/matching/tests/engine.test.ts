@@ -36,13 +36,13 @@ describe('matchJobs', () => {
 });
 
 describe('getMatchsParfaits', () => {
-  it('returns only results with score >= 80', () => {
-    const results = getMatchsParfaits(allJobs, profileFreemium);
+  it('returns only results with score >= 95', () => {
+    const results = getMatchsParfaits(allJobs, profileMaster);
     expect(results.every((r) => r.isMatchPerfait)).toBe(true);
-    expect(results.every((r) => r.score >= 80)).toBe(true);
+    expect(results.every((r) => r.score >= 95)).toBe(true);
   });
 
-  it('returns empty array when no job scores >= 80', () => {
+  it('returns empty array when no job scores >= 95', () => {
     const results = getMatchsParfaits([], profileFreemium);
     expect(results).toEqual([]);
   });

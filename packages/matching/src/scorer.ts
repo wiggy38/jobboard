@@ -9,12 +9,12 @@ import {
 
 export function scoreCity(job: JobOffer, profile: UserProfile): number {
   const jobCity = job.city.trim().toLowerCase();
-  return profile.cities.some((c) => c.trim().toLowerCase() === jobCity) ? 35 : 0;
+  return profile.cities.some((c) => c.trim().toLowerCase() === jobCity) ? 25 : 0;
 }
 
 export function scoreSector(job: JobOffer, profile: UserProfile): number {
   const jobSector = job.sector.trim().toLowerCase();
-  return profile.sectors.some((s) => s.trim().toLowerCase() === jobSector) ? 30 : 0;
+  return profile.sectors.some((s) => s.trim().toLowerCase() === jobSector) ? 25 : 0;
 }
 
 // profile.levels représente le niveau d'études MAXIMUM recherché par l'utilisateur.
@@ -39,11 +39,13 @@ export function scoreLevel(job: JobOffer, profile: UserProfile): number {
 }
 
 export function scoreContractType(job: JobOffer, profile: UserProfile): number {
-  return profile.contractTypes.includes(job.contractType) ? 10 : 0;
+  return profile.contractTypes.includes(job.contractType) ? 15 : 0;
 }
 
-export function scoreConfidence(job: JobOffer): number {
-  return Math.round(job.scoreConfidence * 5 * 100) / 100;
+// La confiance de scraping ne contribue plus au score de matching (décision produit) —
+// conservée comme champ du breakdown pour la forme, toujours 0.
+export function scoreConfidence(): number {
+  return 0;
 }
 
 export function scoreSponsored(job: JobOffer): number {
@@ -60,7 +62,7 @@ export function computeScore(job: JobOffer, profile: UserProfile): ScoreBreakdow
     sector: scoreSector(job, profile),
     level: scoreLevel(job, profile),
     contractType: scoreContractType(job, profile),
-    confidence: scoreConfidence(job),
+    confidence: scoreConfidence(),
     sponsored: scoreSponsored(job),
     featured: scoreFeatured(job),
     total: 0,
@@ -77,7 +79,7 @@ export function computeScore(job: JobOffer, profile: UserProfile): ScoreBreakdow
 }
 
 export function isMatchPerfait(score: number): boolean {
-  return score >= 80;
+  return score >= 95;
 }
 
 export function scoreJob(

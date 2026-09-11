@@ -6,7 +6,7 @@ import {
   UserProfile,
 } from '@tumaa/matching';
 
-export const MATCH_SCORE_THRESHOLD = 65;
+export const MATCH_SCORE_THRESHOLD = 75;
 
 type ProfileLike = {
   cities: string[];
@@ -33,6 +33,12 @@ export async function getMatchedOffers(
     plan: MatchingPlan[plan as keyof typeof MatchingPlan],
   };
 
+  // Ville/secteur ne sont pas filtrés ici : le scorer (scoreCity/scoreSector, tout-ou-rien)
+  // s'en charge avec normalisation (trim/lowercase), ce qu'un filtre Prisma exact ne fait
+  // pas. Un profil sans ville/secteur/niveau (ex. onboarding non terminé, voir
+  // apps/bot/src/commands/handlers/onboarding.ts) reste naturellement exclu : le score max
+  // atteignable sans ces 3 critères (contrat + sponsorisé + featured) ne peut pas dépasser
+  // MATCH_SCORE_THRESHOLD.
   const prismaOffers = await db.jobOffer.findMany({
     where: { status: 'ACTIVE', country: { in: countries } },
   });

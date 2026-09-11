@@ -46,6 +46,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  delete process.env.DAILY_DIGEST_TEST_PHONES;
 });
 
 async function run(db: any): Promise<Awaited<ReturnType<typeof postDailyDigests>>> {
@@ -107,5 +108,29 @@ describe('postDailyDigests', () => {
 
     expect(recordPullDelivery).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ sent: 0, skipped: 0, blocked: 1 });
+  });
+
+  it('sans DAILY_DIGEST_TEST_PHONES, ne filtre pas par téléphone (comportement cron normal)', async () => {
+    const db = makeDb([]);
+    await run(db);
+
+    const where = db.user.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('phone');
+  });
+
+  it('avec DAILY_DIGEST_TEST_PHONES, restreint la requête aux numéros listés', async () => {
+    process.env.DAILY_DIGEST_TEST_PHONES = ' +22670000001, +22670000002 ';
+    const db = makeDb([]);
+    await run(db);
+
+    expect(db.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          plan: { in: ['PREMIUM', 'ELITE'] },
+          status: 'ACTIVE',
+          phone: { in: ['+22670000001', '+22670000002'] },
+        },
+      }),
+    );
   });
 });

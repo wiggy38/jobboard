@@ -23,9 +23,24 @@ export interface DailyDigestResult {
   blocked: number;
 }
 
+// Filtre test-only pour valider le job contre la prod sans notifier tous les abonnés —
+// voir docs de run manuel. Variable jamais positionnée en env Railway persistant : son
+// absence (cas par défaut, y compris le cron réel) laisse le comportement inchangé.
+function testPhonesFilter(): string[] | undefined {
+  const raw = process.env.DAILY_DIGEST_TEST_PHONES;
+  if (!raw) return undefined;
+  const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  return phones.length > 0 ? phones : undefined;
+}
+
 export async function postDailyDigests(db: PrismaClient): Promise<DailyDigestResult> {
+  const testPhones = testPhonesFilter();
   const users = await db.user.findMany({
-    where: { plan: { in: ['PREMIUM', 'ELITE'] }, status: 'ACTIVE' },
+    where: {
+      plan: { in: ['PREMIUM', 'ELITE'] },
+      status: 'ACTIVE',
+      ...(testPhones ? { phone: { in: testPhones } } : {}),
+    },
     select: {
       id: true,
       phone: true,

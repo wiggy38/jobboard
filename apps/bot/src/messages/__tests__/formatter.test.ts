@@ -271,4 +271,27 @@ describe('deliverJobsBatch', () => {
     const jobMsg = sendFn.mock.calls[1][1];
     expect(jobMsg.type).toBe('interactive');
   });
+
+  it('showIntro=false skips the summary message (used by SUITE)', async () => {
+    const jobs = [makeJob({ id: 'job-0' }), makeJob({ id: 'job-1' })];
+    const sendFn = jest.fn<Promise<void>, [string, OutgoingMessage]>().mockResolvedValue(undefined);
+
+    const promise = deliverJobsBatch(
+      'user-1',
+      'db-user-1',
+      jobs,
+      UserPlan.PREMIUM,
+      sendFn,
+      undefined,
+      undefined,
+      false,
+    );
+    await jest.runAllTimersAsync();
+    await promise;
+
+    // 2 jobs + 1 no-more = 3 (no summary)
+    expect(sendFn).toHaveBeenCalledTimes(3);
+    const firstMsg = sendFn.mock.calls[0][1];
+    expect(firstMsg.type).toBe('interactive');
+  });
 });

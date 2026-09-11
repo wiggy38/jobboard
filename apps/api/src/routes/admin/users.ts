@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify'
+import { UserPlan } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { adminAuth, requireRole } from '../../middleware/adminAuth'
 import { ACTION_COLUMN_MAP, buildInteractionEventsUnion, type InteractionAction } from '../../lib/jobInteractionEvents'
+import { applyPlanLimits } from '../../lib/planLimits'
 
 export async function userRoutes(fastify: FastifyInstance) {
   // GET /admin/users
@@ -444,6 +446,64 @@ export async function userRoutes(fastify: FastifyInstance) {
     await prisma.user.update({ where: { id }, data: { planEndAt } })
 
       return reply.send({ ok: true, planEndAt })
+    },
+  )
+
+  // PATCH /admin/users/:id/plan
+  fastify.patch(
+    '/admin/users/:id/plan',
+    { preHandler: [adminAuth, requireRole('SUPER_ADMIN', 'ADMIN')] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const body = request.body as { plan?: string; planEndAt?: string | null; country?: string }
+
+      if (!body.plan || !(['FREEMIUM', 'PREMIUM', 'ELITE'] as const).includes(body.plan as any)) {
+        return reply.status(400).send({ error: 'plan must be one of FREEMIUM, PREMIUM, ELITE' })
+      }
+      const plan = body.plan as UserPlan
+
+      const user = await prisma.user.findUnique({ where: { id } })
+      if (!user) return reply.status(404).send({ error: 'Not found' })
+
+      let countries: string[] | undefined
+      if (user.countries.length > 1 && plan !== 'ELITE') {
+        if (!body.country || !user.countries.includes(body.country)) {
+          return reply.status(400).send({
+            error: 'country is required (and must be one of the user current countries) when downgrading from ELITE with multiple countries',
+          })
+        }
+        countries = [body.country]
+      }
+
+      let planStartAt: Date | null
+      let planEndAt: Date | null
+      if (plan === 'FREEMIUM') {
+        planStartAt = null
+        planEndAt = null
+      } else {
+        if (!body.planEndAt) {
+          return reply.status(400).send({ error: 'planEndAt is required for PREMIUM/ELITE' })
+        }
+        planEndAt = new Date(body.planEndAt)
+        if (Number.isNaN(planEndAt.getTime())) {
+          return reply.status(400).send({ error: 'planEndAt is invalid' })
+        }
+        planStartAt = user.planStartAt ?? new Date()
+      }
+
+      const updated = await prisma.user.update({
+        where: { id },
+        data: { plan, planStartAt, planEndAt, ...(countries && { countries }) },
+      })
+      await applyPlanLimits(prisma, id, plan)
+
+      return reply.send({
+        ok: true,
+        plan: updated.plan,
+        planStartAt: updated.planStartAt,
+        planEndAt: updated.planEndAt,
+        countries: updated.countries,
+      })
     },
   )
 }

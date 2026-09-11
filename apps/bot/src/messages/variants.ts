@@ -22,8 +22,36 @@ export const INTRO_VARIANTS: Array<(prenom: string | null | undefined, nb: numbe
     'Prenez le temps de regarder, elles arrivent tout de suite.',
   (prenom, nb) =>
     `Bonjour${greetSuffix(prenom)},\n` +
-    `${nb} offres pour vous ce matin. Les mieux notées d'abord.\n` +
+    `${nb} offres pour vous. Les mieux notées d'abord.\n` +
     'C\'est parti 👇',
+  (prenom, nb) =>
+    `Hello${greetSuffix(prenom)} 👋\n` +
+    `${nb} offres fraîches correspondent à votre profil.\n` +
+    'Elles arrivent juste en dessous.',
+  (prenom, nb) =>
+    `Bonjour${greetSuffix(prenom)} ✨\n` +
+    `${nb} offres qui collent à vos critères aujourd'hui.\n` +
+    'Je vous les envoie une par une.',
+  (prenom, nb) =>
+    `Salut${greetSuffix(prenom)},\n` +
+    `Bonne nouvelle : ${nb} offres correspondent à votre profil.\n` +
+    'On regarde ça ensemble tout de suite 👇',
+  (prenom, nb) =>
+    `Bonjour${greetSuffix(prenom)} 🔎\n` +
+    `${nb} offres repérées pour vous après passage en revue des sources.\n` +
+    "Elles arrivent, dans l'ordre de pertinence.",
+  (prenom, nb) =>
+    `Coucou${greetSuffix(prenom)} 👋\n` +
+    `${nb} offres à découvrir, sélectionnées selon vos critères.\n` +
+    'Je vous les envoie une par une.',
+  (prenom, nb) =>
+    `Bonjour${greetSuffix(prenom)},\n` +
+    `${nb} offres qui pourraient vous intéresser.\n` +
+    'Direction juste en dessous 👇',
+  (prenom, nb) =>
+    `Salut${greetSuffix(prenom)} 🌟\n` +
+    `${nb} offres triées pour vous, les plus pertinentes en premier.\n` +
+    "C'est parti !",
 ];
 
 // ── Aucune offre du tout aujourd'hui ────────────────────────────────────────────
@@ -43,7 +71,7 @@ export const NO_OFFERS_VARIANTS: Array<(prenom: string | null | undefined) => st
     'Tapez MODIFIER pour ajouter une ville ou un secteur — ça élargit souvent les résultats.',
   (prenom) =>
     `Bonjour${greetSuffix(prenom)} 👋\n` +
-    "J'ai passé les sources en revue ce matin : rien qui corresponde à votre profil.\n" +
+    "J'ai passé les sources en revue : rien qui corresponde à votre profil.\n" +
     'Je recommence demain. Tapez OFFRES pour voir le résultat.',
   (prenom) =>
     `Bonjour${greetSuffix(prenom)},\n` +
@@ -78,7 +106,7 @@ export const CLOSING_VARIANTS: Array<(prenom: string | null | undefined, nb?: nu
     'À demain avec OFFRES 👋',
   (prenom, nb) =>
     `Voilà${greetSuffix(prenom)} — ${nb ?? 0} pistes de plus 💪\n` +
-    'Je continue de chercher de mon côté. Revenez quand vous voulez.',
+    'Je continue de chercher de mon côté. Revenez avec OFFRES quand vous voulez.',
   (prenom) =>
     `Vous avez tout vu${greetSuffix(prenom)} 🎉\n` +
     'Je continue de fouiller les offres pour vous — de nouvelles arrivent chaque jour.\n' +

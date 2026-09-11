@@ -186,6 +186,7 @@ describe('handleSuite — livraison', () => {
       expect.any(Function),
       undefined,
       undefined,
+      false,
     );
   });
 

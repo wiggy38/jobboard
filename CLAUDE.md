@@ -33,16 +33,26 @@ Monorepo pnpm. Trois briques principales :
    Si TPQ baisse → améliorer le teaser, JAMAIS passer au push pour ce plan.
    **Exception actée (2026-08-30) — sélection quotidienne PREMIUM/ELITE** : PREMIUM et ELITE
    reçoivent une notification de compte courte via un template WhatsApp Meta catégorie
-   **UTILITY** (pas MARKETING), type `DAILY_DIGEST` — job planifié `daily-digest` à 07h30
-   (`apps/bot/src/scheduler.ts`, `apps/bot/src/services/dailyDigest.ts::postDailyDigests`). Le
-   corps du message ne contient **jamais le détail des offres** (ce serait trop proche de
-   contenu éditorial/marketing pour la catégorie UTILITY) — seulement le nombre d'offres
-   matchées ce jour en corps, et un **bouton URL** du template (pas un lien texte) pointant,
-   via un suffixe dynamique (`generateDigestToken`/`buildDigestUrlSuffix`,
-   `apps/bot/src/services/tokenService.ts`), vers une page récapitulative
-   (`GET /api/digest/:pullDeliveryId` dans `apps/api/src/offre.routes.ts`, affichée par
-   `apps/backoffice/src/routes/digest/[token]/+page.svelte`) où le détail est consulté,
-   avec le même contrôle d'accès source Premium/Elite que la page offre (règle 2 ci-dessous).
+   **UTILITY** (pas MARKETING), type `DAILY_DIGEST` (nom de template `daily_digest_fr`) — job
+   planifié `daily-digest` à 07h30 (`apps/bot/src/scheduler.ts`,
+   `apps/bot/src/services/dailyDigest.ts::postDailyDigests`), process séparé du bot (démarré via
+   `pnpm scheduler`, jamais importé par `apps/bot/src/index.ts`). Le corps du message ne
+   contient **jamais le détail des offres** (ce serait trop proche de contenu
+   éditorial/marketing pour la catégorie UTILITY). **Implémentation réelle (revue le
+   2026-09-11, diverge du design initial)** : le corps et le bouton du template
+   `daily_digest_fr` sont **100% statiques côté Meta, sans aucun paramètre dynamique**
+   (`sendPaidTemplate(..., [])` dans `apps/bot/src/services/dailyDigest.ts` — voir le test
+   `apps/bot/src/services/__tests__/dailyDigest.test.ts`) — le message n'indique même pas le
+   nombre d'offres matchées ce jour ; pas de lien web ni de token — le template a un simple
+   bouton **quick-reply "OFFRES"** ; pour
+   consulter le détail, l'utilisateur tape la commande `OFFRES` comme pour un pull classique. Le
+   design initial (bouton URL dynamique via `generateDigestToken`/`buildDigestUrlSuffix`, route
+   `GET /api/digest/:pullDeliveryId`, page `apps/backoffice/src/routes/digest/[token]/+page.svelte`)
+   n'a **jamais été implémenté** et a été abandonné (décision 2026-09-11) — ces fonctions/route/page
+   n'existent pas dans le code, ne pas s'y référer. Chaque envoi reste tracé via `PullDelivery`
+   (`command = 'DAILY_DIGEST'`), consultable côté admin dans
+   `apps/backoffice/src/routes/admin/abonnes/[id]/pulls/+page.svelte` (historique pulls + push,
+   badge visuel distinct Pull/Push).
    `DAILY_DIGEST` a son **propre plafond mensuel** (31/mois), totalement indépendant du
    `GLOBAL_CAP` marketing ci-dessous (voir règle budget WhatsApp) — ne jamais le faire contribuer
    au `GLOBAL_CAP` partagé par RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM.
@@ -141,10 +151,32 @@ système grossit significativement (ex: ajout de règles de classification suppl
 `totalDuplicates` par run (visibles dans `ScraperRun`/logs), non disponibles au moment
 du diagnostic initial.
 
+**2e correctif appliqué (2026-09-06, même jour)** — batching des appels Haiku :
+`normalize()`/`normalizeWithAI()` (1 appel Haiku par offre) remplacés par
+`normalizeWithAIBatch()` (`apps/scraper/src/lib/normalizer.ts`), qui regroupe jusqu'à
+`AI_NORMALIZE_BATCH_SIZE` (= 10, `ai-normalizer.ts`) offres par appel via
+`aiNormalizeOffers()`, amortissant le coût fixe du system prompt sur le lot — réduction
+attendue du nombre d'appels Haiku d'un facteur ~5-10x. Le partitionnement
+`needsAIEnrichment()` (offres déjà complètes/simples → règle-based seul, jamais envoyées à
+Haiku) est inchangé et s'applique **avant** le chunking : seul le sous-ensemble ambigu est
+batché. Les chunks sont appelés séquentiellement (pas de `Promise.all`) pour éviter les pics
+de rate-limit. `pipeline.ts` appelle `normalizeWithAIBatch()` à l'ÉTAPE 4 (après filtrage
+expirées + déduplication, cf. correctif ci-dessus). Au passage, la longueur max de
+`description` en sortie de `normalize()` a été resserrée à 100 caractères (contre
+~250-500 auparavant, non plafonné explicitement) — voir `truncateDescription()` et la règle
+scraping sur `description` plus haut. Tests dédiés dans
+`apps/scraper/__tests__/normalizeWithAIBatch.test.ts` et `pipeline.test.ts`. Mesure d'impact
+réel sur coût toujours en attente (même limitation que le correctif précédent).
+
 ## Documents de référence (dans /docs/)
-- `docs/collecte_offres.md` → 9 sources, 7 challenges, 3 niveaux d'architecture
 - `docs/freemium_v1.1.md` → modèle Freemium/Premium validé, Sponsored Alerts B2B, schéma Prisma (Employer, JobSubmission, JobOffer)
 - `docs/stack_technique.md` → stack complète, ordre de dev, testabilité progressive
+- `docs/railway_deploy.md` → déploiement des services (api/bot/scraper/backoffice/home) sur Railway
+- `docs/plan_deblocage_100fcfa.md` → plan non implémenté (rédigé 2026-08-09) pour un palier de
+  déblocage ponctuel à 100 FCFA par offre (web uniquement) ; **prémisse obsolète depuis la
+  décision du 2026-08-30** (règle 2 ci-dessous) qui a supprimé le CTA verrouillé sur lequel ce
+  plan devait se greffer — le lien source est maintenant débloqué pour tous les plans. À
+  retravailler ou abandonner avant toute implémentation.
 - `docs/subscription_flow_elite.md` → flow ELITE (3e tier, multi-pays), onboarding → paiement →
   auto-join canaux — checklist d'implémentation avec écarts documentés vs le code réel. Pages
   `/subscribe`, `/subscribe/countries`, `/subscribe/success` **codées en React/Vite dans
@@ -184,7 +216,7 @@ ad hoc à partir de `user.plan`.
    automatique (règle 2), jamais sur la visibilité des contacts.
 2. **Lien direct vers la source débloqué pour tous les plans, y compris Freemium** (décision
    actée 2026-08-30 — ce n'est plus un différenciateur payant). Sur la page web tokenisée
-   `/offre/[token]` (et `/digest/[token]`), le bouton "voir la source" redirige toujours vers
+   `/offre/[token]`, le bouton "voir la source" redirige toujours vers
    l'annonce complète sur le site d'origine, quel que soit le plan de l'utilisateur — plus de
    branche verrouillée ni de CTA "Débloquer l'accès". L'ancienne restriction Premium/Elite et le
    réglage backoffice `OFFER_FULL_ACCESS` (`/admin/parametres`) ont été retirés du code

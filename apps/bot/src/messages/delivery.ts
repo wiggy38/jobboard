@@ -22,8 +22,11 @@ export async function deliverJobsBatch(
   sendFn: (to: string, msg: OutgoingMessage, country?: string) => Promise<void>,
   country?: string,
   displayName?: string | null,
+  showIntro = true,
 ): Promise<void> {
-  await sendFn(phone, formatTeaserSummary(jobs.length, displayName), country);
+  if (showIntro) {
+    await sendFn(phone, formatTeaserSummary(jobs.length, displayName), country);
+  }
 
   for (const job of jobs) {
     await delay(MESSAGE_DELAY_MS);

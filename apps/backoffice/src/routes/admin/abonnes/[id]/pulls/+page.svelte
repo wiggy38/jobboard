@@ -56,6 +56,10 @@
 	function formatDateTime(d: string) {
 		return new Date(d).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
 	}
+
+	function commandLabel(command: string) {
+		return command === 'DAILY_DIGEST' ? 'Push' : 'Pull';
+	}
 </script>
 
 <div class="section">
@@ -79,13 +83,14 @@
 	</div>
 
 	{#if pullHistory.data.length === 0}
-		<p class="empty">Cet abonné n'a jamais tapé OFFRES ou SUITE.</p>
+		<p class="empty">Cet abonné n'a reçu aucun pull (OFFRES/SUITE) ni push (sélection quotidienne).</p>
 	{:else}
 		<ul class="pull-list">
 			{#each pullHistory.data as pull}
 				<li class="pull-row">
 					<button class="pull-header" onclick={() => togglePull(pull.id)}>
 						<span class="pull-toggle">{expandedPulls.has(pull.id) ? '▾' : '▸'}</span>
+						<span class="pull-kind badge-kind-{commandLabel(pull.command).toLowerCase()}">{commandLabel(pull.command)}</span>
 						<span class="pull-command badge-command-{pull.command.toLowerCase()}">{pull.command}</span>
 						<span class="pull-date">{formatDateTime(pull.createdAt)}</span>
 						<span class="pull-count">
@@ -300,6 +305,7 @@
 		flex-shrink: 0;
 	}
 
+	.pull-kind,
 	.pull-command {
 		font-size: 0.7rem;
 		font-weight: 700;
@@ -308,8 +314,11 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 	}
+	.badge-kind-pull { background: var(--color-green-light); color: var(--color-green-dark); }
+	.badge-kind-push { background: #fde68a; color: #92400e; }
 	.badge-command-offres { background: var(--color-green-light); color: var(--color-green-dark); }
 	.badge-command-suite { background: #e0e7ff; color: #3730a3; }
+	.badge-command-daily_digest { background: #fde68a; color: #92400e; }
 
 	.pull-date { color: var(--color-text-muted); flex: 1; }
 	.pull-count { font-weight: 600; }

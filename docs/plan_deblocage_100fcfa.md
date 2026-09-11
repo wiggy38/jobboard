@@ -1,6 +1,16 @@
 # Plan — Palier de déblocage ponctuel à 100 FCFA (web uniquement)
 
 > Statut : plan à traiter plus tard, non implémenté. Rédigé le 2026-08-09.
+>
+> **Prémisse obsolète depuis le 2026-08-30** : la décision actée ce jour-là (voir
+> `CLAUDE.md`, "Règles Freemium/Premium/Elite" règle 2) a supprimé le CTA verrouillé
+> ("Voir toutes les offres") sur `/offre/[token]` — le lien direct vers la source est
+> désormais débloqué pour tous les plans, y compris Freemium. Ce plan décrivait un
+> point d'entrée de paiement greffé sur cette branche verrouillée ; cette branche
+> n'existe plus. À retravailler autour d'un autre point de friction (ou abandonner)
+> avant toute implémentation. Les deux items listés dans la "Remarque annexe" plus bas
+> (accessLevel toujours 'FULL', localisation SvelteKit vs React/Vite de `/offre/[token]`)
+> sont également résolus depuis — CLAUDE.md est à jour sur ces deux points.
 
 ## Contexte
 

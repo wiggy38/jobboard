@@ -93,6 +93,11 @@ export const adminApi = {
 		apiFetch<PaginatedReferrals>(`/admin/users/${id}/referrals?page=${page}`),
 	extendSubscription: (id: string, days: number) =>
 		apiFetch<{ ok: boolean; planEndAt: string }>(`/admin/users/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ days }) }),
+	changePlan: (id: string, data: { plan: string; planEndAt?: string | null; country?: string }) =>
+		apiFetch<{ ok: boolean; plan: string; planStartAt: string | null; planEndAt: string | null; countries: string[] }>(
+			`/admin/users/${id}/plan`,
+			{ method: 'PATCH', body: JSON.stringify(data) },
+		),
 	getTracking: (page = 1, filters: Record<string, string> = {}) => {
 		const params = new URLSearchParams({ page: String(page), ...filters });
 		return apiFetch<PaginatedTracking>(`/admin/tracking?${params}`);

@@ -17,10 +17,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { RawJobOffer, SECTOR_OPTIONS, SETTING_KEYS } from '@tumaa/shared'
-import { getSetting } from './settings'
-
-const SECTOR_LIST = SECTOR_OPTIONS.map(o => o.value).join(', ')
+import { RawJobOffer } from '@tumaa/shared'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,8 +88,14 @@ export interface AINormalizationResult {
  * Prompt système injecté dans chaque requête.
  * On définit strictement le rôle, le format de sortie attendu (JSON pur)
  * et les règles de mapping pour chaque champ.
+ *
+ * `sectorList` est construit à chaque appel depuis `allowedSectors` (lui-même
+ * alimenté par le réglage backoffice `reference.sectors`, voir `normalizer.ts`)
+ * plutôt que figé au chargement du module, pour que la liste éditable dans
+ * `/admin/parametres` soit celle proposée à Haiku.
  */
-const SYSTEM_PROMPT = `Tu es un moteur de normalisation de données pour des offres d'emploi au Burkina Faso.
+function buildSystemPrompt(sectorList: string): string {
+  return `Tu es un moteur de normalisation de données pour des offres d'emploi au Burkina Faso.
 
 RÔLE : analyser les champs bruts d'une offre et retourner des valeurs normalisées.
 
@@ -130,7 +133,7 @@ RÈGLES PAR CHAMP :
 
    Si aucune information sur le niveau n'est trouvée, lit la description pour inférer le niveau le plus probable, cherche dans les parties qui détaillent les qualifications ou expériences requises, sinon retourne "Non précisé".
 
-3. sector — UNIQUEMENT une valeur parmi cette liste fermée : ${SECTOR_LIST}.
+3. sector — UNIQUEMENT une valeur parmi cette liste fermée : ${sectorList}.
    Déduis-la depuis le titre et/ou la description en analysant la FONCTION RÉELLE DU POSTE
    (les tâches, les qualifications requises, le rôle principal), JAMAIS depuis le secteur
    d'activité de l'organisme recruteur.
@@ -153,6 +156,7 @@ RÈGLES PAR CHAMP :
    Ne jamais retourner le nom du site web source comme organisation.
 
 Si tu n'es pas sûr d'un champ, omets-le du JSON (ne mets pas null).`
+}
 
 /**
  * Nombre d'offres regroupées par appel Haiku lors de la normalisation par lot
@@ -169,7 +173,8 @@ export const AI_NORMALIZE_BATCH_SIZE = 10
  * tableau JSON indexé), pour amortir le coût du prompt système sur N offres
  * au lieu d'un appel par offre.
  */
-const SYSTEM_PROMPT_BATCH = `Tu es un moteur de normalisation de données pour des offres d'emploi au Burkina Faso.
+function buildSystemPromptBatch(sectorList: string): string {
+  return `Tu es un moteur de normalisation de données pour des offres d'emploi au Burkina Faso.
 
 RÔLE : analyser les champs bruts de PLUSIEURS offres (une liste, chacune précédée de "--- Offre index=N ---")
 et retourner un tableau JSON de résultats normalisés, un objet par offre ayant nécessité une correction.
@@ -212,7 +217,7 @@ RÈGLES PAR CHAMP (identiques pour chaque offre du lot) :
 
    Si aucune information sur le niveau n'est trouvée, lit la description pour inférer le niveau le plus probable, cherche dans les parties qui détaillent les qualifications ou expériences requises, sinon retourne "Non précisé".
 
-3. sector — UNIQUEMENT une valeur parmi cette liste fermée : ${SECTOR_LIST}.
+3. sector — UNIQUEMENT une valeur parmi cette liste fermée : ${sectorList}.
    Déduis-la depuis le titre et/ou la description en analysant la FONCTION RÉELLE DU POSTE
    (les tâches, les qualifications requises, le rôle principal), JAMAIS depuis le secteur
    d'activité de l'organisme recruteur.
@@ -236,6 +241,7 @@ RÈGLES PAR CHAMP (identiques pour chaque offre du lot) :
 
 Si tu n'es pas sûr d'un champ pour une offre donnée, omets ce champ de son objet (ne mets pas null).
 N'oublie JAMAIS le champ "index" : sans lui, la correction ne peut pas être ré-appliquée à la bonne offre.`
+}
 
 // ─── Client Anthropic ─────────────────────────────────────────────────────────
 
@@ -465,7 +471,7 @@ export async function aiNormalizeOffer(
       // le minimum de préfixe cachable sur Haiku 4.5 est 4096 tokens ; ce
       // prompt (~900 tokens) est en dessous, donc aucun gain réel tant que le
       // prompt ne grandit pas — marqueur sans coût, prêt si le seuil bouge.
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildSystemPrompt(allowedSectors.join(', ')), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: buildUserMessage(offer) }],
     })
 
@@ -518,7 +524,7 @@ export async function aiNormalizeOffers(
       // alignée sur le budget déjà utilisé par ai-extractor.ts pour ses
       // réponses en tableau (extraction multi-offres par fiche).
       max_tokens: 4096,
-      system: [{ type: 'text', text: SYSTEM_PROMPT_BATCH, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildSystemPromptBatch(allowedSectors.join(', ')), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: buildBatchUserMessage(offers) }],
     })
 

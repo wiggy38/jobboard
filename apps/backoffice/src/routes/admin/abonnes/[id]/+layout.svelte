@@ -38,6 +38,57 @@
 		}
 	}
 
+	const PLAN_OPTIONS = ['FREEMIUM', 'PREMIUM', 'ELITE'] as const;
+
+	function toDateInputValue(d: string | null): string {
+		const date = d && new Date(d) > new Date() ? new Date(d) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+		return date.toISOString().slice(0, 10);
+	}
+
+	let showChangePlan = $state(false);
+	let newPlan = $state<(typeof PLAN_OPTIONS)[number]>('FREEMIUM');
+	let newPlanEndAt = $state('');
+	let newCountry = $state('');
+	let changingPlan = $state(false);
+
+	let needsCountryChoice = $derived(u.countries.length > 1 && newPlan !== 'ELITE');
+
+	function openChangePlan() {
+		newPlan = u.plan as (typeof PLAN_OPTIONS)[number];
+		newPlanEndAt = toDateInputValue(u.planEndAt);
+		newCountry = u.countries[0] ?? '';
+		showChangePlan = true;
+	}
+
+	async function confirmChangePlan() {
+		if (newPlan !== 'FREEMIUM' && !newPlanEndAt) {
+			toast = { msg: 'La date de fin est requise pour PREMIUM/ELITE.', ok: false };
+			setTimeout(() => (toast = null), 3500);
+			return;
+		}
+		if (needsCountryChoice && !newCountry) {
+			toast = { msg: 'Choisissez le pays à conserver.', ok: false };
+			setTimeout(() => (toast = null), 3500);
+			return;
+		}
+		changingPlan = true;
+		try {
+			await adminApi.changePlan(u.id, {
+				plan: newPlan,
+				planEndAt: newPlan === 'FREEMIUM' ? null : new Date(newPlanEndAt).toISOString(),
+				...(needsCountryChoice && { country: newCountry }),
+			});
+			showChangePlan = false;
+			toast = { msg: 'Formule modifiée.', ok: true };
+			await invalidateAll();
+		} catch (e) {
+			toast = { msg: e instanceof Error ? e.message : String(e), ok: false };
+		} finally {
+			changingPlan = false;
+			setTimeout(() => (toast = null), 3500);
+		}
+	}
+
 	function formatDate(d: string | null) {
 		if (!d) return '—';
 		return new Date(d).toLocaleDateString('fr-FR', { dateStyle: 'long' });
@@ -85,6 +136,53 @@
 	</div>
 {/if}
 
+{#if showChangePlan}
+	<div class="overlay" role="dialog" aria-modal="true">
+		<div class="modal">
+			<div class="modal-header">
+				<h2>Changer de formule</h2>
+				<button class="btn-close" onclick={() => (showChangePlan = false)} aria-label="Fermer">✕</button>
+			</div>
+			<div class="modal-body">
+				<label class="field-label" for="new-plan">Formule</label>
+				<select id="new-plan" class="field-input" bind:value={newPlan}>
+					{#each PLAN_OPTIONS as option}
+						<option value={option}>{option}</option>
+					{/each}
+				</select>
+
+				{#if newPlan !== 'FREEMIUM'}
+					<label class="field-label" for="new-plan-end" style="margin-top: 1rem;">
+						Date de fin d'abonnement
+					</label>
+					<input id="new-plan-end" class="field-input" type="date" bind:value={newPlanEndAt} />
+				{/if}
+
+				{#if needsCountryChoice}
+					<label class="field-label" for="new-country" style="margin-top: 1rem;">
+						Pays à conserver
+					</label>
+					<select id="new-country" class="field-input" bind:value={newCountry}>
+						{#each u.countries as c}
+							<option value={c}>{c}</option>
+						{/each}
+					</select>
+					<p class="hint">
+						{u.displayName ?? u.phone} passe d'ELITE (multi-pays) à une formule mono-pays :
+						choisissez le pays à conserver, les autres seront retirés.
+					</p>
+				{/if}
+			</div>
+			<div class="modal-footer">
+				<button class="btn-secondary" onclick={() => (showChangePlan = false)}>Annuler</button>
+				<button class="btn-primary" onclick={confirmChangePlan} disabled={changingPlan}>
+					{changingPlan ? 'Enregistrement…' : 'Confirmer'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <div class="page">
 	<a class="back" href="/admin/abonnes">← Abonnés</a>
 
@@ -94,9 +192,12 @@
 			<span class="badge badge-plan-{u.plan.toLowerCase()}">{u.plan}</span>
 			<span class="badge badge-status-{u.status.toLowerCase()}">{u.status}</span>
 		</div>
-		<button class="btn-edit" onclick={openExtend} disabled={u.plan === 'FREEMIUM'}>
-			Prolonger
-		</button>
+		<div class="header-actions">
+			<button class="btn-edit" onclick={openChangePlan}>Changer de formule</button>
+			<button class="btn-edit" onclick={openExtend} disabled={u.plan === 'FREEMIUM'}>
+				Prolonger
+			</button>
+		</div>
 	</div>
 
 	<nav class="sub-nav">
@@ -128,6 +229,8 @@
 	}
 	.title-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 	.title-row h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+
+	.header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 	.btn-edit {
 		padding: 0.4rem 1rem;

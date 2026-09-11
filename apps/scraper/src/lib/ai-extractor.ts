@@ -17,9 +17,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { SECTOR_OPTIONS } from '@tumaa/shared'
-
-const SECTOR_LIST = SECTOR_OPTIONS.map(o => o.value).join(', ')
+import { SETTING_KEYS } from '@tumaa/shared'
+import { getSetting } from './settings'
 
 export interface HaikuExtraction {
   isJobOffer?: boolean
@@ -54,7 +53,14 @@ function getClient(): Anthropic {
   return _client
 }
 
-const EXTRACTION_SYSTEM = `Tu es un extracteur d'offres d'emploi.
+/**
+ * `sectorList` est reconstruite à chaque appel depuis le réglage backoffice
+ * `reference.sectors` (`getSetting(SETTING_KEYS.REFERENCE_SECTORS)`, cache
+ * TTL 30s) plutôt que figée au chargement du module, pour que la liste
+ * éditable dans `/admin/parametres` soit celle proposée à Haiku.
+ */
+function buildExtractionSystem(sectorList: string): string {
+  return `Tu es un extracteur d'offres d'emploi.
 Lis le texte brut d'une page d'annonce et extrait les informations structurées en un seul passage.
 
 FORMAT DE SORTIE : un objet JSON valide uniquement, sans texte autour, sans markdown, sans backticks.
@@ -104,7 +110,7 @@ CHAMPS À EXTRAIRE (omets les champs absents ou inconnus, ne mets jamais de vale
 
 - city : ville du poste, orthographe officielle burkinabè (ex: "Ouaga" → "Ouagadougou", "Bobo" → "Bobo-Dioulasso"). Si plusieurs villes, prendre celle du "LIEU DU POSTE".
 
-- sector : UNIQUEMENT une valeur parmi cette liste fermée : ${SECTOR_LIST}.
+- sector : UNIQUEMENT une valeur parmi cette liste fermée : ${sectorList}.
   Classe selon la FONCTION RÉELLE DU POSTE (le métier, les tâches quotidiennes décrites dans le titre/missions/qualifications), JAMAIS selon le secteur d'activité de l'organisme recruteur.
   Exemple : "Chauffeur ambulancier" recruté par un hôpital → "Transport/Logistique" (le poste consiste à conduire), PAS "Santé" (secteur de l'employeur, pas du poste).
 
@@ -126,6 +132,7 @@ CHAMPS À EXTRAIRE (omets les champs absents ou inconnus, ne mets jamais de vale
 
 Ne retourne QUE ces champs de contenu. N'invente jamais un statut, un score de confiance, un identifiant ou une date de création/mise à jour : ces champs sont gérés par le système, pas par toi.
 Si tu n'es pas sûr d'un champ, omets-le.`
+}
 
 const FRENCH_MONTHS: Record<string, number> = {
   janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
@@ -207,6 +214,9 @@ async function callHaikuExtraction(pageText: string, fallbackTitle: string, scra
       ? pageText
       : `${pageText.slice(0, headChars)}\n...\n${pageText.slice(-tailChars)}`
 
+    const sectorOptions = await getSetting(SETTING_KEYS.REFERENCE_SECTORS)
+    const sectorList = sectorOptions.map(o => o.value).join(', ')
+
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       // Une fiche multi-postes (jusqu'à ~5 postes, description+requirements
@@ -225,7 +235,7 @@ async function callHaikuExtraction(pageText: string, fallbackTitle: string, scra
       // tokens) est en dessous, donc aucun gain réel tant que le prompt ne
       // grandit pas — ce marqueur ne coûte rien et devient actif sans autre
       // changement si le prompt dépasse ce seuil ou si le minimum baisse.
-      system: [{ type: 'text', text: EXTRACTION_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildExtractionSystem(sectorList), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: `Titre connu : ${fallbackTitle}\n\nTexte de la page :\n${text}` }],
     })
 

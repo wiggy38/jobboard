@@ -130,25 +130,29 @@ export interface SettingValueMap {
   [SETTING_KEYS.PLAN_PRICING]: Record<'PREMIUM' | 'ELITE', PlanPricing>
 }
 
-// Vague unique quotidienne à partir de 23h00, décalée de 5 min entre chaque
+// Vague Lundi/Mercredi/Vendredi à partir de 23h00, décalée de 5 min entre chaque
 // source (23h00→00h05) — sert de valeur de repli tant qu'aucun admin n'a
-// modifié la programmation depuis le backoffice. Remplace l'ancienne
-// répartition en deux vagues (12h/22h).
+// modifié la programmation depuis le backoffice. Remplace l'ancienne cadence
+// quotidienne (23h00→00h05 tous les jours), elle-même remplaçant l'ancienne
+// répartition en deux vagues (12h/22h). Les deux entrées qui basculent après
+// minuit (sidwaya, faso7) visent mardi/jeudi/samedi — lendemain de la vague
+// démarrée lundi/mercredi/vendredi, puisque leur propre déclencheur cron est
+// basé sur l'horloge et non sur "X minutes après le job précédent".
 const DEFAULT_SCRAPER_SCHEDULE: ScraperScheduleEntry[] = [
-  { name: 'lefaso-daily', scraperKey: 'lefaso', pattern: '0 23 * * *', country: 'BF' },
-  { name: 'reliefweb-daily', scraperKey: 'reliefweb', pattern: '5 23 * * *', country: 'BF' },
-  { name: 'anpe-daily', scraperKey: 'anpe-bf', pattern: '10 23 * * *', country: 'BF' },
-  { name: 'bfemploi-daily', scraperKey: 'bfemploi', pattern: '15 23 * * *', country: 'BF' },
-  { name: 'icipe-daily', scraperKey: 'icipe', pattern: '20 23 * * *', country: 'BF' },
-  { name: 'professionnallink-daily', scraperKey: 'professionnallink', pattern: '25 23 * * *', country: 'BF' },
-  { name: 'afriqueemplois-daily', scraperKey: 'afriqueemplois', pattern: '30 23 * * *', country: 'BF' },
-  { name: 'emploiburkina-daily', scraperKey: 'emploiburkina', pattern: '35 23 * * *', country: 'BF' },
-  { name: 'criburkina-daily', scraperKey: 'criburkina', pattern: '40 23 * * *', country: 'BF' },
-  { name: 'emploi-lefaso-daily', scraperKey: 'emploi-lefaso', pattern: '45 23 * * *', country: 'BF' },
-  { name: 'goafricaonline-daily', scraperKey: 'goafricaonline', pattern: '50 23 * * *', country: 'BF' },
-  { name: 'linkedin-daily', scraperKey: 'linkedin', pattern: '55 23 * * *', country: 'BF' },
-  { name: 'sidwaya-daily', scraperKey: 'sidwaya', pattern: '0 0 * * *', country: 'BF' },
-  { name: 'faso7-daily', scraperKey: 'faso7', pattern: '5 0 * * *', country: 'BF' },
+  { name: 'lefaso-daily', scraperKey: 'lefaso', pattern: '0 23 * * 1,3,5', country: 'BF' },
+  { name: 'reliefweb-daily', scraperKey: 'reliefweb', pattern: '5 23 * * 1,3,5', country: 'BF' },
+  { name: 'anpe-daily', scraperKey: 'anpe-bf', pattern: '10 23 * * 1,3,5', country: 'BF' },
+  { name: 'bfemploi-daily', scraperKey: 'bfemploi', pattern: '15 23 * * 1,3,5', country: 'BF' },
+  { name: 'icipe-daily', scraperKey: 'icipe', pattern: '20 23 * * 1,3,5', country: 'BF' },
+  { name: 'professionnallink-daily', scraperKey: 'professionnallink', pattern: '25 23 * * 1,3,5', country: 'BF' },
+  { name: 'afriqueemplois-daily', scraperKey: 'afriqueemplois', pattern: '30 23 * * 1,3,5', country: 'BF' },
+  { name: 'emploiburkina-daily', scraperKey: 'emploiburkina', pattern: '35 23 * * 1,3,5', country: 'BF' },
+  { name: 'criburkina-daily', scraperKey: 'criburkina', pattern: '40 23 * * 1,3,5', country: 'BF' },
+  { name: 'emploi-lefaso-daily', scraperKey: 'emploi-lefaso', pattern: '45 23 * * 1,3,5', country: 'BF' },
+  { name: 'goafricaonline-daily', scraperKey: 'goafricaonline', pattern: '50 23 * * 1,3,5', country: 'BF' },
+  { name: 'linkedin-daily', scraperKey: 'linkedin', pattern: '55 23 * * 1,3,5', country: 'BF' },
+  { name: 'sidwaya-daily', scraperKey: 'sidwaya', pattern: '0 0 * * 2,4,6', country: 'BF' },
+  { name: 'faso7-daily', scraperKey: 'faso7', pattern: '5 0 * * 2,4,6', country: 'BF' },
 ]
 
 // Pays desservis par un canal WhatsApp national (voir .claude/CLAUDE.md) —

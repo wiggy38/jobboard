@@ -72,7 +72,7 @@
 
 	const shareMessage = $derived(
 		offer
-			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nTrouvé sur Tumaa 🤖 Pour recevoir des offres comme celle-ci sur WhatsApp, écris "OFFRES" au +226 67 73 51 46 : ${BOT_WA_LINK}`
+			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nOffre envoyée par Tumaa 🤖\n\n🔗👉 Cliques ici pour recevoir des offres comme celle-ci sur WhatsApp :\n${BOT_WA_LINK}\n\n(ou écris "OFFRES" au +226 67 73 51 46)`
 			: ''
 	)
 

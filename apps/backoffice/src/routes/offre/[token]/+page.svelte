@@ -8,15 +8,13 @@
 	const offer = $derived(data.offer)
 	const error = $derived(data.error)
 
-	// Présent uniquement si on arrive via un short link (/s/{code}) — code de
-	// parrainage de l'abonné qui a partagé l'offre, à faire voyager jusqu'à
-	// l'inscription WhatsApp du destinataire (voir apps/bot/src/whatsapp/parser.ts).
-	const ref = $derived(page.url.searchParams.get('ref'))
-
 	const BOT_PHONE = '22667735146'
-	const BOT_WA_LINK = $derived(
-		`https://wa.me/${BOT_PHONE}?text=${encodeURIComponent(ref ? `OFFRES REF-${ref}` : 'OFFRES')}`
-	)
+	// Le suffixe de parrainage (`OFFRES REF-{code}`, alimenté par le `?ref=` que
+	// pose le short link /s/{code}) est retiré du lien pour le moment — le reste
+	// de la chaîne de parrainage est intact côté API/bot
+	// (voir apps/bot/src/whatsapp/parser.ts::splitReferral), il suffit de
+	// réintroduire le suffixe ici pour le réactiver.
+	const BOT_WA_LINK = `https://wa.me/${BOT_PHONE}?text=OFFRES`
 
 	let shareCopied = $state(false)
 	let shortUrl = $state<string | null>(null)
@@ -79,7 +77,7 @@
 
 	const shareMessage = $derived(
 		offer
-			? `${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nOffre envoyée par Tumaa 🤖\n\n🔗👉 Cliques ici pour recevoir des offres comme celle-ci sur WhatsApp :\n${BOT_WA_LINK}\n\n(ou écris "OFFRES" au +226 67 73 51 46)`
+			? `Recherche d'emploi par IA:\n\n${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nOffre envoyée par Tumaa IA 🤖\n\n👉 Cliques ici pour commencer à recevoir toi aussi des offres d'emploi sur Whatsapp: 🔗${BOT_WA_LINK}`
 			: ''
 	)
 

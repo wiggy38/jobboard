@@ -24,6 +24,9 @@ type Handler = (cmd: ParsedCommand, db: PrismaClient) => Promise<void>;
 // We normalize again as a safety net, then match the first token only so "VOIR 1" routes to VOIR.
 const ROUTES: Record<string, Handler> = {
   OFFRES: handleOffres,
+  // Payload du bouton quick-reply du template daily_digest_fr, dont le libellé
+  // est "Montres-moi" et non "OFFRES" : un clic doit déclencher un pull normal.
+  'MONTRES-MOI': handleOffres,
   SUITE: handleSuite,      // text "SUITE" and button id "suite" both arrive as SUITE
   VOIR: handleVoir,
   MODIFIER: handleModifier,

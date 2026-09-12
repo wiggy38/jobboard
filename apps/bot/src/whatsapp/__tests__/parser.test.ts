@@ -30,6 +30,24 @@ function buttonPayload(from: string, buttonId: string, title = 'btn') {
   };
 }
 
+function templateButtonPayload(from: string, payload: string, text = payload) {
+  return {
+    entry: [{
+      changes: [{
+        value: {
+          messages: [{
+            type: 'button',
+            from,
+            id: 'wamid.test',
+            context: { from: '22667735146', id: 'wamid.template' },
+            button: { payload, text },
+          }],
+        },
+      }],
+    }],
+  };
+}
+
 const PHONE = '+22670000001';
 
 describe('parseIncoming — messages texte', () => {
@@ -134,6 +152,31 @@ describe('parseIncoming — boutons interactifs', () => {
   it('suite → command SUITE', () => {
     const result = parseIncoming(buttonPayload(PHONE, 'suite', 'Suite'));
     expect(result?.command).toBe('SUITE');
+  });
+});
+
+describe('parseIncoming — boutons quick-reply de template (type "button")', () => {
+  it('extrait button.payload — format distinct des boutons interactifs', () => {
+    expect(parseIncoming(templateButtonPayload(PHONE, 'Montres-moi'))).toEqual({
+      userId: PHONE,
+      command: 'MONTRES-MOI',
+      raw: 'Montres-moi',
+    });
+  });
+
+  it('un payload OFFRES route comme la commande texte équivalente', () => {
+    expect(parseIncoming(templateButtonPayload(PHONE, 'OFFRES'))?.command).toBe('OFFRES');
+  });
+
+  it('sans button.payload → null plutôt qu\'un crash', () => {
+    const payload = {
+      entry: [{
+        changes: [{
+          value: { messages: [{ type: 'button', from: PHONE, id: 'wamid.test' }] },
+        }],
+      }],
+    };
+    expect(parseIncoming(payload)).toBeNull();
   });
 });
 

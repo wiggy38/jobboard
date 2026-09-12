@@ -44,8 +44,15 @@ Monorepo pnpm. Trois briques principales :
    (`sendPaidTemplate(..., [])` dans `apps/bot/src/services/dailyDigest.ts` — voir le test
    `apps/bot/src/services/__tests__/dailyDigest.test.ts`) — le message n'indique même pas le
    nombre d'offres matchées ce jour ; pas de lien web ni de token — le template a un simple
-   bouton **quick-reply "OFFRES"** ; pour
-   consulter le détail, l'utilisateur tape la commande `OFFRES` comme pour un pull classique. Le
+   bouton **quick-reply libellé "Montres-moi"** (et non "OFFRES" — corrigé le 2026-09-12 après
+   vérification du payload réel reçu de Meta). Un clic envoie un webhook de type **`button`**
+   (`msg.button.payload === 'Montres-moi'`), format **distinct** des boutons d'un message
+   interactif (`type: "interactive"` + `interactive.button_reply.id`) : les deux sont gérés
+   séparément dans `apps/bot/src/whatsapp/parser.ts`, et `'MONTRES-MOI'` est routé vers
+   `handleOffres` dans `apps/bot/src/commands/router.ts`. Ne jamais supposer qu'un bouton de
+   template arrive en `type: "interactive"` — son omission a fait disparaître silencieusement
+   tous les clics sur le digest jusqu'au 2026-09-12. L'utilisateur peut aussi taper la commande
+   `OFFRES` comme pour un pull classique. Le
    design initial (bouton URL dynamique via `generateDigestToken`/`buildDigestUrlSuffix`, route
    `GET /api/digest/:pullDeliveryId`, page `apps/backoffice/src/routes/digest/[token]/+page.svelte`)
    n'a **jamais été implémenté** et a été abandonné (décision 2026-09-11) — ces fonctions/route/page

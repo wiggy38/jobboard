@@ -42,6 +42,16 @@ export function parseIncoming(webhookBody: unknown): ParsedCommand | null {
     return { userId, ...splitReferral(raw), raw, country };
   }
 
+  // Bouton quick-reply d'un TEMPLATE (ex. daily_digest_fr) : Meta l'envoie sous
+  // `type: "button"` + `button.payload`, et non sous `type: "interactive"` +
+  // `interactive.button_reply.id` comme les boutons d'un message interactif. Les
+  // deux formats coexistent et sont faciles à confondre — leur omission ici a
+  // fait disparaître silencieusement tous les clics sur le digest quotidien.
+  if (msg.type === 'button' && typeof msg.button?.payload === 'string') {
+    const raw: string = msg.button.payload;
+    return { userId, ...splitReferral(raw), raw, country };
+  }
+
   // delivery status, reaction, or unsupported type — ignore
   return null;
 }

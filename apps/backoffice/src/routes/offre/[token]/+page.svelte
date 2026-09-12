@@ -189,14 +189,18 @@
 			</div>
 		{:else if offer}
 			<div class="promo-zone promo-zone-top">
-				<ins
-					class="adsbygoogle"
+				<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8406000170439705"
+					crossorigin="anonymous"></script>
+				<!-- Offer-page-display-1 -->
+				<ins class="adsbygoogle"
 					style="display:block"
 					data-ad-client="ca-pub-8406000170439705"
-					data-ad-slot="4200043925"
+					data-ad-slot="2567292850"
 					data-ad-format="auto"
-					data-full-width-responsive="true"
-				></ins>
+					data-full-width-responsive="true"></ins>
+				<script>
+					(adsbygoogle = window.adsbygoogle || []).push({});
+				</script>
 			</div>
 
 			<article class="offer">
@@ -291,7 +295,18 @@
 
 				<!-- PARTENAIRE -->
 				<div class="promo-zone promo-zone-inline">
-					<span class="promo-zone-label">Partenaire</span>
+					<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8406000170439705"
+						crossorigin="anonymous"></script>
+					<!-- Offer-page-display -->
+					<ins class="adsbygoogle"
+						style="display:block"
+						data-ad-client="ca-pub-8406000170439705"
+						data-ad-slot="4200043925"
+						data-ad-format="auto"
+						data-full-width-responsive="true"></ins>
+					<script>
+						(adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
 				</div>
 
 				<!-- EXIGENCES -->

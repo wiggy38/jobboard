@@ -59,12 +59,19 @@
 		if (offer) ensureShortUrl()
 	})
 
-	// Déclenche le rendu de l'unité AdSense de promo-zone-top une fois l'offre
-	// chargée — le script adsbygoogle.js est chargé globalement dans app.html.
+	// Déclenche le rendu des unités AdSense une fois l'offre chargée — le script
+	// adsbygoogle.js est chargé globalement dans app.html (un seul loader par
+	// page). Un push({}) par <ins> présent, une seule fois : un push en trop
+	// déclenche une TagError « All ins elements … already have ads in them »
+	// qui casse le rendu des unités suivantes.
+	let adsPushed = false
 	$effect(() => {
-		if (offer && browser) {
+		if (!offer || !browser || adsPushed) return
+		adsPushed = true
+		const w = window as unknown as { adsbygoogle: unknown[] }
+		for (const el of document.querySelectorAll('ins.adsbygoogle')) {
+			if (el.getAttribute('data-adsbygoogle-status')) continue
 			try {
-				const w = window as unknown as { adsbygoogle: unknown[] }
 				;(w.adsbygoogle = w.adsbygoogle || []).push({})
 			} catch {}
 		}
@@ -189,8 +196,6 @@
 			</div>
 		{:else if offer}
 			<div class="promo-zone promo-zone-top">
-				<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8406000170439705"
-					crossorigin="anonymous"></script>
 				<!-- Offer-page-display-1 -->
 				<ins class="adsbygoogle"
 					style="display:block"
@@ -198,9 +203,6 @@
 					data-ad-slot="2567292850"
 					data-ad-format="auto"
 					data-full-width-responsive="true"></ins>
-				<script>
-					(adsbygoogle = window.adsbygoogle || []).push({});
-				</script>
 			</div>
 
 			<article class="offer">
@@ -295,8 +297,6 @@
 
 				<!-- PARTENAIRE -->
 				<div class="promo-zone promo-zone-inline">
-					<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8406000170439705"
-						crossorigin="anonymous"></script>
 					<!-- Offer-page-display -->
 					<ins class="adsbygoogle"
 						style="display:block"
@@ -304,9 +304,6 @@
 						data-ad-slot="4200043925"
 						data-ad-format="auto"
 						data-full-width-responsive="true"></ins>
-					<script>
-						(adsbygoogle = window.adsbygoogle || []).push({});
-					</script>
 				</div>
 
 				<!-- EXIGENCES -->

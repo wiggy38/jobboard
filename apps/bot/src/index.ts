@@ -48,7 +48,12 @@ fastify.post('/webhook/whatsapp', async (req, reply) => {
   }
 
   const parsed = parseIncoming(body);
-  if (!parsed) return;
+  if (!parsed) {
+    console.log('[Webhook] Payload non reconnu:', JSON.stringify(body));
+    return;
+  }
+
+  console.log(`[Webhook] Reçu de ${parsed.userId}: ${JSON.stringify(parsed.raw)}`);
 
   setImmediate(async () => {
     try {

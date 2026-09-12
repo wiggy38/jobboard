@@ -198,6 +198,74 @@ describe('runPipeline', () => {
     })
   })
 
+  describe('quasi-déduplication inter-sources', () => {
+    it('une offre quasi-identique (titre reformulé, même org, même deadline) à une offre déjà en DB est rejetée sans insertion', async () => {
+      const FUTURE_DEADLINE = new Date('2026-12-31T00:00:00.000Z')
+      const nearDuplicateOffer = {
+        title: 'Comptable principal (H/F)',
+        organization: 'Ministere des Finances',
+        city: 'Ouagadougou',
+        sourceUrl: 'https://lefaso.net/spip.php?article789',
+        publishedAt: new Date('2026-06-01T00:00:00.000Z'),
+        deadline: FUTURE_DEADLINE,
+      }
+      mockScraper.scrape.mockResolvedValue({
+        source: 'lefaso',
+        offers: [nearDuplicateOffer],
+        errors: [],
+        scrapedAt: new Date(),
+      })
+
+      const existingOffer = {
+        id: 'existing-job-1',
+        title: 'Comptable Principal',
+        organization: 'Ministère des Finances',
+        country: 'BF',
+        deadline: FUTURE_DEADLINE,
+        publishedAt: new Date('2026-05-20T00:00:00.000Z'),
+      }
+
+      mockPrisma.jobOffer.findMany
+        .mockResolvedValueOnce([]) // seenSourceUrls query
+        .mockResolvedValueOnce([]) // hashes query — pas de doublon exact
+        .mockResolvedValueOnce([existingOffer]) // candidats quasi-dédup (country + fenêtre deadline)
+        .mockResolvedValueOnce([]) // TTL candidates
+      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 0 })
+
+      const result = await runPipeline('lefaso')
+
+      expect(result.totalInserted).toBe(0)
+      expect(result.totalNearDuplicates).toBe(1)
+      expect(mockPrisma.jobOffer.create).not.toHaveBeenCalled()
+
+      // La requête de candidats doit être scopée par pays + fenêtre de deadline,
+      // pas un scan complet de la table.
+      const nearDupCall = mockPrisma.jobOffer.findMany.mock.calls[2][0]
+      expect(nearDupCall.where.country).toEqual({ in: ['BF'] })
+      expect(nearDupCall.where.deadline).toBeDefined()
+    })
+
+    it('une offre sans quasi-doublon est insérée normalement', async () => {
+      mockScraper.scrape.mockResolvedValue({
+        source: 'lefaso',
+        offers: [SAMPLE_OFFER],
+        errors: [],
+        scrapedAt: new Date(),
+      })
+      mockPrisma.jobOffer.findMany
+        .mockResolvedValueOnce([]) // seenSourceUrls query
+        .mockResolvedValueOnce([]) // hashes query
+        .mockResolvedValueOnce([]) // TTL candidates (pas de deadline sur SAMPLE_OFFER → pas de requête de candidats quasi-dédup)
+      mockPrisma.jobOffer.create.mockResolvedValue({ id: 'job-004' })
+      mockPrisma.jobOffer.updateMany.mockResolvedValue({ count: 0 })
+
+      const result = await runPipeline('lefaso')
+
+      expect(result.totalInserted).toBe(1)
+      expect(result.totalNearDuplicates).toBe(0)
+    })
+  })
+
   describe('expiration TTL', () => {
     it('une offre avec deadline déjà passée n\'est jamais importée', async () => {
       mockScraper.scrape.mockResolvedValue({

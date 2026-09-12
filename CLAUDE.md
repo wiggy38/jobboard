@@ -56,7 +56,29 @@ Monorepo pnpm. Trois briques principales :
    `DAILY_DIGEST` a son **propre plafond mensuel** (31/mois), totalement indépendant du
    `GLOBAL_CAP` marketing ci-dessous (voir règle budget WhatsApp) — ne jamais le faire contribuer
    au `GLOBAL_CAP` partagé par RELANCE/MATCH_PARFAIT/NUDGE_PREMIUM.
-3. **Déduplication** → hash SHA-256 (titre + org + date) avant insertion.
+3. **Déduplication** → hash SHA-256 (titre + org + date) avant insertion (étape [3/6] du
+   pipeline, `apps/scraper/src/pipeline.ts`, calculé sur les champs bruts AVANT l'appel Haiku —
+   voir "Coûts Haiku" plus bas). Ce hash est un match **exact** : il ne détecte pas une même
+   offre republiée sur deux sites différents (ex. un média reprenant une annonce ANPE) quand les
+   deux extractions Haiku indépendantes produisent un titre/organisation légèrement différent
+   ("Recrutement d'un Comptable (H/F)" vs "Comptable"). **Quasi-déduplication inter-sources
+   (résolu 2026-09-12)** — 2e étape ajoutée après l'enrichissement IA (étape [4.5/6], champs déjà
+   nettoyés par Haiku) et avant l'insertion : `apps/scraper/src/lib/deduplicator.ts::
+   findNearDuplicate` compare une offre candidate à un lot de `JobOffer` existantes scopé par
+   `country` + fenêtre de `deadline` (`@@index([country, deadline])` sur `JobOffer`), sur les
+   critères suivants — même `country` (obligatoire) ; similarité de titre (coefficient de Dice
+   sur bigrammes de caractères, `TITLE_SIMILARITY_THRESHOLD = 0.85`) ; organisation similaire
+   (`ORG_SIMILARITY_THRESHOLD = 0.7`) ou l'une des deux vaut "Non précisé" ; **même jour de
+   `deadline`** si les deux offres en ont une — si `deadline` est absente d'un côté ou des deux,
+   ce critère est ignoré (pas de repli sur `publishedAt`, jugée trop peu fiable d'un scraper à
+   l'autre pour servir de signal de date) et le match repose uniquement sur
+   titre+organisation+pays. En cas de match : **rejet silencieux automatique**, symétrique au
+   dédup exact — offre non insérée, comptée dans `totalNearDuplicates`
+   (`PipelineResult`/`ScraperRun.totalNearDuplicates`), tracée en log avec l'id de l'offre
+   existante matchée pour audit a posteriori (pas de flag/queue de revue admin — décision actée
+   pour rester symétrique au comportement du dédup exact). En dry-run, la vérification reste
+   **intra-lot uniquement** (pas d'accès DB), comme le dédup exact, pour préserver l'architecture
+   "dry-run = zéro accès DB, zéro appel IA".
 4. **TTL offres** → sans date de clôture, expiration automatique après 30 jours.
 5. Les templates WhatsApp payants (marketing) sont plafonnés à 3/utilisateur/mois (compteur
    Redis, `GLOBAL_CAP` — voir exception `DAILY_DIGEST` règle 2 ci-dessus, budgété séparément)

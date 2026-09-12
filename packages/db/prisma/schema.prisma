@@ -202,6 +202,7 @@ model ScraperRun {
   totalScraped    Int               @default(0)
   totalInserted   Int               @default(0)
   totalDuplicates Int               @default(0)
+  totalNearDuplicates Int           @default(0)
   totalExpired    Int               @default(0)
   totalErrors     Int               @default(0)
   duration        Int               @default(0)   // ms
@@ -260,6 +261,10 @@ model JobOffer {
   @@index([hash])
   @@index([sourceId])
   @@index([status])
+  // Support la requête de candidats à la quasi-déduplication inter-sources
+  // (apps/scraper/src/lib/deduplicator.ts::findNearDuplicate), scopée par
+  // pays + deadline plutôt qu'un scan complet de la table.
+  @@index([country, deadline])
 }
 
 // Short link généré au partage d'une offre (bouton "Partager avec un ami" sur

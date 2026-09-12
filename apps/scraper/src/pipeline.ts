@@ -2,7 +2,7 @@ import { PrismaClient, JobOfferStatus, ScraperRunStatus, ContractType as PrismaC
 import { RawJobOffer, SETTING_KEYS } from '@tumaa/shared'
 import { normalizeWithAIBatch } from './lib/normalizer'
 import { expireStaleOffers } from './lib/expireOffers'
-import { createHash } from './lib/deduplicator'
+import { createHash, findNearDuplicate, NearDuplicateCandidate } from './lib/deduplicator'
 import { endOfDay } from './lib/ai-extractor'
 import { info, warn, error as logError, success } from './lib/logger'
 import { sendMail } from './lib/mailer'
@@ -23,6 +23,7 @@ export interface PipelineResult {
   totalScraped: number
   totalInserted: number
   totalDuplicates: number
+  totalNearDuplicates: number
   totalExpired: number
   totalErrors: number
   duration: number
@@ -38,6 +39,7 @@ async function recordRun(params: {
   totalScraped?: number
   totalInserted?: number
   totalDuplicates?: number
+  totalNearDuplicates?: number
   totalExpired?: number
   totalErrors?: number
   duration: number
@@ -52,6 +54,7 @@ async function recordRun(params: {
         totalScraped: params.totalScraped ?? 0,
         totalInserted: params.totalInserted ?? 0,
         totalDuplicates: params.totalDuplicates ?? 0,
+        totalNearDuplicates: params.totalNearDuplicates ?? 0,
         totalExpired: params.totalExpired ?? 0,
         totalErrors: params.totalErrors ?? 0,
         duration: params.duration,
@@ -115,6 +118,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
           totalScraped: 0,
           totalInserted: 0,
           totalDuplicates: 0,
+          totalNearDuplicates: 0,
           totalExpired: 0,
           totalErrors: 0,
           duration,
@@ -187,6 +191,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
   let totalInserted = 0
   let totalDuplicates = 0
+  let totalNearDuplicates = 0
   let totalExpired = 0
   let totalErrors = result.errors.length
 
@@ -211,12 +216,36 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
 
   if (dryRun) {
     const seen = new Set<string>()
-    for (const { hash } of withHash) {
-      if (seen.has(hash)) totalDuplicates++
-      else seen.add(hash)
+    const accepted: NearDuplicateCandidate[] = []
+    for (const { offer, hash } of withHash) {
+      if (seen.has(hash)) {
+        totalDuplicates++
+        continue
+      }
+      seen.add(hash)
+
+      // Quasi-dédup : intra-lot uniquement en dry-run (pas d'accès DB), pour
+      // ne pas casser l'architecture "dry-run = zéro accès DB, zéro appel IA".
+      const near = findNearDuplicate(offer, accepted)
+      if (near) {
+        totalNearDuplicates++
+        continue
+      }
+      accepted.push({
+        id: hash,
+        title: offer.title,
+        organization: offer.organization,
+        country: offer.country ?? '',
+        deadline: offer.deadline,
+        publishedAt: offer.publishedAt,
+      })
     }
-    totalInserted = withHash.length - totalDuplicates
-    info(SOURCE, `[dry-run] Would insert ${totalInserted} offers, ${totalDuplicates} in-batch duplicates, ${totalExpired} skipped (deadline passée)`)
+    totalInserted = accepted.length
+    info(
+      SOURCE,
+      `[dry-run] Would insert ${totalInserted} offers, ${totalDuplicates} in-batch duplicates, ` +
+        `${totalNearDuplicates} in-batch near-duplicates, ${totalExpired} skipped (deadline passée)`
+    )
 
     const duration = Date.now() - startTime
     const pipelineResult: PipelineResult = {
@@ -224,6 +253,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       totalScraped: stampedOffers.length,
       totalInserted,
       totalDuplicates,
+      totalNearDuplicates,
       totalExpired,
       totalErrors,
       duration,
@@ -265,8 +295,59 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
             newRaw.map(({ offer }) => computeScoreConfidence(offer))
           ).then(normalized => newRaw.map(({ hash }, i) => ({ offer: normalized[i], hash })))
 
+    // ÉTAPE 4.5 — Quasi-déduplication inter-sources (post-IA)
+    // Le hash de l'étape 3 est un match EXACT sur les champs bruts — deux
+    // extractions Haiku indépendantes (une par scraper) sur la même annonce
+    // réelle produisent souvent un titre/organisation légèrement différent,
+    // donc deux hash distincts. On compare ici les offres normalisées
+    // (titre déjà nettoyé par l'IA) à un lot de candidats DB scopé par pays +
+    // deadline (index dédié, cf. schema.prisma) plutôt qu'un scan complet.
+    info(SOURCE, `[4.5/6] Checking cross-source near-duplicates...`)
+    const dedupedOffers: typeof newOffers = []
+    if (newOffers.length > 0) {
+      const countries = [...new Set(newOffers.map(({ offer }) => offer.country))]
+      const deadlines = newOffers.map(({ offer }) => offer.deadline).filter((d): d is Date => d != null)
+      const candidates: NearDuplicateCandidate[] =
+        deadlines.length === 0
+          ? []
+          : await prisma.jobOffer.findMany({
+              where: {
+                country: { in: countries },
+                deadline: {
+                  gte: new Date(Math.min(...deadlines.map(d => d.getTime()))),
+                  lte: new Date(Math.max(...deadlines.map(d => d.getTime()))),
+                },
+              },
+              select: { id: true, title: true, organization: true, country: true, deadline: true, publishedAt: true },
+            })
+
+      const acceptedThisRun: NearDuplicateCandidate[] = []
+      for (const entry of newOffers) {
+        const { offer, hash } = entry
+        const near = findNearDuplicate(offer, candidates) ?? findNearDuplicate(offer, acceptedThisRun)
+        if (near) {
+          totalNearDuplicates++
+          warn(SOURCE, `Near-duplicate skipped: "${offer.title}" matches existing offer`, {
+            scraperName,
+            newHash: hash,
+            matchedOfferId: near.id,
+          })
+          continue
+        }
+        acceptedThisRun.push({
+          id: hash,
+          title: offer.title,
+          organization: offer.organization,
+          country: offer.country,
+          deadline: offer.deadline,
+          publishedAt: offer.publishedAt,
+        })
+        dedupedOffers.push(entry)
+      }
+    }
+
     // ÉTAPE 5 — Insertion DB
-    info(SOURCE, `[5/6] Inserting ${newOffers.length} offers...`)
+    info(SOURCE, `[5/6] Inserting ${dedupedOffers.length} offers...`)
 
     // Upsert de la source (création auto si elle n'existe pas)
     const sourceRecord = await prisma.source.upsert({
@@ -282,7 +363,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     })
     sourceId = sourceRecord.id
 
-    for (const { offer, hash } of newOffers) {
+    for (const { offer, hash } of dedupedOffers) {
       try {
         await prisma.jobOffer.create({
           data: {
@@ -375,6 +456,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
         totalScraped: stampedOffers.length,
         totalInserted,
         totalDuplicates,
+        totalNearDuplicates,
         totalExpired,
         totalErrors: totalErrors + 1,
         duration,
@@ -392,6 +474,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
     totalScraped: stampedOffers.length,
     totalInserted,
     totalDuplicates,
+    totalNearDuplicates,
     totalExpired,
     totalErrors,
     duration,
@@ -403,6 +486,7 @@ export async function runPipeline(scraperName: string, dryRun = false): Promise<
       totalScraped: stampedOffers.length,
       totalInserted,
       totalDuplicates,
+      totalNearDuplicates,
       totalExpired,
       totalErrors,
       duration,

@@ -52,7 +52,13 @@ Monorepo pnpm. Trois briques principales :
    `handleOffres` dans `apps/bot/src/commands/router.ts`. Ne jamais supposer qu'un bouton de
    template arrive en `type: "interactive"` — son omission a fait disparaître silencieusement
    tous les clics sur le digest jusqu'au 2026-09-12. L'utilisateur peut aussi taper la commande
-   `OFFRES` comme pour un pull classique. Le
+   `OFFRES` comme pour un pull classique. **Offres nouvelles uniquement (2026-09-13)** : le
+   digest n'est envoyé que si au moins une offre matchée n'a jamais figuré dans une
+   `PullDelivery` de l'utilisateur (`OFFRES`/`SUITE`/`DAILY_DIGEST` — une offre déjà annoncée par
+   un digest précédent compte comme livrée), via
+   `apps/bot/src/services/matching.ts::filterUndeliveredOffers` ; sinon l'abonné est `skipped`.
+   Le `PullDelivery` `DAILY_DIGEST` enregistre toujours toutes les offres matchées, pas seulement
+   les nouvelles. Le
    design initial (bouton URL dynamique via `generateDigestToken`/`buildDigestUrlSuffix`, route
    `GET /api/digest/:pullDeliveryId`, page `apps/backoffice/src/routes/digest/[token]/+page.svelte`)
    n'a **jamais été implémenté** et a été abandonné (décision 2026-09-11) — ces fonctions/route/page

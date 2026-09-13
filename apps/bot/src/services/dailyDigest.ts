@@ -1,5 +1,5 @@
 import { PrismaClient, UserPlan } from '@prisma/client';
-import { getMatchedOffers } from './matching';
+import { filterUndeliveredOffers, getMatchedOffers } from './matching';
 import { recordPullDelivery } from './pull';
 import { sendPaidTemplate } from './templateGate';
 
@@ -8,8 +8,11 @@ import { sendPaidTemplate } from './templateGate';
 // OFFRES/SUITE, n'utilise jamais session:{userId}:offset (pas de pagination
 // à préserver, c'est une sélection figée du jour, pas une session interactive).
 // Template `daily_digest_fr` approuvé par Meta : corps 100% statique (pas de
-// variable), avec un bouton quick-reply "OFFRES" qui redéclenche directement
+// variable), avec un bouton quick-reply "Montres-moi" qui redéclenche directement
 // le flow OFFRES existant côté router (aucun lien web / token nécessaire).
+// Le digest n'est envoyé que s'il existe au moins une offre matchée NOUVELLE, c.-à-d.
+// jamais présente dans une PullDelivery de l'utilisateur (OFFRES/SUITE/DAILY_DIGEST) —
+// pas de template payant pour relancer sur des offres déjà vues ou déjà annoncées.
 const MESSAGE_DELAY_MS = 800;
 const TEMPLATE_NAME = 'daily_digest_fr';
 
@@ -60,7 +63,9 @@ export async function postDailyDigests(db: PrismaClient): Promise<DailyDigestRes
     const plan = user.plan as UserPlan;
     const offers = await getMatchedOffers(db, user.id, plan, user.profile, user.countries);
 
-    if (offers.length === 0) {
+    const newOffers = await filterUndeliveredOffers(db, user.id, offers);
+
+    if (newOffers.length === 0) {
       skipped++;
       continue;
     }
@@ -68,9 +73,11 @@ export async function postDailyDigests(db: PrismaClient): Promise<DailyDigestRes
     // Log analytique des offres livrées ce jour-là — indépendant du template
     // envoyé, conservé pour le suivi/matching même si le corps du message ne
     // référence plus cet id (plus de lien web depuis le retrait du bouton URL).
+    // Toutes les offres matchées (pas seulement les nouvelles) sont enregistrées :
+    // elles comptent ainsi comme déjà annoncées pour les digests suivants.
     await recordPullDelivery(user.id, 'DAILY_DIGEST', offers.map((o) => o.id), plan);
 
-    // Corps et bouton "OFFRES" sont statiques côté template Meta — aucun
+    // Corps et bouton "Montres-moi" sont statiques côté template Meta — aucun
     // paramètre dynamique à envoyer.
     const result = await sendPaidTemplate(
       user.phone,

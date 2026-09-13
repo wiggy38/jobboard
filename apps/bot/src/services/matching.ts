@@ -65,3 +65,25 @@ export async function getMatchedOffers(
   const offerMap = new Map(prismaOffers.map((o) => [o.id, o]));
   return matchResults.map((r) => offerMap.get(r.jobId)!).filter(Boolean);
 }
+
+// Retire les offres déjà présentes dans une PullDelivery de l'utilisateur, quelle que
+// soit la commande (OFFRES/SUITE = affichées, DAILY_DIGEST = déjà annoncées par un
+// digest précédent). Préserve l'ordre (score) de la liste d'entrée.
+export async function filterUndeliveredOffers<T extends { id: string }>(
+  db: PrismaClient,
+  userId: string,
+  offers: T[],
+): Promise<T[]> {
+  if (offers.length === 0) return [];
+
+  const delivered = await db.jobOffer.findMany({
+    where: {
+      id: { in: offers.map((o) => o.id) },
+      pullDeliveries: { some: { userId } },
+    },
+    select: { id: true },
+  });
+
+  const deliveredIds = new Set(delivered.map((o) => o.id));
+  return offers.filter((o) => !deliveredIds.has(o.id));
+}

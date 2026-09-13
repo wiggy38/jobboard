@@ -1,10 +1,10 @@
 import { postDailyDigests } from '../dailyDigest';
 
-jest.mock('../matching', () => ({ getMatchedOffers: jest.fn() }));
+jest.mock('../matching', () => ({ getMatchedOffers: jest.fn(), filterUndeliveredOffers: jest.fn() }));
 jest.mock('../pull', () => ({ recordPullDelivery: jest.fn() }));
 jest.mock('../templateGate', () => ({ sendPaidTemplate: jest.fn() }));
 
-const { getMatchedOffers } = require('../matching');
+const { getMatchedOffers, filterUndeliveredOffers } = require('../matching');
 const { recordPullDelivery } = require('../pull');
 const { sendPaidTemplate } = require('../templateGate');
 
@@ -42,6 +42,8 @@ beforeEach(() => {
   process.env.WEB_BASE_URL = 'https://tumaa.bf';
   sendPaidTemplate.mockResolvedValue({ sent: true });
   recordPullDelivery.mockResolvedValue({ id: 'delivery-1' });
+  // Par défaut, aucune offre n'a encore été livrée : toutes sont nouvelles.
+  filterUndeliveredOffers.mockImplementation(async (_db: any, _userId: string, offers: any[]) => offers);
 });
 
 afterEach(() => {
@@ -75,6 +77,31 @@ describe('postDailyDigests', () => {
     expect(sendPaidTemplate).not.toHaveBeenCalled();
     expect(recordPullDelivery).not.toHaveBeenCalled();
     expect(result).toEqual({ sent: 0, skipped: 1, blocked: 0 });
+  });
+
+  it('skip un user dont toutes les offres matchées ont déjà été livrées/annoncées', async () => {
+    getMatchedOffers.mockResolvedValueOnce([makeOffer('o1'), makeOffer('o2')]);
+    filterUndeliveredOffers.mockResolvedValueOnce([]);
+    const db = makeDb([makeUser()]);
+
+    const result = await run(db);
+
+    expect(filterUndeliveredOffers).toHaveBeenCalledWith(db, 'user-1', [makeOffer('o1'), makeOffer('o2')]);
+    expect(sendPaidTemplate).not.toHaveBeenCalled();
+    expect(recordPullDelivery).not.toHaveBeenCalled();
+    expect(result).toEqual({ sent: 0, skipped: 1, blocked: 0 });
+  });
+
+  it('envoie dès qu\'au moins une offre est nouvelle, et enregistre toutes les offres matchées', async () => {
+    getMatchedOffers.mockResolvedValueOnce([makeOffer('o1'), makeOffer('o2')]);
+    filterUndeliveredOffers.mockResolvedValueOnce([makeOffer('o2')]);
+    const db = makeDb([makeUser()]);
+
+    const result = await run(db);
+
+    expect(recordPullDelivery).toHaveBeenCalledWith('user-1', 'DAILY_DIGEST', ['o1', 'o2'], 'PREMIUM');
+    expect(sendPaidTemplate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 1, skipped: 0, blocked: 0 });
   });
 
   it("enregistre le PullDelivery AVANT l'envoi, puis notifie avec le template statique daily_digest_fr (pas de paramètre)", async () => {

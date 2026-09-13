@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/state'
 	import { browser } from '$app/environment'
 	import type { PageData } from './$types'
 
@@ -17,7 +16,6 @@
 	const BOT_WA_LINK = `https://wa.me/${BOT_PHONE}?text=OFFRES`
 
 	let shareCopied = $state(false)
-	let shortUrl = $state<string | null>(null)
 
 	function trackSourceClick() {
 		fetch(`${data.apiBase}/api/offre/${data.jobId}/click?t=${data.jwt}`, {
@@ -32,30 +30,6 @@
 			keepalive: true,
 		}).catch(() => {})
 	}
-
-	async function ensureShortUrl(): Promise<string> {
-		if (shortUrl) return shortUrl
-		try {
-			const res = await fetch(`${data.apiBase}/api/offre/${data.jobId}/shortlink?t=${data.jwt}`, {
-				method: 'POST',
-			})
-			if (res.ok) {
-				const body: { shortUrl: string } = await res.json()
-				shortUrl = body.shortUrl
-				return shortUrl
-			}
-		} catch {
-			// réseau indisponible — on retombe sur l'URL complète
-		}
-		return page.url.href
-	}
-
-	// Prépare le short link dès que l'offre est chargée, pour que le lien
-	// "Partager sur WhatsApp" du footer (un <a href>, pas un clic asynchrone)
-	// pointe déjà vers l'URL courte au moment où l'utilisateur clique dessus.
-	$effect(() => {
-		if (offer) ensureShortUrl()
-	})
 
 	// Déclenche le rendu des unités AdSense une fois l'offre chargée — le script
 	// adsbygoogle.js est chargé globalement dans app.html (un seul loader par
@@ -77,13 +51,12 @@
 
 	const shareMessage = $derived(
 		offer
-			? `Recherche d'emploi par IA:\n\n${offer.title} — ${offer.organization} (${offer.city})\n${shortUrl ?? page.url.href}\n\nOffre envoyée par Tumaa IA 🤖\n\n👉 Cliques ici pour commencer à recevoir toi aussi des offres d'emploi sur Whatsapp: 🔗${BOT_WA_LINK}`
+			? `Recherche d'emploi par IA:\n\n${offer.title} — ${offer.organization} (${offer.city})\n\nOffre envoyée par Tumaa IA 🤖\n\n👉 Cliques ici pour commencer à recevoir toi aussi des offres d'emploi sur Whatsapp: 🔗${BOT_WA_LINK}`
 			: ''
 	)
 
 	async function shareOffer() {
 		if (!offer) return
-		await ensureShortUrl()
 		const shareData = {
 			title: `${offer.title} — ${offer.organization}`,
 			text: shareMessage,

@@ -116,6 +116,8 @@ async function activateSubscription(userId: string, plan: 'PREMIUM' | 'ELITE'): 
   await applyPlanLimits(prisma, userId, plan as UserPlan)
 }
 
+const ONBOARDING_RECAP_DELAY_MS = 10_000
+
 // Récap envoyé sur WhatsApp une fois le wizard /subscribe/profile terminé
 // (dernière étape pour tous les plans : /api/subscribe/join-channel) —
 // confirme les choix de l'abonné avant qu'il ne tape OFFRES.
@@ -137,7 +139,7 @@ function buildOnboardingRecap(
     lines.push(`🌍 Pays de recherche : *${countries.map((c) => COUNTRY_NAMES[c] ?? c).join(', ')}*`)
   }
 
-  lines.push('', '👉 Tape *OFFRES* pour recevoir tes premières offres !')
+  lines.push('', '👉 Envoie ici le mot *OFFRES* pour recevoir tes premières offres !')
 
   return lines.join('\n')
 }
@@ -289,8 +291,13 @@ export async function subscribeRoutes(fastify: FastifyInstance) {
       create: { userId: user.id, country },
     })
 
+    // Récap envoyé 10 s plus tard, sans bloquer la réponse : l'abonné a le
+    // temps de voir l'écran du canal avant que le message n'arrive sur WhatsApp.
     if (user.profile) {
-      await sendText(user.phone, buildOnboardingRecap(user.plan, user.profile, user.countries))
+      const recap = buildOnboardingRecap(user.plan, user.profile, user.countries)
+      setTimeout(() => {
+        sendText(user.phone, recap).catch((err) => fastify.log.error({ err }, 'Échec envoi récap onboarding'))
+      }, ONBOARDING_RECAP_DELAY_MS)
     }
 
     return reply.send({

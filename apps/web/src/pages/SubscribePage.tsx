@@ -152,7 +152,7 @@ function FreemiumCard({
   if (!token) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-        <h2 className="text-base font-bold text-slate-900 mb-2">🆓 Continuer gratuitement</h2>
+        <h2 className="text-base font-bold text-slate-900 mb-2">🆓 Gratuit</h2>
         <ul className="space-y-2 mb-4 text-left">
           {freemiumFeatures(limits).map((feature) => (
             <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
@@ -166,7 +166,7 @@ function FreemiumCard({
         </p>
         <a
           href={`https://wa.me/${botPhone}?text=${encodeURIComponent('OFFRES')}`}
-          className="block w-full py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-center hover:bg-slate-100 transition-colors duration-200"
+          className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
         >
           Recevoir mes offres sur WhatsApp
         </a>
@@ -177,7 +177,7 @@ function FreemiumCard({
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
       <span className="text-2xl">🆓</span>
-      <h2 className="text-base font-bold text-slate-900 mt-1 mb-2">Continuer gratuitement</h2>
+      <h2 className="text-base font-bold text-slate-900 mt-1 mb-2">Gratuit</h2>
       <ul className="space-y-2 mb-6 text-left">
         {freemiumFeatures(limits).map((feature) => (
           <li key={feature} className="flex items-center gap-3 text-sm text-slate-700">
@@ -189,9 +189,9 @@ function FreemiumCard({
       <button
         type="button"
         onClick={() => navigate(`/profile?t=${token}&plan=FREEMIUM`)}
-        className="block w-full py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-center hover:bg-slate-100 transition-colors duration-200"
+        className="block w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-center transition-colors duration-200"
       >
-        Définir mon profil
+        Commencer gratuitement
       </button>
     </div>
   )

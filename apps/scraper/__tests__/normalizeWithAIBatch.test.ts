@@ -97,6 +97,36 @@ describe('normalizeWithAIBatch — ré-alignement des résultats sur la bonne of
   })
 })
 
+describe('normalizeWithAIBatch — fusion du niveau', () => {
+  it('ne dégrade pas un niveau connu en "Non précisé" retourné par l’IA', async () => {
+    // Niveau issu de la catégorie du site source (ex: afriqueemplois "Niveau BAC+3")
+    const offer = makeOffer({ level: 'BAC+3' })
+    mockAiNormalizeOffers.mockResolvedValueOnce(new Map([[0, { level: 'Non précisé' }]]))
+
+    const result = await normalizeWithAIBatch([offer], [1])
+
+    expect(result[0].level).toBe('BAC+3')
+  })
+
+  it('applique un niveau IA plus précis que la base', async () => {
+    const offer = makeOffer({ level: 'BAC+3' })
+    mockAiNormalizeOffers.mockResolvedValueOnce(new Map([[0, { level: 'BAC+3, BAC+5' }]]))
+
+    const result = await normalizeWithAIBatch([offer], [1])
+
+    expect(result[0].level).toBe('BAC+3, BAC+5')
+  })
+
+  it('applique "Non précisé" quand la base ne connaît aucun niveau', async () => {
+    const offer = makeOffer()
+    mockAiNormalizeOffers.mockResolvedValueOnce(new Map([[0, { level: 'Non précisé' }]]))
+
+    const result = await normalizeWithAIBatch([offer], [1])
+
+    expect(result[0].level).toBe('Non précisé')
+  })
+})
+
 describe('normalizeWithAIBatch — allowedSectors récupéré une seule fois', () => {
   it('appelle getSetting une seule fois pour tout le lot, quel que soit le nombre d’offres', async () => {
     const offers = Array.from({ length: 12 }, (_, i) => makeOffer({ title: `Poste ${i}` }))

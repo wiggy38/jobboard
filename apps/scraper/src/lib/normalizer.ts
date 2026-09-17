@@ -205,8 +205,13 @@ function mergeAIResult(
     // L'IA nettoie l'intitulé du poste (supprime préfixes de recrutement, orga, ville)
     ...(aiResult.title !== undefined ? { title: aiResult.title } : {}),
     // L'IA peut retourner "BAC+3, BAC+5" pour une offre bi-niveau :
-    // dans ce cas on remplace la valeur règle-based qui n'aurait vu qu'un seul niveau
-    ...(aiResult.level !== undefined ? { level: aiResult.level } : {}),
+    // dans ce cas on remplace la valeur règle-based qui n'aurait vu qu'un seul niveau.
+    // En revanche on ne dégrade jamais un niveau déjà connu en "Non précisé"
+    // (ex: niveau fourni par la catégorie du site source, que l'IA n'a pas su
+    // retrouver dans le texte de l'annonce).
+    ...(aiResult.level !== undefined && !(aiResult.level === 'Non précisé' && base.level !== 'Non précisé')
+      ? { level: aiResult.level }
+      : {}),
     // Le secteur est presque toujours inféré par l'IA (rarement extrait par le scraper)
     ...(aiResult.sector !== undefined ? { sector: aiResult.sector } : {}),
     // Le contractType IA prend le dessus si la règle a échoué ("Non précisé")

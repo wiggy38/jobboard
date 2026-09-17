@@ -6,6 +6,11 @@ import { info, warn } from '../../../lib/logger'
 import { extractOffersWithHaiku, parseFlexibleDateText } from '../../../lib/ai-extractor'
 import { isLikelyNotJobOffer } from '../../../lib/content-filter'
 import { prioritizeUnseen } from '../../../lib/pagination'
+import {
+  levelFromCategory,
+  contractTypeFromCategory,
+  descriptionFromPageText,
+} from '../../../lib/afriqueemplois-category'
 
 const BASE_URL = 'https://afriqueemplois.com'
 const API_URL = `${BASE_URL}/api/load-more`
@@ -45,6 +50,9 @@ interface ListingItem {
   pageText: string
   deadline?: Date
   country?: string
+  // Issus de `category_name` — voir lib/afriqueemplois-category.ts
+  level?: string
+  contractType?: string
 }
 
 function sleep(ms: number): Promise<void> {
@@ -131,6 +139,8 @@ export class AfriqueEmploisScraper extends BaseScraper {
         pageText: htmlToText(post.news_description ?? ''),
         deadline,
         country: post.paysIsoCode,
+        level: levelFromCategory(post.category_name),
+        contractType: contractTypeFromCategory(post.category_name),
       })
     }
 
@@ -159,9 +169,9 @@ export class AfriqueEmploisScraper extends BaseScraper {
             city: extracted.city ?? 'Burkina Faso',
             country: item.country,
             sector: extracted.sector,
-            level: extracted.level,
-            contractType: extracted.contractType,
-            description: extracted.description,
+            level: extracted.level ?? item.level,
+            contractType: extracted.contractType ?? item.contractType,
+            description: descriptionFromPageText(item.pageText),
             requirements: extracted.requirements,
             contactEmail: extracted.contactEmail ?? contactEmail,
             contactPhone: extracted.contactPhone,
@@ -183,13 +193,19 @@ export class AfriqueEmploisScraper extends BaseScraper {
       }
     }
 
-    // Offres restantes au-delà du budget Haiku — données de liste uniquement
+    // Offres restantes au-delà du budget Haiku — données de liste uniquement.
+    // Le texte de l'annonce (news_description) est fourni par l'API sans coût
+    // supplémentaire : on le transmet pour que l'enrichissement IA batché du
+    // pipeline puisse en déduire secteur / niveau / contrat / ville.
     for (const item of ordered.slice(HAIKU_LIMIT)) {
       offers.push({
         title: item.title,
         organization: guessOrganizationFromTitle(item.title),
         city: 'Burkina Faso',
         country: item.country,
+        level: item.level,
+        contractType: item.contractType,
+        description: descriptionFromPageText(item.pageText),
         deadline: item.deadline,
         sourceUrl: item.sourceUrl,
       })
